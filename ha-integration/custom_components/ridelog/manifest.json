@@ -6,11 +6,11 @@
     "@renage"
   ],
   "config_flow": true,
-  "documentation": "https://github.com/renage/ridelog",
+  "documentation": "https://github.com/The-ReNaGe/RideLog",
   "icon": "icon.png",
   "requirements": [
     "httpx>=0.24.0"
   ],
-  "version": "1.0.0",
+  "version": "1.0.1",
   "homeassistant": "2024.1.0"
 }

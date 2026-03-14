@@ -7,6 +7,7 @@ import Admin from './pages/Admin';
 import AuthPage from './pages/AuthPage';
 import Planning from './pages/Planning';
 import Dashboard from './pages/Dashboard';
+import version from './version';
 
 // Simple error boundary
 class ErrorBoundary extends React.Component {
@@ -92,7 +93,7 @@ function AppContent({ isAuthenticated, currentUser, onLogout }) {
             </div>
           </div>
           <div className="flex items-center gap-3">
-            <span className="text-xs hidden sm:inline" style={{ color: 'var(--text-3)' }}>v1.0.0</span>
+            <span className="text-xs hidden sm:inline" style={{ color: 'var(--text-3)' }}>v{version}</span>
             {isAuthenticated && currentUser && (
               <button
                 onClick={onLogout}
@@ -201,7 +202,7 @@ function AppContent({ isAuthenticated, currentUser, onLogout }) {
       {/* Footer */}
       <footer style={{ background: 'var(--bg-surface)', borderTop: '1px solid var(--border)' }}>
         <div className="container py-4 text-center text-xs" style={{ color: 'var(--text-3)' }}>
-          RideLog v1.0.0 — Suivi d'entretien open source • {currentUser?.username && `Utilisateur: ${currentUser.display_name}`}
+          RideLog v{version} — Suivi d'entretien open source • {currentUser?.username && `Utilisateur: ${currentUser.display_name}`}
         </div>
       </footer>
     </div>

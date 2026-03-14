@@ -198,3 +198,22 @@ Pour la documentation technique complète (logique de calcul, mapping des interv
 - Ouvre une **issue** pour signaler un bug ou proposer une feature
 - Consulte [claude.md](claude.md) pour la documentation technique détaillée
 - Consulte la doc Swagger sur http://localhost:8000/docs pour explorer l'API
+
+---
+
+# Procédure de changement de version
+
+Pour changer la version du projet (backend, frontend, intégration HA, README) :
+
+1. Modifie le fichier `VERSION` à la racine du projet.
+2. Exécute la commande suivante à la racine :
+   ```bash
+   node update-version.js
+   ```
+   Toutes les versions dans le code et la documentation seront mises à jour automatiquement (backend, frontend, Home Assistant, etc.).
+3. Rebuild le frontend (`npm run build` ou via Docker) et redémarre les conteneurs si besoin.
+
+**Notes :**
+- Le frontend lit la version depuis `src/version.js`, généré automatiquement.
+- Le script n'est pas lancé automatiquement par Docker : exécute-le avant chaque build.
+- Une vérification automatique est faite par CI : si des fichiers ne sont pas synchronisés avec `VERSION`, le workflow échouera.

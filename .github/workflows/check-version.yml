@@ -1,0 +1,31 @@
+name: Check version sync
+
+on:
+  push:
+    branches: [ main, master ]
+  pull_request:
+    branches: [ main, master ]
+
+jobs:
+  check-version:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '18'
+      - name: Run update-version.js
+        run: |
+          node update-version.js
+      - name: Check for unstaged changes
+        run: |
+          if [[ -n $(git status --porcelain) ]]; then
+            echo "❌ Des fichiers ne sont pas à jour avec VERSION. Exécutez node update-version.js et validez les changements."
+            git status
+            git --no-pager diff
+            exit 1
+          else
+            echo "✅ Toutes les versions sont synchronisées."
+          fi

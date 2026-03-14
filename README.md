@@ -1,9 +1,17 @@
-# RideLog v1.0.0 🚗🆵️
+<img src="docs/screenshots/RideLog.png" alt="RideLog Logo" width="160" align="left"/>
+<br clear="left"/>
 
-> Application self-hosted de suivi d'entretien de véhicules, consommation de carburant et planification de maintenance.
+## Description
+
+**RideLog** est une application self-hosted de suivi d'entretien de véhicules.
+Gardez un œil sur vos kilométrages, planifiez vos maintenances, suivez votre consommation de carburant et recevez des rappels automatiques — le tout hébergé chez vous, sans dépendance cloud.
+
+Conçu pour les particuliers passionnés comme pour les petits parcs de véhicules, RideLog supporte voitures et motos avec des plans d'entretien intelligents adaptés à chaque motorisation.
+
+---
 
 <p align="center">
-  <strong>FastAPI</strong> · <strong>React 18</strong> · <strong>SQLite</strong> · <strong>Docker</strong>
+  <img src="docs/screenshots/Accueil.png" alt="Accueil RideLog" width="1800"/>
 </p>
 
 ---
@@ -129,6 +137,10 @@ Webhooks supportés : **Discord** (embed riche).
 
 ## Intégration Home Assistant
 
+<p align="left">
+  <img src="docs/screenshots/homeassistant.png" alt="Intégration Home Assistant" width="400"/>
+</p>
+
 ### Installation
 
 1. Créer le compte HA : **Paramètres → Home Assistant → Créer le compte**
@@ -237,6 +249,19 @@ git checkout -b feat/ma-feature
 docker compose up -d --build
 # ... code, test, commit, push, ouvre une PR
 ```
+
+---
+
+## Stack technique
+
+| Composant | Technologie |
+|---|---|
+| Backend | Python 3.11, FastAPI, SQLAlchemy, SQLite |
+| Frontend | React 18, Vite 5, Tailwind CSS 3 |
+| Auth | JWT HS256 (7 jours), bcrypt, rate limiting progressif |
+| Conteneurs | Docker Compose (backend + nginx) |
+| Données | SQLite dans `./data/ridelog.db` (volume persistant) |
+| Version | RideLog v1.0.1
 
 ---
 
