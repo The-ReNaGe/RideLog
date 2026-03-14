@@ -261,7 +261,7 @@ docker compose up -d --build
 | Auth | JWT HS256 (7 jours), bcrypt, rate limiting progressif |
 | Conteneurs | Docker Compose (backend + nginx) |
 | Données | SQLite dans `./data/ridelog.db` (volume persistant) |
-| Version | RideLog v1.2.0
+| Version | RideLog v1.2.1
 
 ---
 

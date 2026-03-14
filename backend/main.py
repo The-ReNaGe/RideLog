@@ -44,7 +44,7 @@ async def lifespan(app: FastAPI):
 app = FastAPI(
     title="RideLog API",
     description="Application HomeLab de suivi d'entretien véhicules (voitures & motos)",
-    version="1.2.0",
+    version="1.2.1",
     lifespan=lifespan,
     redirect_slashes=False,
     docs_url="/api/docs",

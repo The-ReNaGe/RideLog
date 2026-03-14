@@ -5,15 +5,12 @@ from fastapi import APIRouter, Depends
 from sqlalchemy.orm import Session
 from sqlalchemy import func
 
-from models import Vehicle, Maintenance, FuelLog, User, get_db
+from models import Vehicle, Maintenance, FuelLog, User, VehicleMaintenanceOverride, get_db
 from security import get_current_user
 from maintenance_calculator import MaintenanceCalculator, get_intervention_key
 
 router = APIRouter(tags=["dashboard"])
 calculator = MaintenanceCalculator()
-
-
-# No complex estimation — just use purchase_price
 
 
 @router.get("/dashboard")
@@ -43,15 +40,26 @@ def get_dashboard(
     total_fuel_cost = sum(f.total_cost or 0 for f in all_fuel)
     total_liters = sum(f.liters or 0 for f in all_fuel)
 
+    # Charger tous les overrides d'un coup pour tous les véhicules (1 seule requête)
+    vehicle_ids = [v.id for v in vehicles]
+    all_overrides = db.query(VehicleMaintenanceOverride).filter(
+        VehicleMaintenanceOverride.vehicle_id.in_(vehicle_ids)
+    ).all() if vehicle_ids else []
+
+    # Indexer par vehicle_id → {intervention_key: override}
+    overrides_by_vehicle = {}
+    for o in all_overrides:
+        overrides_by_vehicle.setdefault(o.vehicle_id, {})[o.intervention_key] = o
+
     # Per-vehicle summary with upcoming maintenance status
     overdue_total = 0
     urgent_total = 0
     warning_total = 0
 
-    alert_details = []  # per-vehicle alert breakdown
+    alert_details = []
     vehicle_summaries = []
+
     for v in vehicles:
-        # Get upcoming maintenances
         v_maintenances = [m for m in all_maintenances if m.vehicle_id == v.id]
         last_maintenances = {}
         for m in v_maintenances:
@@ -60,6 +68,9 @@ def get_dashboard(
             if current_last is None or m.execution_date > current_last[0]:
                 last_maintenances[key] = (m.execution_date, m.mileage_at_intervention)
 
+        # Récupérer les overrides de ce véhicule
+        vehicle_overrides = overrides_by_vehicle.get(v.id, {})
+
         upcoming = calculator.get_all_upcoming_maintenances(
             v.vehicle_type, v.current_mileage, last_maintenances,
             v.displacement, v.year, v.registration_date,
@@ -67,6 +78,7 @@ def get_dashboard(
             service_interval_km=v.service_interval_km,
             service_interval_months=v.service_interval_months,
             motorization=v.motorization,
+            overrides=vehicle_overrides,  # ← overrides appliqués
         )
 
         overdue = sum(1 for u in upcoming if u["status"] == "overdue")
@@ -76,7 +88,6 @@ def get_dashboard(
         urgent_total += urgent
         warning_total += warn
 
-        # Per-vehicle alert details
         if overdue > 0:
             alert_details.append({"vehicle_name": v.name, "vehicle_id": v.id, "type": "overdue", "count": overdue})
         if urgent > 0:
@@ -84,12 +95,10 @@ def get_dashboard(
         if warn > 0:
             alert_details.append({"vehicle_name": v.name, "vehicle_id": v.id, "type": "warning", "count": warn})
 
-        # Vehicle cost
         v_maint_cost = sum(m.cost_paid or 0 for m in v_maintenances)
         v_fuel_logs = [f for f in all_fuel if f.vehicle_id == v.id]
         v_fuel_cost = sum(f.total_cost or 0 for f in v_fuel_logs)
 
-        # Health score
         if overdue > 0:
             health = max(0, 20 - overdue * 10)
         elif urgent > 0:
@@ -144,10 +153,8 @@ def get_dashboard(
         key = f.fill_date.strftime("%Y-%m")
         monthly_costs[key] = monthly_costs.get(key, 0) + (f.total_cost or 0)
 
-    # Sort and take last 12
     sorted_months = sorted(monthly_costs.items())[-12:]
 
-    # Total fleet purchase price
     fleet_purchase_price = sum(vs["purchase_price"] or 0 for vs in vehicle_summaries)
 
     return {
