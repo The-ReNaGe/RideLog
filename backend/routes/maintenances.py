@@ -10,7 +10,8 @@ from fastapi.responses import FileResponse
 from sqlalchemy.orm import Session
 
 from maintenance_calculator import MaintenanceCalculator, get_intervention_key
-from models import User, Vehicle, Maintenance, MaintenanceInvoice, get_db
+from models import User, Vehicle, Maintenance, MaintenanceInvoice, VehicleMaintenanceOverride, get_db
+from schemas import IntervalOverrideUpdate
 from security import get_current_user
 from routes import secure_delete
 from reminder_scheduler import clear_notification_logs_for, _check_vehicle_reminders
@@ -27,6 +28,67 @@ ALLOWED_INVOICE_MIME_TYPES = {
 }
 MAX_INVOICE_SIZE_BYTES = 10 * 1024 * 1024
 
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Helpers
+# ─────────────────────────────────────────────────────────────────────────────
+
+def _load_overrides(vehicle_id: int, db: Session) -> dict:
+    """
+    Charge les surcharges d'intervalles pour un véhicule et les retourne
+    sous la forme d'un dict {intervention_key: override_row}.
+    """
+    rows = db.query(VehicleMaintenanceOverride).filter(
+        VehicleMaintenanceOverride.vehicle_id == vehicle_id
+    ).all()
+    return {row.intervention_key: row for row in rows}
+
+
+def _apply_overrides(intervals: dict, overrides: dict) -> dict:
+    """
+    Applique les surcharges sur le dict d'intervalles retourné par le calculateur.
+    Retourne un nouveau dict (ne modifie pas l'original en place).
+    
+    Pour chaque intervention_key qui a un override :
+    - Si is_km_disabled=True  → km_interval = None
+    - Sinon si km_interval défini → km_interval = override.km_interval
+    - Même logique pour months_interval
+    """
+    result = {}
+    for key, info in intervals.items():
+        if not isinstance(info, dict):
+            result[key] = info
+            continue
+
+        override = overrides.get(key)
+        if override is None:
+            result[key] = info
+            continue
+
+        # Copie pour ne pas muter le dict original
+        entry = dict(info)
+
+        if override.is_km_disabled:
+            entry["km_interval"] = None
+        elif override.km_interval is not None:
+            entry["km_interval"] = override.km_interval
+
+        if override.is_months_disabled:
+            entry["months_interval"] = None
+        elif override.months_interval is not None:
+            entry["months_interval"] = override.months_interval
+
+        # Marquer l'item comme personnalisé (pour l'UI)
+        entry["has_override"] = True
+
+        result[key] = entry
+
+    return result
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Endpoints existants (inchangés)
+# ─────────────────────────────────────────────────────────────────────────────
 
 @router.get("/{vehicle_id}/available-interventions")
 def get_available_interventions(
@@ -46,7 +108,6 @@ def get_available_interventions(
     if not vehicle:
         raise HTTPException(status_code=404, detail="Vehicle not found")
 
-    # Get intervals from calculator
     intervals = calculator.get_intervals_for_vehicle(
         vehicle_type, displacement,
         brand=vehicle.brand,
@@ -57,11 +118,9 @@ def get_available_interventions(
     
     result = []
     for intervention_key, interval_info in intervals.items():
-        # Skip non-intervention entries like "description"
         if not isinstance(interval_info, dict) or "name" not in interval_info:
             continue
         
-        # Get prices for the specific category
         prices = interval_info.get("prices", {})
         price_data = prices.get(range_cat, {})
         
@@ -89,13 +148,11 @@ def get_maintenances(
 ):
     """Get maintenance history for a vehicle."""
     if current_user.is_integration_account:
-        # Compte intégration voit toutes les maintenances de tous les véhicules
         vehicle = db.query(Vehicle).filter(Vehicle.id == vehicle_id).first()
     else:
-        # User normal voit ses maintenances uniquement
         vehicle = db.query(Vehicle).filter(
             Vehicle.id == vehicle_id,
-            Vehicle.user_id == current_user.id  # Vérification de propriété
+            Vehicle.user_id == current_user.id
         ).first()
     
     if not vehicle:
@@ -108,7 +165,6 @@ def get_maintenances(
     payload = []
     for maintenance in maintenances:
         item = maintenance.to_dict()
-        # Add invoice download URLs
         for invoice in item.get("invoices", []):
             invoice["download_url"] = f"/vehicles/{vehicle_id}/maintenances/{maintenance.id}/invoices/{invoice['id']}"
         payload.append(item)
@@ -126,7 +182,7 @@ async def create_maintenance(
     """Record a maintenance intervention with up to 10 invoices."""
     vehicle = db.query(Vehicle).filter(
         Vehicle.id == vehicle_id,
-        Vehicle.user_id == current_user.id  # Vérification de propriété
+        Vehicle.user_id == current_user.id
     ).first()
     if not vehicle:
         raise HTTPException(status_code=404, detail="Vehicle not found")
@@ -146,12 +202,10 @@ async def create_maintenance(
             "maintenance_category": form.get("maintenance_category", "scheduled"),
             "other_description": form.get("other_description"),
         }
-        # Get all invoice files (supports multiple)
         invoice_files = form.getlist("invoice_files") if "invoice_files" in form else []
     else:
         data = await request.json()
 
-    # Update vehicle mileage if the intervention mileage is higher
     if data.get("mileage_at_intervention", 0) > vehicle.current_mileage:
         vehicle.current_mileage = data.get("mileage_at_intervention", 0)
 
@@ -159,7 +213,6 @@ async def create_maintenance(
     if isinstance(execution_date, str):
         execution_date = datetime.fromisoformat(execution_date.replace("Z", "+00:00"))
 
-    # Create maintenance record
     maintenance = Maintenance(
         vehicle_id=vehicle_id,
         intervention_type=data.get("intervention_type"),
@@ -172,11 +225,10 @@ async def create_maintenance(
     )
 
     db.add(maintenance)
-    db.flush()  # Get the maintenance ID without committing yet
+    db.flush()
 
-    # Process invoices (max 10)
     processed_count = 0
-    for invoice_file in invoice_files[:10]:  # Limit to 10 files
+    for invoice_file in invoice_files[:10]:
         if not hasattr(invoice_file, "filename") or not invoice_file.filename:
             continue
 
@@ -199,7 +251,6 @@ async def create_maintenance(
         with open(stored_path, "wb") as f:
             f.write(invoice_content)
 
-        # Create MaintenanceInvoice record
         invoice_record = MaintenanceInvoice(
             maintenance_id=maintenance.id,
             filename=safe_name,
@@ -214,17 +265,14 @@ async def create_maintenance(
     db.commit()
     db.refresh(maintenance)
 
-    # Clear notification logs so reminders restart for the next cycle
     clear_notification_logs_for(vehicle_id, maintenance.intervention_type, db)
 
-    # Immediately check and send notifications for this vehicle
     try:
         await _check_vehicle_reminders(vehicle, db)
     except Exception:
         logger.warning("Failed to trigger immediate reminder check for vehicle %s", vehicle_id)
 
     payload = maintenance.to_dict()
-    # Add invoice download URLs
     for invoice in payload.get("invoices", []):
         invoice["download_url"] = f"/vehicles/{vehicle_id}/maintenances/{maintenance.id}/invoices/{invoice['id']}"
     
@@ -239,7 +287,7 @@ async def update_maintenance(
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
-    """Update a maintenance record (execution_date, mileage, cost, notes) and optionally add invoices."""
+    """Update a maintenance record and optionally add invoices."""
     vehicle = db.query(Vehicle).filter(
         Vehicle.id == vehicle_id,
         Vehicle.user_id == current_user.id
@@ -254,11 +302,9 @@ async def update_maintenance(
     if not maintenance:
         raise HTTPException(status_code=404, detail="Maintenance not found")
 
-    # Check if request is FormData (has files) or JSON
     content_type = request.headers.get("content-type", "")
     
     if "multipart/form-data" in content_type:
-        # Handle FormData (with files)
         form = await request.form()
         data = {
             "execution_date": form.get("execution_date"),
@@ -268,11 +314,9 @@ async def update_maintenance(
         }
         invoice_files = form.getlist("invoice_files")
     else:
-        # Handle JSON
         data = await request.json()
         invoice_files = None
 
-    # Update fields
     if "execution_date" in data and data["execution_date"]:
         execution_date = data["execution_date"]
         if isinstance(execution_date, str):
@@ -283,7 +327,6 @@ async def update_maintenance(
         mileage = int(data["mileage_at_intervention"]) if data["mileage_at_intervention"] else 0
         if mileage > 0:
             maintenance.mileage_at_intervention = mileage
-            # Update vehicle mileage if higher
             if mileage > vehicle.current_mileage:
                 vehicle.current_mileage = mileage
 
@@ -294,7 +337,6 @@ async def update_maintenance(
     if "notes" in data:
         maintenance.notes = data.get("notes")
 
-    # Handle new invoice files if provided
     if invoice_files:
         for file in invoice_files:
             if file.filename and file.filename.strip():
@@ -315,7 +357,6 @@ async def update_maintenance(
                     stored_path = INVOICE_STORAGE_DIR / stored_name
                     stored_path.write_bytes(file_data)
                     
-                    # Create invoice record
                     invoice = MaintenanceInvoice(
                         maintenance_id=maintenance.id,
                         filename=safe_name,
@@ -336,17 +377,14 @@ async def update_maintenance(
     db.commit()
     db.refresh(maintenance)
 
-    # Clear notification logs so reminders restart for this intervention
     clear_notification_logs_for(vehicle_id, maintenance.intervention_type, db)
 
-    # Immediately check and send notifications for this vehicle
     try:
         await _check_vehicle_reminders(vehicle, db)
     except Exception:
         logger.warning("Failed to trigger immediate reminder check for vehicle %s", vehicle_id)
 
     payload = maintenance.to_dict()
-    # Add invoice download URLs
     for invoice in payload.get("invoices", []):
         invoice["download_url"] = f"/vehicles/{vehicle_id}/maintenances/{maintenance.id}/invoices/{invoice['id']}"
     
@@ -375,12 +413,10 @@ def delete_maintenance(
     if not maintenance:
         raise HTTPException(status_code=404, detail="Maintenance not found")
 
-    # Delete all associated invoice files
     for invoice in maintenance.invoices:
         if invoice.file_path:
             secure_delete(invoice.file_path)
 
-    # Clear notification logs so reminders restart for the next cycle
     clear_notification_logs_for(vehicle_id, maintenance.intervention_type, db)
 
     db.delete(maintenance)
@@ -431,6 +467,111 @@ def download_maintenance_invoice(
     )
 
 
+# ─────────────────────────────────────────────────────────────────────────────
+# ★ Nouveaux endpoints : surcharges d'intervalles par véhicule ★
+# ─────────────────────────────────────────────────────────────────────────────
+
+@router.get("/{vehicle_id}/interval-overrides")
+def get_interval_overrides(
+    vehicle_id: int,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """Liste toutes les surcharges d'intervalles configurées pour un véhicule."""
+    vehicle = db.query(Vehicle).filter(
+        Vehicle.id == vehicle_id,
+        Vehicle.user_id == current_user.id
+    ).first()
+    if not vehicle:
+        raise HTTPException(status_code=404, detail="Vehicle not found")
+
+    overrides = db.query(VehicleMaintenanceOverride).filter(
+        VehicleMaintenanceOverride.vehicle_id == vehicle_id
+    ).all()
+
+    return [o.to_dict() for o in overrides]
+
+
+@router.put("/{vehicle_id}/interval-overrides/{intervention_key}")
+def upsert_interval_override(
+    vehicle_id: int,
+    intervention_key: str,
+    body: IntervalOverrideUpdate,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """
+    Crée ou met à jour la surcharge d'intervalle pour une intervention donnée.
+    
+    - Passer is_km_disabled=True pour supprimer le critère km
+    - Passer is_months_disabled=True pour supprimer le critère temps
+    - Passer km_interval=5000 pour fixer l'intervalle km à 5000
+    """
+    vehicle = db.query(Vehicle).filter(
+        Vehicle.id == vehicle_id,
+        Vehicle.user_id == current_user.id
+    ).first()
+    if not vehicle:
+        raise HTTPException(status_code=404, detail="Vehicle not found")
+
+    # Upsert : chercher un override existant ou en créer un nouveau
+    override = db.query(VehicleMaintenanceOverride).filter(
+        VehicleMaintenanceOverride.vehicle_id == vehicle_id,
+        VehicleMaintenanceOverride.intervention_key == intervention_key,
+    ).first()
+
+    if override is None:
+        override = VehicleMaintenanceOverride(
+            vehicle_id=vehicle_id,
+            intervention_key=intervention_key,
+        )
+        db.add(override)
+
+    override.km_interval = body.km_interval
+    override.months_interval = body.months_interval
+    override.is_km_disabled = body.is_km_disabled
+    override.is_months_disabled = body.is_months_disabled
+    override.updated_at = datetime.now(timezone.utc)
+
+    db.commit()
+    db.refresh(override)
+
+    return override.to_dict()
+
+
+@router.delete("/{vehicle_id}/interval-overrides/{intervention_key}")
+def delete_interval_override(
+    vehicle_id: int,
+    intervention_key: str,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """Supprime la surcharge d'intervalle → revient aux valeurs par défaut du JSON."""
+    vehicle = db.query(Vehicle).filter(
+        Vehicle.id == vehicle_id,
+        Vehicle.user_id == current_user.id
+    ).first()
+    if not vehicle:
+        raise HTTPException(status_code=404, detail="Vehicle not found")
+
+    override = db.query(VehicleMaintenanceOverride).filter(
+        VehicleMaintenanceOverride.vehicle_id == vehicle_id,
+        VehicleMaintenanceOverride.intervention_key == intervention_key,
+    ).first()
+
+    if not override:
+        raise HTTPException(status_code=404, detail="Override not found")
+
+    db.delete(override)
+    db.commit()
+
+    return {"detail": "Override deleted, reverted to default interval"}
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# _compute_upcoming — modifié pour appliquer les overrides
+# ─────────────────────────────────────────────────────────────────────────────
+
 def _compute_upcoming(vehicle: Vehicle, db: Session) -> dict:
     """Compute upcoming maintenances for a vehicle (internal, no auth check)."""
     last_maintenances = {}
@@ -443,6 +584,9 @@ def _compute_upcoming(vehicle: Vehicle, db: Session) -> dict:
         if current_last is None or maintenance.execution_date > current_last[0]:
             last_maintenances[key] = (maintenance.execution_date, maintenance.mileage_at_intervention)
 
+    # ── Charger les surcharges et les appliquer sur les intervalles ──
+    overrides = _load_overrides(vehicle.id, db)
+
     upcoming = calculator.get_all_upcoming_maintenances(
         vehicle.vehicle_type,
         vehicle.current_mileage,
@@ -454,6 +598,7 @@ def _compute_upcoming(vehicle: Vehicle, db: Session) -> dict:
         service_interval_km=vehicle.service_interval_km,
         service_interval_months=vehicle.service_interval_months,
         motorization=vehicle.motorization,
+        overrides=overrides,  # ← nouveau paramètre
     )
 
     maintenance_category = calculator.get_maintenance_category(
@@ -521,10 +666,8 @@ def get_recommendations(
 
     recommendations = []
 
-    # Check age
     vehicle_age = datetime.now(timezone.utc).year - vehicle.year
     if vehicle_age > 10:
-        # Check if timing belt ever recorded
         timings = db.query(Maintenance).filter(
             Maintenance.vehicle_id == vehicle_id,
             Maintenance.intervention_type.ilike("%timing%")
@@ -536,7 +679,6 @@ def get_recommendations(
                 "message": f"Ce véhicule a {vehicle_age} ans. Aucun remplacement de courroie de distribution enregistré. C'est une intervention critique. Vérifiez l'historique d'entretien.",
             })
 
-    # Check for upcoming urgent maintenances
     upcoming_response = _compute_upcoming(vehicle, db)
     upcoming = upcoming_response["upcoming"]
 
@@ -548,7 +690,6 @@ def get_recommendations(
             "message": f"Plusieurs entretiens urgents détectés ({urgent_count} interventions). Envisagez de les regrouper pour réduire les coûts de main-d'œuvre. Total estimé : {costs:.0f} €.",
         })
 
-    # Check overdue
     overdue_count = sum(1 for u in upcoming if u["status"] == "overdue")
     if overdue_count > 0:
         recommendations.append({

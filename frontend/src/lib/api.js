@@ -1,7 +1,5 @@
 import axios from 'axios';
 
-// In production (nginx), all requests go to /api on the same origin.
-// In development (vite dev server), the proxy rewrites /api -> http://backend:8000/api
 const API_BASE = import.meta.env.VITE_API_URL || '/api';
 
 const client = axios.create({
@@ -12,7 +10,6 @@ const client = axios.create({
   timeout: 15000,
 });
 
-// Request interceptor: Ajoute le token JWT dans les headers
 client.interceptors.request.use((config) => {
   const token = localStorage.getItem('access_token');
   if (token) {
@@ -21,15 +18,12 @@ client.interceptors.request.use((config) => {
   return config;
 });
 
-// Global response interceptor for consistent error logs
 client.interceptors.response.use(
   (response) => response,
   (error) => {
-    // Si 401: token expiré ou invalide
     if (error.response?.status === 401) {
       localStorage.removeItem('access_token');
       localStorage.removeItem('user');
-      // Redirige vers login (implémenté dans App.jsx)
       window.dispatchEvent(new Event('tokenExpired'));
     }
     const msg = error.response?.data?.detail || error.message;
@@ -103,7 +97,7 @@ export const api = {
   getVehicleModels: () => client.get('/vehicle-models'),
 
   // ═══════════════════════════════════════════════════════════════════════
-  // VÉHICULES (nécessite authentification)
+  // VÉHICULES
   // ═══════════════════════════════════════════════════════════════════════
   getVehicles: () => client.get('/vehicles'),
   getVehicle: (id) => client.get(`/vehicles/${id}`),
@@ -111,21 +105,13 @@ export const api = {
   updateVehicle: (id, data) => client.put(`/vehicles/${id}`, data),
   deleteVehicle: (id) => client.delete(`/vehicles/${id}`),
   decodeVin: (vin) => 
-    client.post('/vehicles/decode-vin', null, {
-      params: { vin }
-    }),
+    client.post('/vehicles/decode-vin', null, { params: { vin } }),
   decodeLicensePlate: (plate, vehicle_type_hint) =>
-    client.post('/vehicles/decode-license-plate', null, {
-      params: { plate, vehicle_type_hint }
-    }),
+    client.post('/vehicles/decode-license-plate', null, { params: { plate, vehicle_type_hint } }),
   suggestCategory: (brand, year, vehicle_type, purchase_price) => 
-    client.post('/vehicles/suggest-category', null, {
-      params: { brand, year, vehicle_type, purchase_price }
-    }),
+    client.post('/vehicles/suggest-category', null, { params: { brand, year, vehicle_type, purchase_price } }),
   getBrandServiceDefaults: (brand, displacement) =>
-    client.get('/vehicles/brand-service-defaults', {
-      params: { brand, displacement }
-    }),
+    client.get('/vehicles/brand-service-defaults', { params: { brand, displacement } }),
 
   // Vehicle photo
   uploadVehiclePhoto: (vehicleId, file) => {
@@ -169,6 +155,37 @@ export const api = {
   getAvailableInterventions: (vehicleId, vehicleType, displacement) => 
     client.get(`/vehicles/${vehicleId}/available-interventions?vehicle_type=${vehicleType}&displacement=${displacement || ''}`),
 
+  // ─────────────────────────────────────────────────────────────────────
+  // ★ Surcharges d'intervalles de maintenance par véhicule ★
+  // ─────────────────────────────────────────────────────────────────────
+
+  /**
+   * Liste toutes les surcharges configurées pour un véhicule.
+   */
+  getIntervalOverrides: (vehicleId) =>
+    client.get(`/vehicles/${vehicleId}/interval-overrides`),
+
+  /**
+   * Crée ou met à jour la surcharge pour une intervention donnée.
+   * @param {number} vehicleId
+   * @param {string} interventionKey  - clé technique ex: "fork_service"
+   * @param {object} data
+   *   - km_interval {number|null}       - nouvel intervalle km (null = inchangé)
+   *   - months_interval {number|null}   - nouvel intervalle mois (null = inchangé)
+   *   - is_km_disabled {boolean}        - true = supprimer le critère km
+   *   - is_months_disabled {boolean}    - true = supprimer le critère temps
+   */
+  upsertIntervalOverride: (vehicleId, interventionKey, data) =>
+    client.put(`/vehicles/${vehicleId}/interval-overrides/${interventionKey}`, data),
+
+  /**
+   * Supprime la surcharge → revient aux valeurs par défaut du JSON.
+   */
+  deleteIntervalOverride: (vehicleId, interventionKey) =>
+    client.delete(`/vehicles/${vehicleId}/interval-overrides/${interventionKey}`),
+
+  // ─────────────────────────────────────────────────────────────────────
+
   // Fuel tracking
   getFuelLogs: (vehicleId) => client.get(`/vehicles/${vehicleId}/fuel-logs`),
   createFuelLog: (vehicleId, data) => client.post(`/vehicles/${vehicleId}/fuel-logs`, data),
@@ -178,7 +195,6 @@ export const api = {
 
   // Exports
   getVehicleEstimate: (vehicleId) => client.get(`/vehicles/${vehicleId}/estimate`),
-
   getHaDashboardCard: (vehicleId) => client.get(`/vehicles/${vehicleId}/ha-dashboard-card`),
 
   // Webhooks / Discord
@@ -192,17 +208,10 @@ export const api = {
   // Dashboard
   getDashboard: () => client.get('/dashboard'),
 
-  // Generic request method for flexible API calls
   request: (method, url, data = null, config = {}) => {
-    return client({
-      method,
-      url,
-      data,
-      ...config,
-    });
+    return client({ method, url, data, ...config });
   },
 
-  // Authenticated file download (creates blob + triggers browser download)
   downloadFile: async (url, filename) => {
     const response = await client.get(url, { responseType: 'blob' });
     const blob = new Blob([response.data]);

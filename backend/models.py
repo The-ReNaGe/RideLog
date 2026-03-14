@@ -72,6 +72,7 @@ class Vehicle(Base):
     owner = relationship("User", back_populates="vehicles")
     maintenances = relationship("Maintenance", back_populates="vehicle", cascade="all, delete-orphan")
     fuel_logs = relationship("FuelLog", cascade="all, delete-orphan")
+    maintenance_overrides = relationship("VehicleMaintenanceOverride", back_populates="vehicle", cascade="all, delete-orphan")
 
     def to_dict(self):
         return {
@@ -91,6 +92,48 @@ class Vehicle(Base):
             "service_interval_months": self.service_interval_months,
             "photo_url": f"/api/vehicles/{self.id}/photo" if self.photo_path else None,
             "notes": self.notes,
+            "created_at": self.created_at.isoformat(),
+            "updated_at": self.updated_at.isoformat(),
+        }
+
+
+class VehicleMaintenanceOverride(Base):
+    """
+    Surcharge des intervalles de maintenance par véhicule.
+    
+    Permet à l'utilisateur de personnaliser km_interval et/ou months_interval
+    pour une intervention donnée, indépendamment des valeurs du JSON global.
+    
+    - Si km_interval est NULL et is_km_disabled=True  → critère km désactivé
+    - Si months_interval est NULL et is_months_disabled=True → critère temps désactivé
+    - L'override prime TOUJOURS sur le JSON quand il existe pour cette clé.
+    """
+    __tablename__ = "vehicle_maintenance_overrides"
+
+    id = Column(Integer, primary_key=True, index=True)
+    vehicle_id = Column(Integer, ForeignKey("vehicles.id"), nullable=False, index=True)
+    # Clé technique de l'intervention (ex: "fork_service", "oil_change", "brake_fluid")
+    intervention_key = Column(String(200), nullable=False)
+    # Intervalles surchargés (NULL = utiliser la valeur par défaut du JSON si non désactivé)
+    km_interval = Column(Integer, nullable=True)
+    months_interval = Column(Integer, nullable=True)
+    # Flags de désactivation explicite (distingue "pas de valeur" de "désactivé volontairement")
+    is_km_disabled = Column(Boolean, default=False, nullable=False)
+    is_months_disabled = Column(Boolean, default=False, nullable=False)
+    created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
+    updated_at = Column(DateTime, default=lambda: datetime.now(timezone.utc), onupdate=lambda: datetime.now(timezone.utc))
+
+    vehicle = relationship("Vehicle", back_populates="maintenance_overrides")
+
+    def to_dict(self):
+        return {
+            "id": self.id,
+            "vehicle_id": self.vehicle_id,
+            "intervention_key": self.intervention_key,
+            "km_interval": self.km_interval,
+            "months_interval": self.months_interval,
+            "is_km_disabled": self.is_km_disabled,
+            "is_months_disabled": self.is_months_disabled,
             "created_at": self.created_at.isoformat(),
             "updated_at": self.updated_at.isoformat(),
         }
@@ -334,13 +377,8 @@ def init_db():
     if "fuel_logs" in inspector.get_table_names():
         columns = {col["name"]: col for col in inspector.get_columns("fuel_logs")}
         if "liters" in columns and not columns["liters"]["nullable"]:
-            # For SQLite, we need to recreate the table to change nullable constraints
-            # This is a workaround - in production, use Alembic migrations
             with engine.begin() as conn:
-                # Disable foreign key constraints
                 conn.execute(text("PRAGMA foreign_keys=OFF"))
-                
-                # Create new table with nullable columns
                 conn.execute(text("""
                     CREATE TABLE fuel_logs_new (
                         id INTEGER PRIMARY KEY,
@@ -356,22 +394,14 @@ def init_db():
                         FOREIGN KEY(vehicle_id) REFERENCES vehicles (id)
                     )
                 """))
-                
-                # Copy data from old table
                 conn.execute(text("""
                     INSERT INTO fuel_logs_new 
                     SELECT id, vehicle_id, fill_date, mileage_at_fill, liters, total_cost, 
                            price_per_liter, station, notes, created_at 
                     FROM fuel_logs
                 """))
-                
-                # Drop old table
                 conn.execute(text("DROP TABLE fuel_logs"))
-                
-                # Rename new table
                 conn.execute(text("ALTER TABLE fuel_logs_new RENAME TO fuel_logs"))
-                
-                # Re-enable foreign keys
                 conn.execute(text("PRAGMA foreign_keys=ON"))
 
     if "notification_logs" not in inspector.get_table_names():
@@ -379,3 +409,7 @@ def init_db():
 
     if "invitations" not in inspector.get_table_names():
         Invitation.__table__.create(bind=engine)
+
+    # ── Migration : table des surcharges d'intervalles par véhicule ──
+    if "vehicle_maintenance_overrides" not in inspector.get_table_names():
+        VehicleMaintenanceOverride.__table__.create(bind=engine)

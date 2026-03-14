@@ -503,7 +503,11 @@ export default function VehicleDetail({ vehicleId, onBack }) {
 
       {/* Tab Content */}
       {activeTab === 'upcoming' && upcoming && (
-        <UpcomingMaintenance data={{ ...upcoming, vehicle_type: vehicle.vehicle_type }} />
+      <UpcomingMaintenance
+        data={{ ...upcoming, vehicle_type: vehicle.vehicle_type }}
+        vehicleId={vehicleId}
+        onRefresh={fetchData}
+      />
       )}
       {activeTab === 'history' && (
         <MaintenanceHistory vehicleId={vehicleId} onDataChanged={fetchData} />
