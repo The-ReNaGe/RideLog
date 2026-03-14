@@ -316,8 +316,18 @@
           "months_interval": 12,
           "note": "Contrôle annuel simplifié, effectué si l'intervalle kilométrique de révision n'a pas été atteint. Plus léger qu'une révision complète."
         },
+        "oil_change_moto": {
+          "name": "Vidange d'huile + Remplacement filtre à huile",
+          "km_interval": null,
+          "months_interval": 12,
+          "prices": {
+            "accessible": { "min": 40, "max": 80 },
+            "generalist": { "min": 60, "max": 120 },
+            "premium": { "min": 90, "max": 180 }
+          }
+        },
         "brake_fluid": {
-          "name": "Purge liquide de frein et embrayage",
+          "name": "Remplacement liquide de frein",
           "km_interval": null,
           "months_interval": 24,
           "prices": {
@@ -334,16 +344,6 @@
             "accessible": { "min": 50, "max": 70 },
             "generalist": { "min": 60, "max": 85 },
             "premium": { "min": 70, "max": 100 }
-          }
-        },
-        "transmission_fluid": {
-          "name": "Remplacement huile de transmission",
-          "km_interval": null,
-          "months_interval": 48,
-          "prices": {
-            "accessible": { "min": 25, "max": 40 },
-            "generalist": { "min": 35, "max": 55 },
-            "premium": { "min": 45, "max": 70 }
           }
         },
         "fork_service": {
@@ -390,24 +390,6 @@
             "accessible": { "min": 80, "max": 130 },
             "generalist": { "min": 120, "max": 200 },
             "premium": { "min": 180, "max": 300 }
-          }
-        },
-        "oil_change": {
-          "name": "Vidange d'huile",
-          "note": "Inclus dans la révision périodique",
-          "prices": {
-            "accessible": { "min": 45, "max": 80 },
-            "generalist": { "min": 65, "max": 100 },
-            "premium": { "min": 80, "max": 120 }
-          }
-        },
-        "oil_filter": {
-          "name": "Remplacement filtre à huile",
-          "note": "Inclus dans la révision périodique",
-          "prices": {
-            "accessible": { "min": 10, "max": 20 },
-            "generalist": { "min": 15, "max": 25 },
-            "premium": { "min": 20, "max": 35 }
           }
         },
         "spark_plug": {
@@ -489,6 +471,12 @@
             "generalist": { "min": 15, "max": 25 },
             "premium": { "min": 20, "max": 35 }
           }
+        },
+        "transmission_fluid": {
+          "name": "Remplacement huile de transmission",
+          "km_interval": null,
+          "months_interval": null,
+          "forecasted": false
         },
         "battery": {
           "name": "Remplacement batterie",

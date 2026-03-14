@@ -563,8 +563,7 @@ export default function FuelTracking({ vehicleId, onFuelAdded }) {
 											<div className="flex gap-2 justify-end">
 												<button onClick={() => { setEditingLog(null); resetForm(); }}
 													className="px-3 py-1 text-sm rounded"
-													style={{ border: '1px solid var(--border)', color: 'var(--text-2)' }}
-													style={{ color: 'var(--text-2)' }}>
+													style={{ border: '1px solid var(--border)', color: 'var(--text-2)' }}>
 													Annuler
 												</button>
 												<button onClick={() => handleInlineUpdate(log.id)}

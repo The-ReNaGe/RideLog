@@ -7,6 +7,7 @@ from pathlib import Path
 
 INTERVENTION_ALIASES = {
     "vidange_d'huile": "oil_change",
+    "Vidange d'huile + Remplacement filtre à huile": "oil_change_moto",
     "remplacement_filtre_à_air": "air_filter",
     "remplacement_filtre_d'habitacle": "cabin_filter",
     "purge_de_frein": "brake_fluid",
@@ -39,6 +40,7 @@ INTERVENTION_TRANSLATIONS = {
     "Vidange d'huile (entretien 6000km)": "oil_change",
     "Vidange d'huile (entretien 10000km)": "oil_change",
     "Vidange d'huile (entretien 10-12000km)": "oil_change",
+    "Vidange d'huile + Remplacement filtre à huile": "oil_change_moto",  
     "Remplacement filtre à huile": "oil_filter",
     "Remplacement bougie d'allumage": "spark_plug",
     "Remplacement bougies d'allumage": "spark_plug",
@@ -117,7 +119,7 @@ INTERVENTION_TRANSLATIONS = {
     "Contrôle technique": "inspection_technical_car",
     
     # Fluids (moto-specific names)
-    "Purge liquide de frein et embrayage": "brake_fluid",
+    "Remplacement liquide de frein": "brake_fluid",
     "Remplacement liquide de refroidissement": "coolant",
     "Remplacement huile de transmission": "transmission_fluid",
     "Remplacement courroie de distribution": "timing_belt",
@@ -269,9 +271,15 @@ class MaintenanceCalculator:
                     entry["prices"] = annual_prices
                 
                 # Special: valve_clearance = 2× service interval
+                # Special: valve_clearance = 2× service interval
                 elif key == "valve_clearance":
                     entry["km_interval"] = effective_km * 2
-                
+
+                # Special: oil_change_moto = même km que périodique, 12 mois
+                elif key == "oil_change":
+                    entry["km_interval"] = effective_km
+                    # months_interval = 12 est déjà défini dans le JSON, on ne le touche pas
+
                 result[key] = entry
             
             # Add recordable items (not forecasted)
@@ -579,6 +587,24 @@ class MaintenanceCalculator:
 
             
             last_date, last_mileage = last_maintenances.get(intervention_key, (None, None))
+
+            # Special: annual_service uses the most recent of all major service records
+            if intervention_key == "annual_service":
+                MAJOR_SERVICE_KEYS = {
+                    "annual_service",
+                    "periodic_service",
+                    "oil_change_moto",
+                    "valve_clearance",
+                }
+                candidates = [
+                    last_maintenances[k]
+                    for k in MAJOR_SERVICE_KEYS
+                    if k in last_maintenances and last_maintenances[k] != (None, None)
+                ]
+                if candidates:
+                    # Prendre la date la plus récente parmi toutes les interventions majeures
+                    best = max(candidates, key=lambda r: r[0] if r[0] is not None else datetime.min)
+                    last_date, last_mileage = best
 
             # Special handling for inspection_technical_car and inspection_technical_moto
             if intervention_key in ("inspection_technical_car", "inspection_technical_moto"):

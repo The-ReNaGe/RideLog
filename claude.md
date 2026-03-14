@@ -21,6 +21,7 @@
 12. [Frontend — Structure et fichiers](#12-frontend--structure-et-fichiers)
 13. [Base de données](#13-base-de-données)
 14. [Guides de modification](#14-guides-de-modification)
+15. [Checklist de révision moto](#15-checklist-de-révision-moto)
 
 ---
 
@@ -344,12 +345,12 @@ Structure plate : chaque clé = un type d'intervention.
 ```json
 {
   "oil_change": {
-    "name": "Vidange d'huile + filtre",   // Nom affiché
-    "km_interval": 10000,                 // Intervalle km (null = pas de critère km)
-    "months_interval": 12,                // Intervalle mois (null = pas de critère temps)
-    "forecasted": true,                   // true = affiché dans "À venir"
-    "motorization": ["diesel"],           // OPTIONNEL : filtre par motorisation
-    "note": "...",                         // OPTIONNEL : info-bulle
+    "name": "Vidange d'huile + filtre",
+    "km_interval": 10000,
+    "months_interval": 12,
+    "forecasted": true,
+    "motorization": ["diesel"],
+    "note": "...",
     "prices": {
       "accessible": { "min": 50, "max": 90 },
       "generalist": { "min": 70, "max": 130 },
@@ -393,11 +394,11 @@ Structure hiérarchique avec 5 sous-sections :
 
 ```
 motorcycle/
-├── brand_defaults     → Intervalles km/mois par marque et cylindrée
-├── service_prices     → Prix de la révision MINEURE (sans soupapes) par cylindrée
+├── brand_defaults        → Intervalles km/mois par marque et cylindrée
+├── service_prices        → Prix de la révision MINEURE (sans soupapes) par cylindrée
 ├── annual_service_prices → Prix de l'entretien ANNUEL (contrôle simplifié)
-├── forecasted         → Entretiens prévisionnels (affichés dans "À venir")
-└── recordable         → Entretiens enregistrables uniquement
+├── forecasted            → Entretiens prévisionnels (affichés dans "À venir")
+└── recordable            → Entretiens enregistrables uniquement
 ```
 
 ##### `brand_defaults`
@@ -431,19 +432,21 @@ Prix par tranche de cylindrée (`125cc`, `200_400cc`, `500_750cc`, `750_1100cc`,
 |-----|-----|----|------|-------|
 | `periodic_service` | Révision périodique (km) | **dynamique** | null | Intervalle = `brand_defaults` ou surcharge utilisateur. Prix = `service_prices` |
 | `annual_service` | Entretien annuel | null | 12 (fixe) | Contrôle simplifié annuel. Toujours 12 mois. Prix = `annual_service_prices` |
+| `oil_change` | Vidange d'huile + Remplacement filtre à huile | **dynamique** | 12 | km = même que `periodic_service`. Calculé dans `get_intervals_for_vehicle()` |
 | `valve_clearance` | Contrôle jeu aux soupapes | **dynamique** | null | = 2× l'intervalle de révision (1 sur 2) |
-| `brake_fluid` | Purge frein + embrayage | null | 24 | |
+| `brake_fluid` | Remplacement liquide de frein | null | 24 | Renommé (ancien : "Purge liquide de frein et embrayage" — conservé dans INTERVENTION_TRANSLATIONS pour compatibilité BDD) |
 | `coolant` | Liquide de refroidissement | null | 36 | |
-| `transmission_fluid` | Huile de transmission | null | 48 | |
 | `fork_service` | Révision fourche | null | 36 | |
 | `inspection_technical_moto` | Contrôle technique | null | spécial | Calcul réglementaire français |
 
-**IMPORTANT** : Les clés `periodic_service` et `valve_clearance` ont des intervalles `null` dans le JSON. Ils sont calculés dynamiquement dans `maintenance_calculator.py` → `get_intervals_for_vehicle()`. L'`annual_service` a un intervalle fixe de 12 mois défini dans le JSON.
+**IMPORTANT** : Les clés `periodic_service`, `valve_clearance` et `oil_change` ont des intervalles km `null` dans le JSON. Ils sont calculés dynamiquement dans `maintenance_calculator.py` → `get_intervals_for_vehicle()`.
+
+> **Note** : `transmission_fluid` a été déplacé de `forecasted` vers `recordable` car sur moto, l'huile de transmission est incluse dans la vidange moteur dans la plupart des cas.
 
 ##### `recordable` — Entretiens enregistrables moto
 
 Interventions qu'on peut enregistrer mais qui n'apparaissent pas dans "À venir" :
-`break_in_service` (rodage), `oil_change`, `oil_filter`, `spark_plug`, `air_filter`, `tire_replacement_*`, `brake_pads`, `brake_disc`, `chain_kit`, `chain_maintenance`, `battery`, `steering_bearings`, `wheel_bearings`, `carburetor_cleaning`, `injection_sync`, `electronic_diagnosis`
+`break_in_service` (rodage), `oil_filter`, `spark_plug`, `air_filter`, `tire_replacement_*`, `brake_pads`, `brake_disc`, `chain_kit`, `chain_maintenance`, `battery`, `steering_bearings`, `wheel_bearings`, `carburetor_cleaning`, `injection_sync`, `electronic_diagnosis`, `transmission_fluid`
 
 ### 6.2 Le calculateur (`maintenance_calculator.py`)
 
@@ -453,14 +456,15 @@ Interventions qu'on peut enregistrer mais qui n'apparaissent pas dans "À venir"
 
 C'est le dictionnaire qui fait le lien entre le nom affiché en français (stocké en BDD quand l'utilisateur enregistre une maintenance) et la clé technique du JSON. **Chaque nom dans le JSON DOIT avoir une entrée ici**, sinon le système ne reconnaîtra pas les maintenances enregistrées.
 
-Exemple :
+Entrées importantes ajoutées/modifiées :
+
 ```python
-"Contrôle jeu aux soupapes": "valve_clearance",
-"Vidange d'huile + filtre": "oil_change",
-"Remplacement filtre à gasoil": "fuel_filter_diesel",
+"Purge liquide de frein et embrayage": "brake_fluid",         # ancien nom — conserver pour BDD existante
+"Remplacement liquide de frein": "brake_fluid",                # nouveau nom
+"Vidange d'huile + Remplacement filtre à huile": "oil_change_moto",  # vidange moto forecasted
 ```
 
-**Quand ajouter une entrée** : à chaque fois qu'un nouveau `name` est ajouté dans le JSON, il FAUT l'ajouter aussi dans `INTERVENTION_TRANSLATIONS`.
+> **Pourquoi `oil_change_moto` et pas `oil_change`** : `oil_change` est déjà utilisé pour les voitures. La clé BDD est distincte pour ne pas mélanger les historiques voiture/moto. La clé JSON moto reste `oil_change` (itérée dans `get_intervals_for_vehicle()`).
 
 **`CONSUMABLES`** — Set de clés exclues (legacy, plus utilisé activement). Le filtrage se fait maintenant via le champ `forecasted: true/false` du JSON.
 
@@ -481,6 +485,7 @@ Retourne l'intervalle de révision par défaut pour une marque et cylindrée don
   - `periodic_service` → `km_interval = effective_km` (brand_defaults ou surcharge), `months_interval = None`
   - `annual_service` → prix chargés depuis `annual_service_prices`, `months_interval` = 12 (fixe, défini dans le JSON)
   - `valve_clearance` → `km_interval = effective_km × 2`
+  - `oil_change` (moto) → `km_interval = effective_km`, `months_interval` = 12 (défini dans le JSON)
 
 ##### `get_all_upcoming_maintenances(...)` → List[Dict]
 
@@ -489,6 +494,16 @@ Calcule toutes les maintenances à venir pour un véhicule.
 Paramètres importants :
 - `last_maintenances` : Dict `{clé_technique: (dernière_date, dernier_km)}` — construit en mappant chaque maintenance enregistrée via `get_intervention_key()`
 - `motorization` : filtre les entretiens par motorisation (ex: filtre à gasoil uniquement pour diesel)
+
+**Logique spéciale `annual_service`** : la date de référence est la plus récente parmi toutes les interventions majeures (`annual_service`, `periodic_service`, `oil_change_moto`, `valve_clearance`). Cela évite que l'entretien annuel reste calé sur une ancienne date alors qu'une révision périodique plus récente a eu lieu.
+
+```python
+MAJOR_SERVICE_KEYS = {
+    "annual_service", "periodic_service",
+    "oil_change_moto", "valve_clearance",
+}
+# Pour annual_service uniquement : prendre la date max parmi ces clés
+```
 
 Pour chaque entretien :
 1. Vérifie `forecasted == True`
@@ -647,7 +662,6 @@ Calcul réglementaire du contrôle technique :
 - `backend/reminder_scheduler.py` — Déclenchement automatique
 - `backend/models.py` → `Webhook`, `NotificationLog`
 
-
 ### Type de webhook supporté
 
 | Type | Format | Description |
@@ -662,7 +676,7 @@ Calcul réglementaire du contrôle technique :
    → Calcule les maintenances à venir
    → Détermine le tier (3=retard, 2=bientôt, 1=à prévoir)
    → Vérifie NotificationLog (déjà envoyé ?)
-  → Si nouveau : send_webhook_notification() pour chaque webhook Discord actif de l'utilisateur
+   → Si nouveau : send_webhook_notification() pour chaque webhook Discord actif de l'utilisateur
    → Enregistre dans NotificationLog
 3. Quand l'utilisateur enregistre une maintenance :
    → clear_notification_logs_for(vehicle_id, intervention_type)
@@ -788,15 +802,16 @@ frontend/src/
 │   ├── Settings.jsx            # Paramètres (Discord, HA, Rappels)
 │   └── Admin.jsx               # Administration (users, invitations)
 └── components/
-    ├── VehicleCard.jsx         # Carte véhicule (React.memo)
-    ├── VehicleForm.jsx         # Formulaire création/édition véhicule
-    ├── MaintenanceForm.jsx     # Formulaire enregistrement maintenance
-    ├── MaintenanceHistory.jsx  # Historique maintenances
-    ├── UpcomingMaintenance.jsx # Maintenances "À venir"
-    ├── FuelTracking.jsx        # Suivi carburant complet
-    ├── FuelStations.jsx        # Recherche stations essence
-    ├── APIDocumentation.jsx    # Documentation API intégrée
-    ├── RepairHotspotModel.jsx  # Visualisation points chauds
+    ├── VehicleCard.jsx             # Carte véhicule (React.memo)
+    ├── VehicleForm.jsx             # Formulaire création/édition véhicule
+    ├── MaintenanceForm.jsx         # Formulaire enregistrement maintenance
+    ├── MaintenanceHistory.jsx      # Historique maintenances
+    ├── UpcomingMaintenance.jsx     # Maintenances "À venir"
+    ├── RevisionChecklistModal.jsx  # ★ Checklist post-révision moto ★
+    ├── FuelTracking.jsx            # Suivi carburant complet
+    ├── FuelStations.jsx            # Recherche stations essence
+    ├── APIDocumentation.jsx        # Documentation API intégrée
+    ├── RepairHotspotModel.jsx      # Visualisation points chauds
     └── integrations/
         ├── DiscordIntegration.jsx      # Config webhook Discord
         ├── HomeAssistantIntegration.jsx # Guide setup HA
@@ -910,6 +925,105 @@ Les migrations sont gérées manuellement dans `models.py` → `init_db()` :
 
 - `ha-integration/templates/` : fichiers YAML de templates
 - `routes/exports.py` → `ha-dashboard-card` : génération dynamique
+
+---
+
+## 15. Checklist de révision moto
+
+### Vue d'ensemble
+
+Quand un utilisateur enregistre une **"Révision périodique (km)"** ou un **"Entretien annuel"** sur une moto, une modale s'ouvre automatiquement après le submit. Elle propose une checklist des interventions pouvant être effectuées lors de cette révision. Chaque item coché est enregistré comme une maintenance indépendante en BDD, à la même date et au même kilométrage que la révision.
+
+### Fichiers concernés
+
+| Fichier | Rôle |
+|---------|------|
+| `frontend/src/components/RevisionChecklistModal.jsx` | ★ Nouveau composant — modale checklist |
+| `frontend/src/components/MaintenanceForm.jsx` | Modifié — déclenche la modale après submit |
+| `frontend/src/pages/VehicleDetail.jsx` | Modifié — passe `upcomingMaintenances` en prop |
+
+### Flux complet
+
+```
+1. Utilisateur sélectionne "Révision périodique (km)" ou "Entretien annuel"
+2. Il remplit date + kilométrage + coût, soumet le formulaire
+3. POST /api/maintenances/{vid}/maintenances → révision enregistrée en BDD
+4. MaintenanceForm détecte le type déclenchant → setChecklistData({ date, mileage })
+5. RevisionChecklistModal s'ouvre avec les items groupés par catégorie
+6. Item pré-coché par défaut : "Vidange d'huile + Remplacement filtre à huile"
+7. Utilisateur coche/décoche les interventions effectuées
+8. Sur "Enregistrer" : Promise.all → N × POST /api/maintenances/{vid}/maintenances
+9. État succès affiché → fermeture → onSubmit() → refresh VehicleDetail
+```
+
+### Items proposés dans la checklist
+
+| Groupe | Items |
+|--------|-------|
+| 🔧 Moteur | Vidange d'huile + filtre *(pré-coché)*, Bougie, Filtre à air, Jeu aux soupapes |
+| ⛓️ Transmission | Kit chaîne, Tension et lubrification chaîne |
+| 🛑 Freinage | Plaquettes de frein, Disques de frein |
+| 🔩 Suspension | Révision fourche, Roulements de roue, Roulements de direction |
+| 🏍️ Pneumatiques | Pneu avant, Pneu arrière |
+| ⚡ Électronique | Batterie, Nettoyage carburateur, Synchro injection, Diagnostic |
+
+### Props de `RevisionChecklistModal`
+
+| Prop | Type | Description |
+|------|------|-------------|
+| `vehicleId` | number | ID du véhicule |
+| `date` | string | Date ISO de la révision (transmise aux maintenances créées) |
+| `mileage` | number | Kilométrage de la révision (transmis aux maintenances créées) |
+| `upcomingData` | Array | Résultat de `GET /upcoming` — réservé pour usage futur |
+| `onClose` | Function | Appelé à la fermeture — doit appeler `onSubmit()` du parent |
+| `onSuccess` | Function | Appelé après enregistrement réussi (avant fermeture) |
+
+### Intégration dans `MaintenanceForm.jsx`
+
+```jsx
+// Constante des types déclenchants
+const CHECKLIST_TRIGGERS = [
+  'Révision périodique (km)',
+  'Entretien annuel',
+];
+
+// Dans handleSubmit, après le POST réussi :
+if (vehicleType === 'motorcycle' && CHECKLIST_TRIGGERS.includes(formData.intervention_type)) {
+  setChecklistData({ date, mileage });
+  // NE PAS appeler onSubmit() ici — la modale le fera à sa fermeture
+} else {
+  onSubmit();
+}
+```
+
+### Intégration dans `VehicleDetail.jsx`
+
+Passer le state `upcoming` en prop à `MaintenanceForm` :
+
+```jsx
+<MaintenanceForm
+  vehicleId={vehicleId}
+  vehicleType={vehicle.vehicle_type}
+  displacement={vehicle.displacement}
+  rangeCategory={vehicle.range_category}
+  upcomingMaintenances={upcoming?.upcoming || []}  // ← ligne ajoutée
+  onSubmit={handleMaintenanceCreated}
+  onCancel={() => setShowMaintenanceForm(false)}
+/>
+```
+
+### Style et thème
+
+`RevisionChecklistModal.jsx` utilise exclusivement les variables CSS RideLog et les classes utilitaires existantes :
+- Variables : `var(--bg)`, `var(--accent)`, `var(--border)`, `var(--text-1/2/3)`, `var(--danger)`, `var(--warning)`
+- Classes : `btn btn-primary`, `btn btn-secondary`, `card`
+- S'adapte automatiquement au toggle clair/sombre
+
+### Pour modifier
+
+- **Ajouter un item** : `RevisionChecklistModal.jsx` → `RECORDABLE_LABELS` + ajouter la clé dans le bon groupe de `ITEM_GROUPS`
+- **Changer les items pré-cochés** : `RevisionChecklistModal.jsx` → constante `ALWAYS_CHECKED`
+- **Déclencher sur un autre type** : `MaintenanceForm.jsx` → constante `CHECKLIST_TRIGGERS`
 
 ---
 

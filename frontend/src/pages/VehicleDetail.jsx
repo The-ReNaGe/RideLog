@@ -448,6 +448,7 @@ export default function VehicleDetail({ vehicleId, onBack }) {
             vehicleType={vehicle.vehicle_type}
             displacement={vehicle.displacement}
             rangeCategory={vehicle.range_category}
+            upcomingMaintenances={upcoming?.upcoming || []}
             onSubmit={handleMaintenanceCreated}
             onCancel={() => setShowMaintenanceForm(false)}
           />
