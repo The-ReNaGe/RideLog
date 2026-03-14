@@ -1,0 +1,35 @@
+{
+  "brands": {
+    "car": {
+      "accessible": [
+        "Dacia", "Citroën", "Peugeot", "Renault", "Fiat", "Hyundai", "Kia", "Seat", "Skoda", "Toyota", "Honda"
+      ],
+      "generalist": [
+        "Volkswagen", "Audi", "Ford", "Mazda", "Nissan", "Mitsubishi", "Suzuki", "Volvo", "Subaru", "MINI"
+      ],
+      "premium": [
+        "BMW", "Mercedes", "Porsche", "Audi", "Jaguar", "Range Rover", "Land Rover", "Lexus", "Infinity"
+      ]
+    },
+    "motorcycle": {
+      "accessible": [
+        "Honda", "Yamaha", "Suzuki", "Kawasaki", "Kymco", "Sym", "Keeway"
+      ],
+      "generalist": [
+        "Ducati", "KTM", "Triumph", "Royal Enfield", "Benelli"
+      ],
+      "premium": [
+        "Harley-Davidson", "BMW", "Aprilia", "MV Agusta"
+      ]
+    }
+  },
+  "year_adjustment": {
+    "description": "Adjust maintenance cost category based on vehicle age",
+    "rules": [
+      { "years_min": 0, "years_max": 3, "adjustment": 1.2 },
+      { "years_min": 3, "years_max": 8, "adjustment": 1.0 },
+      { "years_min": 8, "years_max": 15, "adjustment": 0.8 },
+      { "years_min": 15, "years_max": 999, "adjustment": 0.6 }
+    ]
+  }
+}

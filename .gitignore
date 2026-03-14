@@ -1,0 +1,93 @@
+# RideLog .gitignore
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+
+# Build outputs
+build/
+dist/
+frontend/dist/
+frontend/build/
+
+# Eggs
+.eggs/
+eggs/
+*.egg-info/
+*.egg
+.installed.cfg
+
+# Virtualenv
+.env
+.venv
+env/
+venv/
+ENV/
+
+# Node/npm
+node_modules/
+
+# SQLite database and data
+/data/
+*.db
+*.sqlite3
+*.sqlite
+
+# Downloads, wheels, parts
+wheels/
+downloads/
+parts/
+sdist/
+
+# Logs
+*.log
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Docker
+*.pid
+*.sock
+
+# VSCode
+.vscode/
+
+# Secrets
+secrets.env
+.env.*
+
+# Backups
+*.bak
+*.old
+*.swp
+
+# Frontend static cache
+frontend/.cache/
+
+# Ignore backup files
+*~
+
+# Ignore coverage and test outputs
+.coverage
+htmlcov/
+coverage.xml
+
+# Ignore exported ZIPs
+*.zip
+
+# Ignore Home Assistant custom_components cache
+ha-integration/custom_components/ridelog/__pycache__/
+
+# Ignore personal settings
+*.sublime-workspace
+*.sublime-project
+.idea/
+
+# Ignore system files
+*.orig
+
+# End of .gitignore

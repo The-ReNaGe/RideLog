@@ -1,0 +1,857 @@
+{
+  "maintenance_intervals": {
+    "car": {
+      "oil_change": {
+        "name": "Vidange d'huile + filtre",
+        "km_interval": 10000,
+        "months_interval": 12,
+        "forecasted": true,
+        "note": "Vidange moteur + filtre à huile. Environ tous les 10 000 km ou 1 an.",
+        "prices": {
+          "accessible": { "min": 50, "max": 90 },
+          "generalist": { "min": 70, "max": 130 },
+          "premium": { "min": 100, "max": 200 }
+        }
+      },
+      "air_filter": {
+        "name": "Remplacement filtre à air",
+        "km_interval": 20000,
+        "months_interval": 12,
+        "forecasted": true,
+        "note": "Filtre à air en papier, tous les 20 000 km ou tous les ans.",
+        "prices": {
+          "accessible": { "min": 15, "max": 30 },
+          "generalist": { "min": 25, "max": 50 },
+          "premium": { "min": 40, "max": 80 }
+        }
+      },
+      "cabin_filter": {
+        "name": "Remplacement filtre d'habitacle",
+        "km_interval": 15000,
+        "months_interval": 12,
+        "forecasted": true,
+        "note": "Filtre pollen/habitacle, environ tous les 15 000 à 20 000 km ou 1 fois par an.",
+        "prices": {
+          "accessible": { "min": 15, "max": 35 },
+          "generalist": { "min": 25, "max": 50 },
+          "premium": { "min": 40, "max": 80 }
+        }
+      },
+      "fuel_filter_diesel": {
+        "name": "Remplacement filtre à gasoil",
+        "km_interval": 20000,
+        "months_interval": 24,
+        "forecasted": true,
+        "motorization": ["diesel"],
+        "note": "Diesel uniquement. Environ tous les 20 000 km ou tous les 2 ans.",
+        "prices": {
+          "accessible": { "min": 30, "max": 60 },
+          "generalist": { "min": 50, "max": 90 },
+          "premium": { "min": 70, "max": 130 }
+        }
+      },
+      "fuel_filter_gasoline": {
+        "name": "Remplacement filtre à essence",
+        "km_interval": 50000,
+        "months_interval": 48,
+        "forecasted": true,
+        "motorization": ["essence"],
+        "note": "Essence uniquement. Environ tous les 40 000 à 60 000 km ou tous les 4 ans.",
+        "prices": {
+          "accessible": { "min": 30, "max": 60 },
+          "generalist": { "min": 50, "max": 90 },
+          "premium": { "min": 70, "max": 130 }
+        }
+      },
+      "spark_plug": {
+        "name": "Remplacement bougies d'allumage",
+        "km_interval": 30000,
+        "months_interval": null,
+        "forecasted": true,
+        "motorization": ["essence", "hybride"],
+        "note": "Essence/hybride uniquement. Environ tous les 20 000 à 60 000 km selon type (cuivre/iridium).",
+        "prices": {
+          "accessible": { "min": 20, "max": 50 },
+          "generalist": { "min": 30, "max": 80 },
+          "premium": { "min": 50, "max": 120 }
+        }
+      },
+      "brake_fluid": {
+        "name": "Purge de frein",
+        "km_interval": null,
+        "months_interval": 24,
+        "forecasted": true,
+        "prices": {
+          "accessible": { "min": 40, "max": 70 },
+          "generalist": { "min": 60, "max": 100 },
+          "premium": { "min": 100, "max": 180 }
+        }
+      },
+      "timing_belt": {
+        "name": "Remplacement courroie de distribution",
+        "km_interval": 80000,
+        "months_interval": 72,
+        "forecasted": true,
+        "note": "Environ tous les 60 000 à 160 000 km ou 5-6 ans. Critique : casse = moteur HS. Consultez le carnet d'entretien constructeur.",
+        "prices": {
+          "accessible": { "min": 300, "max": 600 },
+          "generalist": { "min": 500, "max": 900 },
+          "premium": { "min": 800, "max": 1500 }
+        }
+      },
+      "coolant": {
+        "name": "Renouvellement liquide de refroidissement",
+        "km_interval": 60000,
+        "months_interval": 48,
+        "forecasted": true,
+        "prices": {
+          "accessible": { "min": 50, "max": 100 },
+          "generalist": { "min": 80, "max": 150 },
+          "premium": { "min": 120, "max": 250 }
+        }
+      },
+      "transmission_fluid": {
+        "name": "Renouvellement liquide de transmission",
+        "km_interval": 80000,
+        "months_interval": 48,
+        "forecasted": true,
+        "note": "Boîte manuelle ou automatique. Environ tous les 60 000 à 100 000 km.",
+        "prices": {
+          "accessible": { "min": 80, "max": 160 },
+          "generalist": { "min": 120, "max": 250 },
+          "premium": { "min": 200, "max": 400 }
+        }
+      },
+      "brake_pads": {
+        "name": "Remplacement plaquettes de frein",
+        "km_interval": 30000,
+        "months_interval": null,
+        "forecasted": false,
+        "note": "Variable selon conduite : 20 000 à 50 000 km.",
+        "prices": {
+          "accessible": { "min": 80, "max": 150 },
+          "generalist": { "min": 120, "max": 250 },
+          "premium": { "min": 200, "max": 400 }
+        }
+      },
+      "battery": {
+        "name": "Remplacement batterie",
+        "km_interval": null,
+        "months_interval": null,
+        "forecasted": false,
+        "prices": {
+          "accessible": { "min": 70, "max": 130 },
+          "generalist": { "min": 100, "max": 200 },
+          "premium": { "min": 180, "max": 350 }
+        }
+      },
+      "tire_replacement": {
+        "name": "Remplacement pneus",
+        "km_interval": null,
+        "months_interval": null,
+        "forecasted": false,
+        "note": "Variable selon usure : 30 000 à 60 000 km.",
+        "prices": {
+          "accessible": { "min": 150, "max": 300 },
+          "generalist": { "min": 250, "max": 450 },
+          "premium": { "min": 350, "max": 700 }
+        }
+      },
+      "inspection_technical_car": {
+        "name": "Contrôle technique",
+        "km_interval": null,
+        "months_interval": 48,
+        "first_months_interval": 48,
+        "recurring_months_interval": 24,
+        "forecasted": true,
+        "prices": {
+          "accessible": { "min": 60, "max": 80 },
+          "generalist": { "min": 60, "max": 80 },
+          "premium": { "min": 60, "max": 80 }
+        }
+      }
+    },
+
+    "motorcycle": {
+      "brand_defaults": {
+        "_note": "Intervalles d'entretien par marque et cylindrée. km = intervalle kilométrique, months = intervalle temps. Basé sur préconisations constructeurs 2024-2025.",
+        "Honda": [
+          { "max_cc": 125, "km": 4000, "months": 12 },
+          { "max_cc": 500, "km": 6000, "months": 12 },
+          { "max_cc": 99999, "km": 12000, "months": 12 }
+        ],
+        "Yamaha": [
+          { "max_cc": 125, "km": 6000, "months": 12 },
+          { "max_cc": 99999, "km": 10000, "months": 12 }
+        ],
+        "Kawasaki": [
+          { "max_cc": 125, "km": 6000, "months": 12 },
+          { "max_cc": 99999, "km": 10000, "months": 12 }
+        ],
+        "Suzuki": [
+          { "max_cc": 125, "km": 6000, "months": 12 },
+          { "max_cc": 99999, "km": 10000, "months": 12 }
+        ],
+        "Triumph": [
+          { "max_cc": 660, "km": 16000, "months": 12 },
+          { "max_cc": 99999, "km": 10000, "months": 12 }
+        ],
+        "KTM": [
+          { "max_cc": 400, "km": 7500, "months": 12 },
+          { "max_cc": 99999, "km": 15000, "months": 12 }
+        ],
+        "Husqvarna": [
+          { "max_cc": 400, "km": 7500, "months": 12 },
+          { "max_cc": 99999, "km": 15000, "months": 12 }
+        ],
+        "Ducati": [
+          { "max_cc": 99999, "km": 12000, "months": 12 }
+        ],
+        "BMW": [
+          { "max_cc": 99999, "km": 10000, "months": 12 }
+        ],
+        "Harley-Davidson": [
+          { "max_cc": 99999, "km": 8000, "months": 12 }
+        ],
+        "Indian": [
+          { "max_cc": 99999, "km": 8000, "months": 12 }
+        ],
+        "Aprilia": [
+          { "max_cc": 125, "km": 6000, "months": 12 },
+          { "max_cc": 99999, "km": 10000, "months": 12 }
+        ],
+        "MV Agusta": [
+          { "max_cc": 99999, "km": 6000, "months": 12 }
+        ],
+        "Royal Enfield": [
+          { "max_cc": 99999, "km": 10000, "months": 12 }
+        ],
+        "Benelli": [
+          { "max_cc": 99999, "km": 6000, "months": 12 }
+        ],
+        "Kymco": [
+          { "max_cc": 125, "km": 4000, "months": 12 },
+          { "max_cc": 99999, "km": 6000, "months": 12 }
+        ],
+        "Sym": [
+          { "max_cc": 125, "km": 4000, "months": 12 },
+          { "max_cc": 99999, "km": 6000, "months": 12 }
+        ],
+        "_default": [
+          { "max_cc": 125, "km": 6000, "months": 12 },
+          { "max_cc": 400, "km": 10000, "months": 12 },
+          { "max_cc": 99999, "km": 10000, "months": 12 }
+        ]
+      },
+
+      "service_prices": {
+        "_note": "Prix de la révision périodique MINEURE (sans soupapes) par cylindrée et gamme. TTC, pièces + MO. Basé sur grilles Triumph/Honda/Yamaha 2024.",
+        "125cc": {
+          "accessible": { "min": 80, "max": 150 },
+          "generalist": { "min": 120, "max": 200 },
+          "premium": { "min": 160, "max": 280 }
+        },
+        "200_400cc": {
+          "accessible": { "min": 120, "max": 200 },
+          "generalist": { "min": 160, "max": 280 },
+          "premium": { "min": 220, "max": 380 }
+        },
+        "500_750cc": {
+          "accessible": { "min": 150, "max": 250 },
+          "generalist": { "min": 200, "max": 330 },
+          "premium": { "min": 270, "max": 450 }
+        },
+        "750_1100cc": {
+          "accessible": { "min": 180, "max": 300 },
+          "generalist": { "min": 250, "max": 400 },
+          "premium": { "min": 320, "max": 550 }
+        },
+        "1100_plus": {
+          "accessible": { "min": 220, "max": 380 },
+          "generalist": { "min": 300, "max": 550 },
+          "premium": { "min": 400, "max": 800 }
+        }
+      },
+
+      "annual_service_prices": {
+        "_note": "Prix de l'entretien annuel (contrôle simplifié, effectué si l'intervalle km n'est pas atteint). Moins cher que la révision complète. Basé sur Triumph 189-279€.",
+        "125cc": {
+          "accessible": { "min": 80, "max": 130 },
+          "generalist": { "min": 100, "max": 160 },
+          "premium": { "min": 130, "max": 200 }
+        },
+        "200_400cc": {
+          "accessible": { "min": 100, "max": 160 },
+          "generalist": { "min": 130, "max": 200 },
+          "premium": { "min": 160, "max": 250 }
+        },
+        "500_750cc": {
+          "accessible": { "min": 120, "max": 190 },
+          "generalist": { "min": 160, "max": 230 },
+          "premium": { "min": 200, "max": 300 }
+        },
+        "750_1100cc": {
+          "accessible": { "min": 150, "max": 220 },
+          "generalist": { "min": 180, "max": 260 },
+          "premium": { "min": 220, "max": 330 }
+        },
+        "1100_plus": {
+          "accessible": { "min": 180, "max": 260 },
+          "generalist": { "min": 220, "max": 320 },
+          "premium": { "min": 270, "max": 400 }
+        }
+      },
+
+      "forecasted": {
+        "_note": "Entretiens avec intervalle fixe, affichés dans 'À venir'. La révision périodique utilise l'intervalle du constructeur ou celui configuré par l'utilisateur.",
+        "periodic_service": {
+          "name": "Révision périodique (km)",
+          "km_interval": null,
+          "months_interval": null,
+          "note": "Révision kilométrique complète (vidange, filtres, contrôles). L'intervalle est déterminé par le constructeur ou la configuration du véhicule. Le jeu aux soupapes est vérifié toutes les 2 révisions."
+        },
+        "annual_service": {
+          "name": "Entretien annuel",
+          "km_interval": null,
+          "months_interval": 12,
+          "note": "Contrôle annuel simplifié, effectué si l'intervalle kilométrique de révision n'a pas été atteint. Plus léger qu'une révision complète."
+        },
+        "brake_fluid": {
+          "name": "Purge liquide de frein et embrayage",
+          "km_interval": null,
+          "months_interval": 24,
+          "prices": {
+            "accessible": { "min": 30, "max": 50 },
+            "generalist": { "min": 40, "max": 60 },
+            "premium": { "min": 50, "max": 80 }
+          }
+        },
+        "coolant": {
+          "name": "Remplacement liquide de refroidissement",
+          "km_interval": null,
+          "months_interval": 36,
+          "prices": {
+            "accessible": { "min": 50, "max": 70 },
+            "generalist": { "min": 60, "max": 85 },
+            "premium": { "min": 70, "max": 100 }
+          }
+        },
+        "transmission_fluid": {
+          "name": "Remplacement huile de transmission",
+          "km_interval": null,
+          "months_interval": 48,
+          "prices": {
+            "accessible": { "min": 25, "max": 40 },
+            "generalist": { "min": 35, "max": 55 },
+            "premium": { "min": 45, "max": 70 }
+          }
+        },
+        "fork_service": {
+          "name": "Révision fourche (vidange + joints)",
+          "km_interval": null,
+          "months_interval": 36,
+          "prices": {
+            "accessible": { "min": 150, "max": 230 },
+            "generalist": { "min": 200, "max": 280 },
+            "premium": { "min": 250, "max": 350 }
+          }
+        },
+        "valve_clearance": {
+          "name": "Contrôle jeu aux soupapes",
+          "km_interval": null,
+          "months_interval": null,
+          "note": "Vérification toutes les 2 révisions (intervalle km calculé automatiquement = 2× l'intervalle de révision). Hors réglages et remplacement pastilles éventuels.",
+          "prices": {
+            "accessible": { "min": 120, "max": 250 },
+            "generalist": { "min": 200, "max": 400 },
+            "premium": { "min": 300, "max": 600 }
+          }
+        },
+        "inspection_technical_moto": {
+          "name": "Contrôle technique",
+          "km_interval": null,
+          "months_interval": 60,
+          "first_months_interval": 60,
+          "recurring_months_interval": 36,
+          "prices": {
+            "accessible": { "min": 50, "max": 80 },
+            "generalist": { "min": 50, "max": 80 },
+            "premium": { "min": 50, "max": 80 }
+          }
+        }
+      },
+
+      "recordable": {
+        "_note": "Interventions enregistrables mais non affichées dans 'À venir' (consommables ou inclus dans la révision). Disponibles dans le formulaire d'enregistrement.",
+        "break_in_service": {
+          "name": "Révision rodage (1000 km)",
+          "note": "Première révision après achat neuf, environ 800-1000 km",
+          "prices": {
+            "accessible": { "min": 80, "max": 130 },
+            "generalist": { "min": 120, "max": 200 },
+            "premium": { "min": 180, "max": 300 }
+          }
+        },
+        "oil_change": {
+          "name": "Vidange d'huile",
+          "note": "Inclus dans la révision périodique",
+          "prices": {
+            "accessible": { "min": 45, "max": 80 },
+            "generalist": { "min": 65, "max": 100 },
+            "premium": { "min": 80, "max": 120 }
+          }
+        },
+        "oil_filter": {
+          "name": "Remplacement filtre à huile",
+          "note": "Inclus dans la révision périodique",
+          "prices": {
+            "accessible": { "min": 10, "max": 20 },
+            "generalist": { "min": 15, "max": 25 },
+            "premium": { "min": 20, "max": 35 }
+          }
+        },
+        "spark_plug": {
+          "name": "Remplacement bougie d'allumage",
+          "note": "Inclus dans les révisions majeures",
+          "prices": {
+            "accessible": { "min": 15, "max": 40 },
+            "generalist": { "min": 25, "max": 60 },
+            "premium": { "min": 35, "max": 80 }
+          }
+        },
+        "air_filter": {
+          "name": "Remplacement filtre à air",
+          "note": "Inclus dans la révision périodique",
+          "prices": {
+            "accessible": { "min": 20, "max": 45 },
+            "generalist": { "min": 30, "max": 60 },
+            "premium": { "min": 40, "max": 80 }
+          }
+        },
+        "tire_replacement_front": {
+          "name": "Remplacement pneu avant",
+          "note": "Prix pneu + montage/équilibrage",
+          "prices": {
+            "accessible": { "min": 60, "max": 130 },
+            "generalist": { "min": 100, "max": 180 },
+            "premium": { "min": 140, "max": 250 }
+          }
+        },
+        "tire_replacement_rear": {
+          "name": "Remplacement pneu arrière",
+          "note": "Prix pneu + montage/équilibrage",
+          "prices": {
+            "accessible": { "min": 70, "max": 150 },
+            "generalist": { "min": 110, "max": 200 },
+            "premium": { "min": 150, "max": 270 }
+          }
+        },
+        "tire_replacement": {
+          "name": "Remplacement pneus (paire)",
+          "note": "Prix paire + montage/équilibrage",
+          "prices": {
+            "accessible": { "min": 130, "max": 250 },
+            "generalist": { "min": 200, "max": 350 },
+            "premium": { "min": 280, "max": 480 }
+          }
+        },
+        "brake_pads": {
+          "name": "Remplacement plaquettes de frein",
+          "note": "Pièces + main d'œuvre",
+          "prices": {
+            "accessible": { "min": 40, "max": 80 },
+            "generalist": { "min": 60, "max": 120 },
+            "premium": { "min": 80, "max": 160 }
+          }
+        },
+        "brake_disc": {
+          "name": "Remplacement disques de frein",
+          "note": "Pièces + main d'œuvre",
+          "prices": {
+            "accessible": { "min": 80, "max": 180 },
+            "generalist": { "min": 120, "max": 250 },
+            "premium": { "min": 180, "max": 350 }
+          }
+        },
+        "chain_kit": {
+          "name": "Remplacement kit chaîne (chaîne + pignon + couronne)",
+          "note": "Kit + main d'œuvre. Ne s'applique pas aux motos à cardan ou courroie.",
+          "prices": {
+            "accessible": { "min": 100, "max": 200 },
+            "generalist": { "min": 150, "max": 280 },
+            "premium": { "min": 200, "max": 350 }
+          }
+        },
+        "chain_maintenance": {
+          "name": "Tension et graissage chaîne",
+          "prices": {
+            "accessible": { "min": 10, "max": 20 },
+            "generalist": { "min": 15, "max": 25 },
+            "premium": { "min": 20, "max": 35 }
+          }
+        },
+        "battery": {
+          "name": "Remplacement batterie",
+          "prices": {
+            "accessible": { "min": 50, "max": 100 },
+            "generalist": { "min": 80, "max": 130 },
+            "premium": { "min": 100, "max": 180 }
+          }
+        },
+        "carburetor_cleaning": {
+          "name": "Nettoyage carburateur(s)",
+          "note": "Démontage, nettoyage ultrasons, réglage. Pour motos à carburateur.",
+          "prices": {
+            "accessible": { "min": 80, "max": 130 },
+            "generalist": { "min": 100, "max": 160 },
+            "premium": { "min": 120, "max": 200 }
+          }
+        },
+        "injection_sync": {
+          "name": "Synchronisation injection",
+          "note": "Pour motos à injection électronique",
+          "prices": {
+            "accessible": { "min": 70, "max": 95 },
+            "generalist": { "min": 85, "max": 110 },
+            "premium": { "min": 95, "max": 130 }
+          }
+        },
+        "electronic_diagnosis": {
+          "name": "Diagnostic électronique (valise)",
+          "prices": {
+            "accessible": { "min": 25, "max": 45 },
+            "generalist": { "min": 35, "max": 55 },
+            "premium": { "min": 45, "max": 70 }
+          }
+        },
+        "wheel_bearings": {
+          "name": "Remplacement roulements de roue",
+          "note": "Hors pièces",
+          "prices": {
+            "accessible": { "min": 20, "max": 40 },
+            "generalist": { "min": 30, "max": 50 },
+            "premium": { "min": 40, "max": 70 }
+          }
+        },
+        "steering_bearings": {
+          "name": "Remplacement roulements de direction",
+          "note": "Hors pièces",
+          "prices": {
+            "accessible": { "min": 100, "max": 150 },
+            "generalist": { "min": 130, "max": 180 },
+            "premium": { "min": 150, "max": 220 }
+          }
+        }
+      }
+    }
+  },
+
+  "garage_services": {
+    "meta": {
+      "version": "2.0",
+      "note": "Tarifs indicatifs TTC main d'œuvre garage spécialisé moto. Fourchettes basées sur relevés 2024-2025 de garages toutes marques en France.",
+      "labor_rate_hourly": {
+        "min": 55,
+        "max": 85,
+        "currency": "EUR",
+        "note": "Varie selon la région et le type de garage (indépendant vs concession)"
+      }
+    },
+    "operations": {
+      "tire": {
+        "mounting_front": {
+          "price_range": { "min": 15, "max": 25 },
+          "description": "Montage pneu avant (démontage sur moto)",
+          "labor_included": true,
+          "includes": ["équilibrage", "valve", "masse d'équilibrage"]
+        },
+        "mounting_rear": {
+          "price_range": { "min": 17, "max": 30 },
+          "description": "Montage pneu arrière (démontage sur moto)",
+          "labor_included": true,
+          "includes": ["équilibrage", "tension de chaîne", "valve", "masse d'équilibrage"]
+        },
+        "mounting_both": {
+          "price_range": { "min": 30, "max": 50 },
+          "description": "Montage train AV/AR (démontage sur moto)",
+          "labor_included": true,
+          "includes": ["équilibrage", "tension de chaîne", "valves", "masses d'équilibrage"]
+        },
+        "mounting_wheel_off": {
+          "price_range": { "min": 10, "max": 17 },
+          "description": "Montage pneu, roue démontée",
+          "labor_included": true,
+          "includes": ["équilibrage", "valve", "masse d'équilibrage"]
+        },
+        "mounting_scooter_rear": {
+          "price_range": { "min": 24, "max": 30 },
+          "description": "Montage pneu arrière scooter",
+          "labor_included": true,
+          "includes": ["équilibrage", "valve", "masse d'équilibrage"]
+        },
+        "repair_tubeless": {
+          "price_range": { "min": 15, "max": 30 },
+          "description": "Réparation crevaison/tubeless (mèche)",
+          "labor_included": true
+        },
+        "repair_tubeless_interior": {
+          "price_range": { "min": 23, "max": 30 },
+          "description": "Réparation tubeless intérieur (roue démontée)",
+          "labor_included": true
+        },
+        "balancing": {
+          "price_range": { "min": 8, "max": 18 },
+          "description": "Équilibrage simple",
+          "labor_included": true
+        }
+      },
+      "brakes": {
+        "purge_complete": {
+          "price_range": { "min": 20, "max": 55 },
+          "description": "Purge système de freins complet",
+          "labor_included": true
+        },
+        "purge_single": {
+          "price_range": { "min": 15, "max": 30 },
+          "description": "Purge de frein simple (avant ou arrière)",
+          "labor_included": true
+        },
+        "brake_pad_front": {
+          "price_range": { "min": 15, "max": 30 },
+          "description": "Remplacement plaquettes avant 2 disques (hors pièces)",
+          "labor_included": true,
+          "note": "Hors pièces"
+        },
+        "brake_pad_rear": {
+          "price_range": { "min": 10, "max": 25 },
+          "description": "Remplacement plaquettes arrière (hors pièces)",
+          "labor_included": true,
+          "note": "Hors pièces"
+        },
+        "brake_disc_replacement": {
+          "price_range": { "min": 25, "max": 50 },
+          "description": "Remplacement disque de frein (hors pièce, par disque)",
+          "labor_included": true,
+          "note": "Hors pièces"
+        }
+      },
+      "cooling_system": {
+        "coolant_replacement": {
+          "price_range": { "min": 54, "max": 80 },
+          "description": "Vidange et remplacement liquide refroidissement + contrôles",
+          "labor_included": true,
+          "includes": ["contrôle motoventilateur", "contrôle thermostat"]
+        }
+      },
+      "fork": {
+        "fork_bleed": {
+          "price_range": { "min": 200, "max": 250 },
+          "description": "Vidange fourche et huile (sauf inversée et scooter)",
+          "labor_included": true
+        },
+        "fork_seal_traditional": {
+          "price_range": { "min": 150, "max": 250 },
+          "description": "Joints spi fourche traditionnelle (complet)",
+          "labor_included": true,
+          "note": "Démontage, nettoyage, joints, huile, réglages"
+        },
+        "fork_seal_inverted": {
+          "price_range": { "min": 240, "max": 280 },
+          "description": "Joints spi fourche inversée (complet)",
+          "labor_included": true
+        },
+        "fork_seal_scooter_traditional": {
+          "price_range": { "min": 250, "max": 270 },
+          "description": "Joints spi fourche scooter traditionnelle",
+          "labor_included": true
+        },
+        "fork_seal_scooter_inverted": {
+          "price_range": { "min": 260, "max": 280 },
+          "description": "Joints spi fourche scooter inversée",
+          "labor_included": true
+        },
+        "fork_seal_disassembled": {
+          "price_range": { "min": 89, "max": 120 },
+          "description": "Remplacement joints spi, fourche démontée (hors pièces et huile)",
+          "labor_included": true
+        }
+      },
+      "chain": {
+        "kit_replacement_125": {
+          "price_range": { "min": 40, "max": 50 },
+          "description": "Pose kit chaîne ≤125cc (hors pièces)",
+          "labor_included": true
+        },
+        "kit_replacement_plus": {
+          "price_range": { "min": 50, "max": 90 },
+          "description": "Pose kit chaîne >125cc (hors pièces)",
+          "labor_included": true
+        },
+        "tension_lubrication": {
+          "price_range": { "min": 9, "max": 20 },
+          "description": "Tension et graissage chaîne",
+          "labor_included": true
+        }
+      },
+      "oil_changes": {
+        "oil_125cc_semi_synthetic": {
+          "price_range": { "min": 45, "max": 55 },
+          "description": "Vidange 125cc - Semi synthèse 10W40",
+          "labor_included": true,
+          "includes": ["huile", "filtre à huile", "joint"]
+        },
+        "oil_semi_synthetic": {
+          "price_range": { "min": 70, "max": 90 },
+          "description": "Vidange - Semi synthèse 10W40",
+          "labor_included": true,
+          "includes": ["huile", "filtre à huile", "joint"]
+        },
+        "oil_synthetic": {
+          "price_range": { "min": 80, "max": 100 },
+          "description": "Vidange - 100% Synthèse",
+          "labor_included": true,
+          "includes": ["huile", "filtre à huile", "joint"]
+        },
+        "oil_expert": {
+          "price_range": { "min": 90, "max": 110 },
+          "description": "Vidange Expert - Synthèse + additif lubrifiant",
+          "labor_included": true,
+          "includes": ["huile", "additif", "filtre à huile", "joint"]
+        },
+        "oil_cardan": {
+          "price_range": { "min": 25, "max": 40 },
+          "description": "Vidange transmission cardan (huile + joint)",
+          "labor_included": true
+        },
+        "oil_gearbox_offroad": {
+          "price_range": { "min": 35, "max": 45 },
+          "description": "Vidange boîte de vitesse off-road (huile + joint)",
+          "labor_included": true
+        }
+      },
+      "clutch": {
+        "clutch_replacement": {
+          "price_range": { "min": 118, "max": 180 },
+          "description": "Remplacement et pose embrayage (hors pièces, hors BMW/Guzzi)",
+          "labor_included": true,
+          "note": "BMW et Guzzi sur devis"
+        }
+      },
+      "fuel_system": {
+        "carburetor_cleaning_basic": {
+          "price_range": { "min": 90, "max": 120 },
+          "description": "Nettoyage carburateur simple (démontage, nettoyage, réglage)",
+          "labor_included": true
+        },
+        "carburetor_cleaning_ultrasound": {
+          "price_range": { "min": 30, "max": 55 },
+          "description": "Nettoyage aux ultrasons par carburateur (hors démontage)",
+          "labor_included": true
+        },
+        "carburetor_full_service": {
+          "price_range": { "min": 140, "max": 165 },
+          "description": "Service complet carburateur (démontage, ultrasons, joints, réglage)",
+          "labor_included": true
+        },
+        "injection_sync": {
+          "price_range": { "min": 55, "max": 105 },
+          "description": "Synchronisation injecteurs / carburateurs",
+          "labor_included": true
+        },
+        "electronic_diagnosis": {
+          "price_range": { "min": 25, "max": 55 },
+          "description": "Diagnostic électronique / passage à la valise",
+          "labor_included": true,
+          "compatible_brands": ["Aprilia", "Honda", "KTM", "Triumph", "Kawasaki", "Yamaha", "Suzuki"]
+        },
+        "electronic_search": {
+          "price_range": { "min": 65, "max": 85 },
+          "description": "Recherche panne électrique (par heure)",
+          "labor_included": true,
+          "note": "Tarif horaire, durée variable"
+        },
+        "ecu_reading": {
+          "price_range": { "min": 25, "max": 35 },
+          "description": "Lecture codes défaut / passage valise",
+          "labor_included": true
+        }
+      },
+      "bearings": {
+        "wheel_bearing_front": {
+          "price_range": { "min": 20, "max": 35 },
+          "description": "Remplacement roulement roue avant (hors pièce)",
+          "labor_included": true
+        },
+        "wheel_bearing_rear": {
+          "price_range": { "min": 20, "max": 35 },
+          "description": "Remplacement roulement roue arrière (hors pièce)",
+          "labor_included": true
+        },
+        "steering_bearing": {
+          "price_range": { "min": 100, "max": 180 },
+          "description": "Remplacement roulements de colonne de direction",
+          "labor_included": true,
+          "note": "Hors pièces"
+        }
+      },
+      "other": {
+        "security_check": {
+          "price_range": { "min": 30, "max": 55 },
+          "description": "Contrôle sécurité (29-59 points) + mise à niveau",
+          "labor_included": true
+        },
+        "cleaning_basic": {
+          "price_range": { "min": 35, "max": 45 },
+          "description": "Nettoyage basic (lavage, séchage, pression pneu)",
+          "labor_included": true
+        },
+        "cleaning_premium": {
+          "price_range": { "min": 55, "max": 70 },
+          "description": "Nettoyage premium (lavage, carrosserie, selle, dégraissage chaîne)",
+          "labor_included": true
+        },
+        "cleaning_custom_gt": {
+          "price_range": { "min": 60, "max": 85 },
+          "description": "Nettoyage Custom/GT complet",
+          "labor_included": true
+        },
+        "battery_charge": {
+          "price_range": { "min": 10, "max": 15 },
+          "description": "Charge et mise en service batterie",
+          "labor_included": true
+        }
+      }
+    },
+    "packages": {
+      "maintenance_basic_125": {
+        "price_range": { "min": 75, "max": 85 },
+        "description": "Package Basic+ 125cc",
+        "labor_included": true,
+        "includes": [
+          "Remplacement huile moteur",
+          "Remplacement filtre à huile",
+          "Remise à niveau liquide refroidissement",
+          "Tension, nettoyage et graissage chaîne",
+          "Graissage câble d'embrayage",
+          "Graissage béquille",
+          "Contrôle visuel et niveaux",
+          "29 points de contrôle"
+        ]
+      },
+      "maintenance_premium_125": {
+        "price_range": { "min": 105, "max": 115 },
+        "description": "Package Premium 125cc",
+        "labor_included": true,
+        "includes": [
+          "Remplacement huile moteur",
+          "Remplacement filtre à huile",
+          "Remplacement liquide de freins",
+          "Remise à niveau liquide refroidissement",
+          "Tension, nettoyage et graissage chaîne",
+          "Graissage câble d'embrayage",
+          "29 points de contrôle"
+        ]
+      }
+    }
+  }
+}

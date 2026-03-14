@@ -1,0 +1,104 @@
+services:
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: ridelog-backend
+    restart: unless-stopped
+    volumes:
+      # STOCKAGE PERSISTANT DES DONNÉES
+      # ════════════════════════════════════════════════════════════════════════
+      # Bind mount vers ./data sur la machine hôte
+      # Contenu:
+      #   - ridelog.db: Base de données SQLite (utilisateurs, véhicules, etc.)
+      #   - invoices/: Factures/Reçus (si photo upload)
+      #   - photos/: Photos des véhicules
+      # Directement accessible dans le dossier du projet: ./data/
+      - ./data:/data
+    environment:
+      # ════════════════════════════════════════════════════════════════════════
+      # AUTHENTIFICATION & SÉCURITÉ
+      # ════════════════════════════════════════════════════════════════════════
+      # Clé secrète pour signer les tokens JWT (authentification)
+      - JWT_SECRET=
+      
+      # Clé secrète pour l'initialisation Home Assistant
+      # HA doit fournir cette clé pour créer son compte d'intégration
+      - HA_INIT_KEY=
+      
+      # ════════════════════════════════════════════════════════════════════════
+      # BASE DE DONNÉES
+      # ════════════════════════════════════════════════════════════════════════
+      # DATABASE_URL: sqlite:////data/ridelog.db
+      # - Chemin: /data/ridelog.db dans le container (bind mount vers ./data)
+      # - 4 slashes au début car chemin absolu Unix: sqlite:/// (protocol) + /
+      # - Persiste dans ./data/ sur la machine hôte
+      - DATABASE_URL=sqlite:////data/ridelog.db
+      
+      # ════════════════════════════════════════════════════════════════════════
+      # STOCKAGE DES FICHIERS
+      # ════════════════════════════════════════════════════════════════════════
+      # Répertoires dans le volume persistant /data
+      - INVOICE_STORAGE_DIR=/data/invoices
+      - PHOTO_STORAGE_DIR=/data/photos
+      
+      # ════════════════════════════════════════════════════════════════════════
+      # AUTRES CONFIGURATIONS
+      # ════════════════════════════════════════════════════════════════════════
+      - PYTHONUNBUFFERED=1
+      - LOG_LEVEL=INFO
+      - CORS_ORIGINS=*
+      
+      # ════════════════════════════════════════════════════════════════════════
+      # INSCRIPTION
+      # ════════════════════════════════════════════════════════════════════════
+      # Mode d'inscription des nouveaux utilisateurs :
+      #   invite  = sur invitation uniquement (lien généré par un admin)
+      #   open    = inscription libre (tout le monde peut créer un compte)
+      #   closed  = fermé (seul un admin peut créer des comptes)
+      - REGISTRATION_MODE=invite
+      
+      # ════════════════════════════════════════════════════════════════════════
+      # APIS PLAQUE D'IMMATRICULATION (optionnel)
+      # ════════════════════════════════════════════════════════════════════════
+      # RAPIDAPI_KEY : clé RapidAPI pour le décodage de plaque (10 req/mois gratuit)
+      #   → https://rapidapi.com/api-plaque-immatriculation-siv-api-plaque-immatriculation-siv-default/api/api-plaque-immatriculation-siv/
+      # PLATE_API_TOKEN : alternative directe (api.apiplaqueimmatriculation.com)
+      # Le décodage VIN utilise l'API NHTSA (gratuit, sans clé)
+      - RAPIDAPI_KEY=
+    networks:
+      - ridelog
+    # Expose port to host machine (backend API)
+    ports:
+      - "8000:8000"
+    expose:
+      - "8000"
+    deploy:
+      resources:
+        limits:
+          memory: 256M
+
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    container_name: ridelog-frontend
+    restart: unless-stopped
+    ports:
+      - "3100:80"
+    expose:
+      - "80"
+    depends_on:
+      - backend
+    networks:
+      - ridelog
+    deploy:
+      resources:
+        limits:
+          memory: 512M
+
+networks:
+  ridelog:
+    driver: bridge
+    name: ridelog
+

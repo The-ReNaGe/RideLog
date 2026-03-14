@@ -1,0 +1,19 @@
+{
+  "config": {
+    "step": {
+      "user": {
+        "title": "Configurer RideLog",
+        "description": "Entrez l'URL de votre serveur RideLog et la clé d'initialisation (HA_INIT_KEY du docker-compose).",
+        "data": {
+          "api_url": "URL de l'API RideLog",
+          "ha_init_key": "Clé d'initialisation HA"
+        }
+      }
+    },
+    "error": {
+      "cannot_connect": "Impossible de se connecter. Vérifiez l'URL et la clé d'initialisation.",
+      "invalid_auth": "Clé d'initialisation invalide.",
+      "unknown": "Erreur inattendue."
+    }
+  }
+}

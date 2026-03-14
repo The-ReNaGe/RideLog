@@ -1,0 +1,16 @@
+{
+  "manifest_version": 1,
+  "domain": "ridelog",
+  "name": "RideLog",
+  "codeowners": [
+    "@renage"
+  ],
+  "config_flow": true,
+  "documentation": "https://github.com/renage/ridelog",
+  "icon": "icon.png",
+  "requirements": [
+    "httpx>=0.24.0"
+  ],
+  "version": "1.0.0",
+  "homeassistant": "2024.1.0"
+}

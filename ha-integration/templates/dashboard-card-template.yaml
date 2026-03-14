@@ -1,0 +1,615 @@
+type: vertical-stack
+cards:
+  - type: custom:mushroom-title-card
+    title: 🏍️ Triumph Street Triple
+    subtitle: Gestion maintenance
+  - type: custom:mushroom-chips-card
+    chips:
+      - type: template
+        icon: mdi:alert
+        icon_color: red
+        content: >-
+          {{ state_attr('sensor.triumph_street_triple_maintenance_en_retard',
+          'count') | default(0) }} en retard
+      - type: template
+        icon: mdi:alert-outline
+        icon_color: orange
+        content: >-
+          {{ state_attr('sensor.triumph_street_triple_maintenance_a_venir',
+          'count') | default(0) }} à venir
+  - type: custom:mushroom-title-card
+    title: 🟠 Entretiens à venir
+  - type: vertical-stack
+    cards:
+      - type: custom:mushroom-template-card
+        primary: ✅ Aucun entretien à venir
+        secondary: Tous les entretiens sont à jour ✨
+        icon: mdi:check-circle
+        icon_color: green
+        card_mod:
+          style: |
+            :host {
+              display: {{ 'block' if (state_attr('sensor.triumph_street_triple_maintenance_a_venir', 'maintenances') or []) | length == 0 else 'none' }};
+            }
+            ha-card {
+              background: linear-gradient(135deg, rgba(76, 175, 80, 0.1) 0%, rgba(76, 175, 80, 0.05) 100%);
+              border-left: 4px solid #4caf50;
+              border-radius: 8px;
+            }
+      - type: custom:mushroom-template-card
+        primary: >
+          {%- set items =
+          state_attr('sensor.triumph_street_triple_maintenance_a_venir',
+          'maintenances') or [] -%} {{ items[0].intervention_type if items |
+          length > 0 else '' }}
+        secondary: >
+          {%- set items =
+          state_attr('sensor.triumph_street_triple_maintenance_a_venir',
+          'maintenances') or [] -%} {%- if items | length > 0 -%}
+            {%- set m = items[0] -%}
+            {%- if m.km_remaining != 999999 -%}📏 {{ m.km_remaining }} km • {%- endif -%}
+            {%- if m.days_remaining != 999999 -%}📅 {{ m.days_remaining }} j • {%- endif -%}
+            💰 {{ m.estimated_cost_min }}€–{{ m.estimated_cost_max }}€
+          {%- endif -%}
+        icon: mdi:alert-outline
+        icon_color: orange
+        card_mod:
+          style: |
+            :host {
+              display: {{ 'block' if (state_attr('sensor.triumph_street_triple_maintenance_a_venir', 'maintenances') or []) | length > 0 else 'none' }};
+            }
+            ha-card {
+              background: linear-gradient(135deg, rgba(255, 152, 0, 0.1) 0%, rgba(255, 152, 0, 0.05) 100%);
+              border-left: 4px solid #ff9800;
+              border-radius: 8px;
+              margin-bottom: 8px;
+            }
+      - type: custom:mushroom-template-card
+        primary: >
+          {%- set items =
+          state_attr('sensor.triumph_street_triple_maintenance_a_venir',
+          'maintenances') or [] -%} {{ items[1].intervention_type if items |
+          length > 1 else '' }}
+        secondary: >
+          {%- set items =
+          state_attr('sensor.triumph_street_triple_maintenance_a_venir',
+          'maintenances') or [] -%} {%- if items | length > 1 -%}
+            {%- set m = items[1] -%}
+            {%- if m.km_remaining != 999999 -%}📏 {{ m.km_remaining }} km • {%- endif -%}
+            {%- if m.days_remaining != 999999 -%}📅 {{ m.days_remaining }} j • {%- endif -%}
+            💰 {{ m.estimated_cost_min }}€–{{ m.estimated_cost_max }}€
+          {%- endif -%}
+        icon: mdi:alert-outline
+        icon_color: orange
+        card_mod:
+          style: |
+            :host {
+              display: {{ 'block' if (state_attr('sensor.triumph_street_triple_maintenance_a_venir', 'maintenances') or []) | length > 1 else 'none' }};
+            }
+            ha-card {
+              background: linear-gradient(135deg, rgba(255, 152, 0, 0.1) 0%, rgba(255, 152, 0, 0.05) 100%);
+              border-left: 4px solid #ff9800;
+              border-radius: 8px;
+              margin-bottom: 8px;
+            }
+      - type: custom:mushroom-template-card
+        primary: >
+          {%- set items =
+          state_attr('sensor.triumph_street_triple_maintenance_a_venir',
+          'maintenances') or [] -%} {{ items[2].intervention_type if items |
+          length > 2 else '' }}
+        secondary: >
+          {%- set items =
+          state_attr('sensor.triumph_street_triple_maintenance_a_venir',
+          'maintenances') or [] -%} {%- if items | length > 2 -%}
+            {%- set m = items[2] -%}
+            {%- if m.km_remaining != 999999 -%}📏 {{ m.km_remaining }} km • {%- endif -%}
+            {%- if m.days_remaining != 999999 -%}📅 {{ m.days_remaining }} j • {%- endif -%}
+            💰 {{ m.estimated_cost_min }}€–{{ m.estimated_cost_max }}€
+          {%- endif -%}
+        icon: mdi:alert-outline
+        icon_color: orange
+        card_mod:
+          style: |
+            :host {
+              display: {{ 'block' if (state_attr('sensor.triumph_street_triple_maintenance_a_venir', 'maintenances') or []) | length > 2 else 'none' }};
+            }
+            ha-card {
+              background: linear-gradient(135deg, rgba(255, 152, 0, 0.1) 0%, rgba(255, 152, 0, 0.05) 100%);
+              border-left: 4px solid #ff9800;
+              border-radius: 8px;
+              margin-bottom: 8px;
+            }
+      - type: custom:mushroom-template-card
+        primary: >
+          {%- set items =
+          state_attr('sensor.triumph_street_triple_maintenance_a_venir',
+          'maintenances') or [] -%} {{ items[3].intervention_type if items |
+          length > 3 else '' }}
+        secondary: >
+          {%- set items =
+          state_attr('sensor.triumph_street_triple_maintenance_a_venir',
+          'maintenances') or [] -%} {%- if items | length > 3 -%}
+            {%- set m = items[3] -%}
+            {%- if m.km_remaining != 999999 -%}📏 {{ m.km_remaining }} km • {%- endif -%}
+            {%- if m.days_remaining != 999999 -%}📅 {{ m.days_remaining }} j • {%- endif -%}
+            💰 {{ m.estimated_cost_min }}€–{{ m.estimated_cost_max }}€
+          {%- endif -%}
+        icon: mdi:alert-outline
+        icon_color: orange
+        card_mod:
+          style: |
+            :host {
+              display: {{ 'block' if (state_attr('sensor.triumph_street_triple_maintenance_a_venir', 'maintenances') or []) | length > 3 else 'none' }};
+            }
+            ha-card {
+              background: linear-gradient(135deg, rgba(255, 152, 0, 0.1) 0%, rgba(255, 152, 0, 0.05) 100%);
+              border-left: 4px solid #ff9800;
+              border-radius: 8px;
+              margin-bottom: 8px;
+            }
+      - type: custom:mushroom-template-card
+        primary: >
+          {%- set items =
+          state_attr('sensor.triumph_street_triple_maintenance_a_venir',
+          'maintenances') or [] -%} {{ items[4].intervention_type if items |
+          length > 4 else '' }}
+        secondary: >
+          {%- set items =
+          state_attr('sensor.triumph_street_triple_maintenance_a_venir',
+          'maintenances') or [] -%} {%- if items | length > 4 -%}
+            {%- set m = items[4] -%}
+            {%- if m.km_remaining != 999999 -%}📏 {{ m.km_remaining }} km • {%- endif -%}
+            {%- if m.days_remaining != 999999 -%}📅 {{ m.days_remaining }} j • {%- endif -%}
+            💰 {{ m.estimated_cost_min }}€–{{ m.estimated_cost_max }}€
+          {%- endif -%}
+        icon: mdi:alert-outline
+        icon_color: orange
+        card_mod:
+          style: |
+            :host {
+              display: {{ 'block' if (state_attr('sensor.triumph_street_triple_maintenance_a_venir', 'maintenances') or []) | length > 4 else 'none' }};
+            }
+            ha-card {
+              background: linear-gradient(135deg, rgba(255, 152, 0, 0.1) 0%, rgba(255, 152, 0, 0.05) 100%);
+              border-left: 4px solid #ff9800;
+              border-radius: 8px;
+              margin-bottom: 8px;
+            }
+      - type: custom:mushroom-template-card
+        primary: >
+          {%- set items =
+          state_attr('sensor.triumph_street_triple_maintenance_a_venir',
+          'maintenances') or [] -%} {{ items[5].intervention_type if items |
+          length > 5 else '' }}
+        secondary: >
+          {%- set items =
+          state_attr('sensor.triumph_street_triple_maintenance_a_venir',
+          'maintenances') or [] -%} {%- if items | length > 5 -%}
+            {%- set m = items[5] -%}
+            {%- if m.km_remaining != 999999 -%}📏 {{ m.km_remaining }} km • {%- endif -%}
+            {%- if m.days_remaining != 999999 -%}📅 {{ m.days_remaining }} j • {%- endif -%}
+            💰 {{ m.estimated_cost_min }}€–{{ m.estimated_cost_max }}€
+          {%- endif -%}
+        icon: mdi:alert-outline
+        icon_color: orange
+        card_mod:
+          style: |
+            :host {
+              display: {{ 'block' if (state_attr('sensor.triumph_street_triple_maintenance_a_venir', 'maintenances') or []) | length > 5 else 'none' }};
+            }
+            ha-card {
+              background: linear-gradient(135deg, rgba(255, 152, 0, 0.1) 0%, rgba(255, 152, 0, 0.05) 100%);
+              border-left: 4px solid #ff9800;
+              border-radius: 8px;
+              margin-bottom: 8px;
+            }
+      - type: custom:mushroom-template-card
+        primary: >
+          {%- set items =
+          state_attr('sensor.triumph_street_triple_maintenance_a_venir',
+          'maintenances') or [] -%} {{ items[6].intervention_type if items |
+          length > 6 else '' }}
+        secondary: >
+          {%- set items =
+          state_attr('sensor.triumph_street_triple_maintenance_a_venir',
+          'maintenances') or [] -%} {%- if items | length > 6 -%}
+            {%- set m = items[6] -%}
+            {%- if m.km_remaining != 999999 -%}📏 {{ m.km_remaining }} km • {%- endif -%}
+            {%- if m.days_remaining != 999999 -%}📅 {{ m.days_remaining }} j • {%- endif -%}
+            💰 {{ m.estimated_cost_min }}€–{{ m.estimated_cost_max }}€
+          {%- endif -%}
+        icon: mdi:alert-outline
+        icon_color: orange
+        card_mod:
+          style: |
+            :host {
+              display: {{ 'block' if (state_attr('sensor.triumph_street_triple_maintenance_a_venir', 'maintenances') or []) | length > 6 else 'none' }};
+            }
+            ha-card {
+              background: linear-gradient(135deg, rgba(255, 152, 0, 0.1) 0%, rgba(255, 152, 0, 0.05) 100%);
+              border-left: 4px solid #ff9800;
+              border-radius: 8px;
+              margin-bottom: 8px;
+            }
+      - type: custom:mushroom-template-card
+        primary: >
+          {%- set items =
+          state_attr('sensor.triumph_street_triple_maintenance_a_venir',
+          'maintenances') or [] -%} {{ items[7].intervention_type if items |
+          length > 7 else '' }}
+        secondary: >
+          {%- set items =
+          state_attr('sensor.triumph_street_triple_maintenance_a_venir',
+          'maintenances') or [] -%} {%- if items | length > 7 -%}
+            {%- set m = items[7] -%}
+            {%- if m.km_remaining != 999999 -%}📏 {{ m.km_remaining }} km • {%- endif -%}
+            {%- if m.days_remaining != 999999 -%}📅 {{ m.days_remaining }} j • {%- endif -%}
+            💰 {{ m.estimated_cost_min }}€–{{ m.estimated_cost_max }}€
+          {%- endif -%}
+        icon: mdi:alert-outline
+        icon_color: orange
+        card_mod:
+          style: |
+            :host {
+              display: {{ 'block' if (state_attr('sensor.triumph_street_triple_maintenance_a_venir', 'maintenances') or []) | length > 7 else 'none' }};
+            }
+            ha-card {
+              background: linear-gradient(135deg, rgba(255, 152, 0, 0.1) 0%, rgba(255, 152, 0, 0.05) 100%);
+              border-left: 4px solid #ff9800;
+              border-radius: 8px;
+              margin-bottom: 8px;
+            }
+      - type: custom:mushroom-template-card
+        primary: >
+          {%- set items =
+          state_attr('sensor.triumph_street_triple_maintenance_a_venir',
+          'maintenances') or [] -%} {{ items[8].intervention_type if items |
+          length > 8 else '' }}
+        secondary: >
+          {%- set items =
+          state_attr('sensor.triumph_street_triple_maintenance_a_venir',
+          'maintenances') or [] -%} {%- if items | length > 8 -%}
+            {%- set m = items[8] -%}
+            {%- if m.km_remaining != 999999 -%}📏 {{ m.km_remaining }} km • {%- endif -%}
+            {%- if m.days_remaining != 999999 -%}📅 {{ m.days_remaining }} j • {%- endif -%}
+            💰 {{ m.estimated_cost_min }}€–{{ m.estimated_cost_max }}€
+          {%- endif -%}
+        icon: mdi:alert-outline
+        icon_color: orange
+        card_mod:
+          style: |
+            :host {
+              display: {{ 'block' if (state_attr('sensor.triumph_street_triple_maintenance_a_venir', 'maintenances') or []) | length > 8 else 'none' }};
+            }
+            ha-card {
+              background: linear-gradient(135deg, rgba(255, 152, 0, 0.1) 0%, rgba(255, 152, 0, 0.05) 100%);
+              border-left: 4px solid #ff9800;
+              border-radius: 8px;
+              margin-bottom: 8px;
+            }
+      - type: custom:mushroom-template-card
+        primary: >
+          {%- set items =
+          state_attr('sensor.triumph_street_triple_maintenance_a_venir',
+          'maintenances') or [] -%} {{ items[9].intervention_type if items |
+          length > 9 else '' }}
+        secondary: >
+          {%- set items =
+          state_attr('sensor.triumph_street_triple_maintenance_a_venir',
+          'maintenances') or [] -%} {%- if items | length > 9 -%}
+            {%- set m = items[9] -%}
+            {%- if m.km_remaining != 999999 -%}📏 {{ m.km_remaining }} km • {%- endif -%}
+            {%- if m.days_remaining != 999999 -%}📅 {{ m.days_remaining }} j • {%- endif -%}
+            💰 {{ m.estimated_cost_min }}€–{{ m.estimated_cost_max }}€
+          {%- endif -%}
+        icon: mdi:alert-outline
+        icon_color: orange
+        card_mod:
+          style: |
+            :host {
+              display: {{ 'block' if (state_attr('sensor.triumph_street_triple_maintenance_a_venir', 'maintenances') or []) | length > 9 else 'none' }};
+            }
+            ha-card {
+              background: linear-gradient(135deg, rgba(255, 152, 0, 0.1) 0%, rgba(255, 152, 0, 0.05) 100%);
+              border-left: 4px solid #ff9800;
+              border-radius: 8px;
+            }
+  - type: custom:mushroom-title-card
+    title: 🔴 Entretiens en retard
+  - type: vertical-stack
+    cards:
+      - type: custom:mushroom-template-card
+        primary: ✅ Aucun entretien en retard
+        secondary: Tout est à jour ! 🎉
+        icon: mdi:check-circle
+        icon_color: green
+        card_mod:
+          style: |
+            :host {
+              display: {{ 'block' if (state_attr('sensor.triumph_street_triple_maintenance_en_retard', 'maintenances') or []) | length == 0 else 'none' }};
+            }
+            ha-card {
+              background: linear-gradient(135deg, rgba(76, 175, 80, 0.1) 0%, rgba(76, 175, 80, 0.05) 100%);
+              border-left: 4px solid #4caf50;
+              border-radius: 8px;
+            }
+      - type: custom:mushroom-template-card
+        primary: >
+          {%- set items =
+          state_attr('sensor.triumph_street_triple_maintenance_en_retard',
+          'maintenances') or [] -%} {{ items[0].intervention_type if items |
+          length > 0 else '' }}
+        secondary: >
+          {%- set items =
+          state_attr('sensor.triumph_street_triple_maintenance_en_retard',
+          'maintenances') or [] -%} {%- if items | length > 0 -%}
+            {%- set m = items[0] -%}
+            {%- if m.km_remaining != 999999 -%}📏 {{ (m.km_remaining | abs) }} km • {%- endif -%}
+            {%- if m.days_remaining != 999999 -%}📅 {{ (m.days_remaining | abs) }} j • {%- endif -%}
+            💰 {{ m.estimated_cost_min }}€–{{ m.estimated_cost_max }}€
+          {%- endif -%}
+        icon: mdi:alert
+        icon_color: red
+        card_mod:
+          style: |
+            :host {
+              display: {{ 'block' if (state_attr('sensor.triumph_street_triple_maintenance_en_retard', 'maintenances') or []) | length > 0 else 'none' }};
+            }
+            ha-card {
+              background: linear-gradient(135deg, rgba(244, 67, 54, 0.1) 0%, rgba(244, 67, 54, 0.05) 100%);
+              border-left: 4px solid #f44336;
+              border-radius: 8px;
+              margin-bottom: 8px;
+            }
+      - type: custom:mushroom-template-card
+        primary: >
+          {%- set items =
+          state_attr('sensor.triumph_street_triple_maintenance_en_retard',
+          'maintenances') or [] -%} {{ items[1].intervention_type if items |
+          length > 1 else '' }}
+        secondary: >
+          {%- set items =
+          state_attr('sensor.triumph_street_triple_maintenance_en_retard',
+          'maintenances') or [] -%} {%- if items | length > 1 -%}
+            {%- set m = items[1] -%}
+            {%- if m.km_remaining != 999999 -%}📏 {{ (m.km_remaining | abs) }} km • {%- endif -%}
+            {%- if m.days_remaining != 999999 -%}📅 {{ (m.days_remaining | abs) }} j • {%- endif -%}
+            💰 {{ m.estimated_cost_min }}€–{{ m.estimated_cost_max }}€
+          {%- endif -%}
+        icon: mdi:alert
+        icon_color: red
+        card_mod:
+          style: |
+            :host {
+              display: {{ 'block' if (state_attr('sensor.triumph_street_triple_maintenance_en_retard', 'maintenances') or []) | length > 1 else 'none' }};
+            }
+            ha-card {
+              background: linear-gradient(135deg, rgba(244, 67, 54, 0.1) 0%, rgba(244, 67, 54, 0.05) 100%);
+              border-left: 4px solid #f44336;
+              border-radius: 8px;
+              margin-bottom: 8px;
+            }
+      - type: custom:mushroom-template-card
+        primary: >
+          {%- set items =
+          state_attr('sensor.triumph_street_triple_maintenance_en_retard',
+          'maintenances') or [] -%} {{ items[2].intervention_type if items |
+          length > 2 else '' }}
+        secondary: >
+          {%- set items =
+          state_attr('sensor.triumph_street_triple_maintenance_en_retard',
+          'maintenances') or [] -%} {%- if items | length > 2 -%}
+            {%- set m = items[2] -%}
+            {%- if m.km_remaining != 999999 -%}📏 {{ (m.km_remaining | abs) }} km • {%- endif -%}
+            {%- if m.days_remaining != 999999 -%}📅 {{ (m.days_remaining | abs) }} j • {%- endif -%}
+            💰 {{ m.estimated_cost_min }}€–{{ m.estimated_cost_max }}€
+          {%- endif -%}
+        icon: mdi:alert
+        icon_color: red
+        card_mod:
+          style: |
+            :host {
+              display: {{ 'block' if (state_attr('sensor.triumph_street_triple_maintenance_en_retard', 'maintenances') or []) | length > 2 else 'none' }};
+            }
+            ha-card {
+              background: linear-gradient(135deg, rgba(244, 67, 54, 0.1) 0%, rgba(244, 67, 54, 0.05) 100%);
+              border-left: 4px solid #f44336;
+              border-radius: 8px;
+              margin-bottom: 8px;
+            }
+      - type: custom:mushroom-template-card
+        primary: >
+          {%- set items =
+          state_attr('sensor.triumph_street_triple_maintenance_en_retard',
+          'maintenances') or [] -%} {{ items[3].intervention_type if items |
+          length > 3 else '' }}
+        secondary: >
+          {%- set items =
+          state_attr('sensor.triumph_street_triple_maintenance_en_retard',
+          'maintenances') or [] -%} {%- if items | length > 3 -%}
+            {%- set m = items[3] -%}
+            {%- if m.km_remaining != 999999 -%}📏 {{ (m.km_remaining | abs) }} km • {%- endif -%}
+            {%- if m.days_remaining != 999999 -%}📅 {{ (m.days_remaining | abs) }} j • {%- endif -%}
+            💰 {{ m.estimated_cost_min }}€–{{ m.estimated_cost_max }}€
+          {%- endif -%}
+        icon: mdi:alert
+        icon_color: red
+        card_mod:
+          style: |
+            :host {
+              display: {{ 'block' if (state_attr('sensor.triumph_street_triple_maintenance_en_retard', 'maintenances') or []) | length > 3 else 'none' }};
+            }
+            ha-card {
+              background: linear-gradient(135deg, rgba(244, 67, 54, 0.1) 0%, rgba(244, 67, 54, 0.05) 100%);
+              border-left: 4px solid #f44336;
+              border-radius: 8px;
+              margin-bottom: 8px;
+            }
+      - type: custom:mushroom-template-card
+        primary: >
+          {%- set items =
+          state_attr('sensor.triumph_street_triple_maintenance_en_retard',
+          'maintenances') or [] -%} {{ items[4].intervention_type if items |
+          length > 4 else '' }}
+        secondary: >
+          {%- set items =
+          state_attr('sensor.triumph_street_triple_maintenance_en_retard',
+          'maintenances') or [] -%} {%- if items | length > 4 -%}
+            {%- set m = items[4] -%}
+            {%- if m.km_remaining != 999999 -%}📏 {{ (m.km_remaining | abs) }} km • {%- endif -%}
+            {%- if m.days_remaining != 999999 -%}📅 {{ (m.days_remaining | abs) }} j • {%- endif -%}
+            💰 {{ m.estimated_cost_min }}€–{{ m.estimated_cost_max }}€
+          {%- endif -%}
+        icon: mdi:alert
+        icon_color: red
+        card_mod:
+          style: |
+            :host {
+              display: {{ 'block' if (state_attr('sensor.triumph_street_triple_maintenance_en_retard', 'maintenances') or []) | length > 4 else 'none' }};
+            }
+            ha-card {
+              background: linear-gradient(135deg, rgba(244, 67, 54, 0.1) 0%, rgba(244, 67, 54, 0.05) 100%);
+              border-left: 4px solid #f44336;
+              border-radius: 8px;
+              margin-bottom: 8px;
+            }
+      - type: custom:mushroom-template-card
+        primary: >
+          {%- set items =
+          state_attr('sensor.triumph_street_triple_maintenance_en_retard',
+          'maintenances') or [] -%} {{ items[5].intervention_type if items |
+          length > 5 else '' }}
+        secondary: >
+          {%- set items =
+          state_attr('sensor.triumph_street_triple_maintenance_en_retard',
+          'maintenances') or [] -%} {%- if items | length > 5 -%}
+            {%- set m = items[5] -%}
+            {%- if m.km_remaining != 999999 -%}📏 {{ (m.km_remaining | abs) }} km • {%- endif -%}
+            {%- if m.days_remaining != 999999 -%}📅 {{ (m.days_remaining | abs) }} j • {%- endif -%}
+            💰 {{ m.estimated_cost_min }}€–{{ m.estimated_cost_max }}€
+          {%- endif -%}
+        icon: mdi:alert
+        icon_color: red
+        card_mod:
+          style: |
+            :host {
+              display: {{ 'block' if (state_attr('sensor.triumph_street_triple_maintenance_en_retard', 'maintenances') or []) | length > 5 else 'none' }};
+            }
+            ha-card {
+              background: linear-gradient(135deg, rgba(244, 67, 54, 0.1) 0%, rgba(244, 67, 54, 0.05) 100%);
+              border-left: 4px solid #f44336;
+              border-radius: 8px;
+              margin-bottom: 8px;
+            }
+      - type: custom:mushroom-template-card
+        primary: >
+          {%- set items =
+          state_attr('sensor.triumph_street_triple_maintenance_en_retard',
+          'maintenances') or [] -%} {{ items[6].intervention_type if items |
+          length > 6 else '' }}
+        secondary: >
+          {%- set items =
+          state_attr('sensor.triumph_street_triple_maintenance_en_retard',
+          'maintenances') or [] -%} {%- if items | length > 6 -%}
+            {%- set m = items[6] -%}
+            {%- if m.km_remaining != 999999 -%}📏 {{ (m.km_remaining | abs) }} km • {%- endif -%}
+            {%- if m.days_remaining != 999999 -%}📅 {{ (m.days_remaining | abs) }} j • {%- endif -%}
+            💰 {{ m.estimated_cost_min }}€–{{ m.estimated_cost_max }}€
+          {%- endif -%}
+        icon: mdi:alert
+        icon_color: red
+        card_mod:
+          style: |
+            :host {
+              display: {{ 'block' if (state_attr('sensor.triumph_street_triple_maintenance_en_retard', 'maintenances') or []) | length > 6 else 'none' }};
+            }
+            ha-card {
+              background: linear-gradient(135deg, rgba(244, 67, 54, 0.1) 0%, rgba(244, 67, 54, 0.05) 100%);
+              border-left: 4px solid #f44336;
+              border-radius: 8px;
+              margin-bottom: 8px;
+            }
+      - type: custom:mushroom-template-card
+        primary: >
+          {%- set items =
+          state_attr('sensor.triumph_street_triple_maintenance_en_retard',
+          'maintenances') or [] -%} {{ items[7].intervention_type if items |
+          length > 7 else '' }}
+        secondary: >
+          {%- set items =
+          state_attr('sensor.triumph_street_triple_maintenance_en_retard',
+          'maintenances') or [] -%} {%- if items | length > 7 -%}
+            {%- set m = items[7] -%}
+            {%- if m.km_remaining != 999999 -%}📏 {{ (m.km_remaining | abs) }} km • {%- endif -%}
+            {%- if m.days_remaining != 999999 -%}📅 {{ (m.days_remaining | abs) }} j • {%- endif -%}
+            💰 {{ m.estimated_cost_min }}€–{{ m.estimated_cost_max }}€
+          {%- endif -%}
+        icon: mdi:alert
+        icon_color: red
+        card_mod:
+          style: |
+            :host {
+              display: {{ 'block' if (state_attr('sensor.triumph_street_triple_maintenance_en_retard', 'maintenances') or []) | length > 7 else 'none' }};
+            }
+            ha-card {
+              background: linear-gradient(135deg, rgba(244, 67, 54, 0.1) 0%, rgba(244, 67, 54, 0.05) 100%);
+              border-left: 4px solid #f44336;
+              border-radius: 8px;
+              margin-bottom: 8px;
+            }
+      - type: custom:mushroom-template-card
+        primary: >
+          {%- set items =
+          state_attr('sensor.triumph_street_triple_maintenance_en_retard',
+          'maintenances') or [] -%} {{ items[8].intervention_type if items |
+          length > 8 else '' }}
+        secondary: >
+          {%- set items =
+          state_attr('sensor.triumph_street_triple_maintenance_en_retard',
+          'maintenances') or [] -%} {%- if items | length > 8 -%}
+            {%- set m = items[8] -%}
+            {%- if m.km_remaining != 999999 -%}📏 {{ (m.km_remaining | abs) }} km • {%- endif -%}
+            {%- if m.days_remaining != 999999 -%}📅 {{ (m.days_remaining | abs) }} j • {%- endif -%}
+            💰 {{ m.estimated_cost_min }}€–{{ m.estimated_cost_max }}€
+          {%- endif -%}
+        icon: mdi:alert
+        icon_color: red
+        card_mod:
+          style: |
+            :host {
+              display: {{ 'block' if (state_attr('sensor.triumph_street_triple_maintenance_en_retard', 'maintenances') or []) | length > 8 else 'none' }};
+            }
+            ha-card {
+              background: linear-gradient(135deg, rgba(244, 67, 54, 0.1) 0%, rgba(244, 67, 54, 0.05) 100%);
+              border-left: 4px solid #f44336;
+              border-radius: 8px;
+              margin-bottom: 8px;
+            }
+      - type: custom:mushroom-template-card
+        primary: >
+          {%- set items =
+          state_attr('sensor.triumph_street_triple_maintenance_en_retard',
+          'maintenances') or [] -%} {{ items[9].intervention_type if items |
+          length > 9 else '' }}
+        secondary: >
+          {%- set items =
+          state_attr('sensor.triumph_street_triple_maintenance_en_retard',
+          'maintenances') or [] -%} {%- if items | length > 9 -%}
+            {%- set m = items[9] -%}
+            {%- if m.km_remaining != 999999 -%}📏 {{ (m.km_remaining | abs) }} km • {%- endif -%}
+            {%- if m.days_remaining != 999999 -%}📅 {{ (m.days_remaining | abs) }} j • {%- endif -%}
+            💰 {{ m.estimated_cost_min }}€–{{ m.estimated_cost_max }}€
+          {%- endif -%}
+        icon: mdi:alert
+        icon_color: red
+        card_mod:
+          style: |
+            :host {
+              display: {{ 'block' if (state_attr('sensor.triumph_street_triple_maintenance_en_retard', 'maintenances') or []) | length > 9 else 'none' }};
+            }
+            ha-card {
+              background: linear-gradient(135deg, rgba(244, 67, 54, 0.1) 0%, rgba(244, 67, 54, 0.05) 100%);
+              border-left: 4px solid #f44336;
+              border-radius: 8px;
+            }

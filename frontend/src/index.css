@@ -1,0 +1,559 @@
+@import 'tailwindcss/base';
+@import 'tailwindcss/components';
+@import 'tailwindcss/utilities';
+
+@import url('https://fonts.googleapis.com/css2?family=Nunito:wght@400;600;700&display=swap');
+
+/* ============================================
+   CSS VARIABLES - Hyper Dashboard
+   ============================================ */
+:root {
+  /* Backgrounds */
+  --bg-base: #f3f4f8;
+  --bg-surface: #ffffff;
+  --bg-topbar: #ffffff;
+  --bg-hover: #f9fafc;
+  --bg-primary: #ffffff;
+  --bg-secondary: #f9fafc;
+  
+  /* Accent & Semantic */
+  --accent: #6c8af7;
+  --accent-light: #eef2ff;
+  --accent-dim: #4262e3;
+  
+  --success: #1abc9c;
+  --success-light: rgba(26, 188, 156, 0.15);
+  
+  --danger: #ff5b5b;
+  --danger-light: rgba(255, 91, 91, 0.15);
+  
+  --warning: #f7b84b;
+  --warning-light: rgba(247, 184, 75, 0.15);
+  
+  /* Text */
+  --text-1: #313a46;
+  --text-2: #6c757d;
+  --text-3: #98a6ad;
+  
+  /* Borders */
+  --border: #dee2e6;
+  --border-light: #e9ecef;
+}
+
+/* ============================================
+   DARK MODE
+   ============================================ */
+[data-theme="dark"] {
+  --bg-base: #1a1d23;
+  --bg-surface: #22262e;
+  --bg-topbar: #1e2128;
+  --bg-hover: #2a2e36;
+  --bg-primary: #22262e;
+  --bg-secondary: #2a2e36;
+
+  --accent: #7c9aff;
+  --accent-light: rgba(124, 154, 255, 0.15);
+  --accent-dim: #5a7de8;
+
+  --success: #2dd4a8;
+  --success-light: rgba(45, 212, 168, 0.15);
+
+  --danger: #ff6b6b;
+  --danger-light: rgba(255, 107, 107, 0.15);
+
+  --warning: #ffc857;
+  --warning-light: rgba(255, 200, 87, 0.15);
+
+  --text-1: #e1e4e8;
+  --text-2: #9ca3af;
+  --text-3: #6b7280;
+
+  --border: #374151;
+  --border-light: #2d3748;
+}
+
+/* ============================================
+   GLOBAL STYLES
+   ============================================ */
+* {
+  @apply antialiased;
+}
+
+html {
+  @apply scroll-smooth;
+}
+
+body {
+  background-color: var(--bg-base);
+  color: var(--text-1);
+  font-family: 'Nunito', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  font-weight: 400;
+  line-height: 1.6;
+}
+
+h1, h2, h3, h4, h5, h6 {
+  font-family: 'Nunito', sans-serif;
+  font-weight: 700;
+  color: var(--text-1);
+  line-height: 1.2;
+}
+
+h1 { @apply text-4xl; }
+h2 { @apply text-3xl; }
+h3 { @apply text-xl; }
+h4 { @apply text-lg; }
+
+a {
+  color: var(--accent);
+  text-decoration: none;
+  transition: color 0.2s ease;
+}
+
+a:hover {
+  color: var(--accent-dim);
+}
+
+/* ============================================
+   CARDS - SIGNATURE HYPER STYLE
+   ============================================ */
+.card {
+  background: var(--bg-surface);
+  border-radius: 6px;
+  border: none;
+  box-shadow: 0 0 35px 0 rgba(154, 161, 171, 0.15);
+  padding: 24px;
+  transition: box-shadow 0.3s ease;
+}
+
+.card:hover {
+  box-shadow: 0 0 45px 0 rgba(154, 161, 171, 0.25);
+}
+
+.card.no-shadow {
+  box-shadow: none;
+  border: 1px solid var(--border);
+}
+
+/* ============================================
+   BUTTONS
+   ============================================ */
+.btn {
+  @apply px-5 py-2 rounded font-semibold text-sm inline-flex items-center justify-center gap-2 transition-all duration-200 cursor-pointer border-none;
+  font-family: 'Nunito', sans-serif;
+}
+
+.btn:disabled {
+  @apply opacity-50 cursor-not-allowed;
+}
+
+.btn-primary {
+  background: var(--accent);
+  color: #fff;
+  font-weight: 600;
+}
+
+.btn-primary:hover:not(:disabled) {
+  background: var(--accent-dim);
+  box-shadow: 0 4px 12px rgba(108, 138, 247, 0.3);
+  transform: translateY(-1px);
+}
+
+.btn-secondary {
+  background: transparent;
+  border: 1px solid var(--border);
+  color: var(--text-2);
+  font-weight: 600;
+}
+
+.btn-secondary:hover:not(:disabled) {
+  background: var(--bg-hover);
+  border-color: var(--accent);
+  color: var(--accent);
+}
+
+.btn-danger {
+  background: var(--danger);
+  color: #fff;
+  font-weight: 600;
+}
+
+.btn-danger:hover:not(:disabled) {
+  background: #e34545;
+  box-shadow: 0 4px 12px rgba(255, 91, 91, 0.3);
+  transform: translateY(-1px);
+}
+
+.btn-success {
+  background: var(--success);
+  color: #fff;
+  font-weight: 600;
+}
+
+.btn-success:hover:not(:disabled) {
+  background: #159186;
+  box-shadow: 0 4px 12px rgba(26, 188, 156, 0.3);
+  transform: translateY(-1px);
+}
+
+/* ============================================
+   INPUTS & FORMS
+   ============================================ */
+input,
+select,
+textarea {
+  width: 100%;
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  padding: 8px 14px;
+  color: var(--text-1);
+  background: var(--bg-surface);
+  font-family: 'Nunito', sans-serif;
+  font-size: 14px;
+  transition: border-color 0.2s ease, box-shadow 0.2s ease;
+}
+
+input::placeholder,
+textarea::placeholder {
+  color: var(--text-3);
+}
+
+input:focus,
+select:focus,
+textarea:focus {
+  outline: none;
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px rgba(108, 138, 247, 0.15);
+}
+
+/* ============================================
+   BADGES
+   ============================================ */
+.badge {
+  display: inline-flex;
+  align-items: center;
+  border-radius: 4px;
+  font-size: 11px;
+  font-weight: 700;
+  padding: 3px 8px;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.badge-success {
+  background: var(--success-light);
+  color: var(--success);
+}
+
+.badge-danger {
+  background: var(--danger-light);
+  color: var(--danger);
+}
+
+.badge-warning {
+  background: var(--warning-light);
+  color: var(--warning);
+}
+
+.badge-info {
+  background: rgba(108, 138, 247, 0.15);
+  color: var(--accent);
+}
+
+/* ============================================
+   ICON BOXES
+   ============================================ */
+.icon-box {
+  width: 40px;
+  height: 40px;
+  min-width: 40px;
+  border-radius: 6px;
+  background: var(--accent-light);
+  color: var(--accent);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 18px;
+  font-weight: 600;
+}
+
+.icon-box.success {
+  background: var(--success-light);
+  color: var(--success);
+}
+
+.icon-box.danger {
+  background: var(--danger-light);
+  color: var(--danger);
+}
+
+.icon-box.warning {
+  background: var(--warning-light);
+  color: var(--warning);
+}
+
+/* ============================================
+   TYPOGRAPHY HELPERS
+   ============================================ */
+.stat-number {
+  font-size: 28px;
+  font-weight: 700;
+  color: var(--text-1);
+  line-height: 1.2;
+}
+
+.card-label {
+  font-size: 13px;
+  color: var(--text-2);
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  margin-bottom: 6px;
+}
+
+.trend-up {
+  font-size: 12px;
+  color: var(--success);
+  font-weight: 600;
+}
+
+.trend-down {
+  font-size: 12px;
+  color: var(--danger);
+  font-weight: 600;
+}
+
+.text-secondary {
+  color: var(--text-2);
+}
+
+.text-muted {
+  color: var(--text-3);
+}
+
+/* ============================================
+   TABLES
+   ============================================ */
+table {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+th {
+  font-size: 12px;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--text-3);
+  font-weight: 700;
+  padding: 10px 16px;
+  border-bottom: 1px solid var(--border);
+  text-align: left;
+  background: var(--bg-hover);
+}
+
+td {
+  padding: 12px 16px;
+  border-bottom: 1px solid var(--bg-base);
+  color: var(--text-1);
+  font-size: 14px;
+}
+
+tbody tr:hover td {
+  background: var(--bg-hover);
+}
+
+/* ============================================
+   PHOTO CONTAINERS - FIXED
+   ============================================ */
+.photo-container {
+  aspect-ratio: 16 / 9;
+  background: var(--bg-base);
+  border-radius: 6px;
+  overflow: hidden;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  position: relative;
+}
+
+.photo-container img {
+  max-width: 100%;
+  max-height: 100%;
+  object-fit: contain;
+  width: 100%;
+  height: 100%;
+}
+
+/* ============================================
+   LAYOUT
+   ============================================ */
+.container {
+  @apply max-w-6xl mx-auto px-4 sm:px-6 lg:px-8;
+}
+
+main {
+  animation: fadeIn 0.2s ease-out;
+}
+
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+/* ============================================
+   UTILITIES
+   ============================================ */
+.shadow-sm {
+  box-shadow: 0 0 35px 0 rgba(154, 161, 171, 0.15);
+}
+
+.gap-section {
+  margin-bottom: 32px;
+}
+
+.divider {
+  border-top: 1px solid var(--border);
+  margin: 16px 0;
+}
+
+.text-ellipsis {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* Loading spinner */
+.spinner {
+  @apply inline-block w-5 h-5 rounded-full;
+  border: 2px solid var(--border);
+  border-top-color: var(--accent);
+  animation: spin 0.6s linear infinite;
+}
+
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}
+
+/* ============================================
+   RESPONSIVE OVERRIDES
+   ============================================ */
+@media (max-width: 640px) {
+  .card {
+    padding: 16px;
+  }
+  
+  .stat-number {
+    font-size: 24px;
+  }
+  
+  .btn {
+    @apply px-4 py-2 text-xs;
+  }
+}
+
+/* ============================================
+   PLANNING CALENDAR
+   ============================================ */
+.calendar-cell {
+  min-height: 90px;
+  padding: 4px;
+  border: 1px solid var(--border);
+  background: var(--bg-card);
+  transition: background 0.15s;
+  position: relative;
+}
+
+.calendar-cell:hover {
+  background: var(--bg-surface);
+}
+
+.calendar-cell-other {
+  opacity: 0.35;
+}
+
+.calendar-cell-today {
+  background: var(--accent-light) !important;
+}
+
+.calendar-cell-has-items {
+  cursor: pointer;
+}
+
+.calendar-cell-has-items:hover {
+  background: var(--accent-light) !important;
+  opacity: 1;
+}
+
+.calendar-day-number {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text-2);
+  margin-bottom: 2px;
+}
+
+.calendar-day-items {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+}
+
+@media (max-width: 640px) {
+  .calendar-cell {
+    min-height: 60px;
+    padding: 2px;
+  }
+  
+  .calendar-item-dot {
+    font-size: 8px !important;
+    padding: 0 2px !important;
+  }
+}
+
+/* ============================================
+   DARK MODE OVERRIDES
+   ============================================ */
+[data-theme="dark"] .card {
+  box-shadow: 0 0 35px 0 rgba(0, 0, 0, 0.3);
+}
+
+[data-theme="dark"] .card:hover {
+  box-shadow: 0 0 45px 0 rgba(0, 0, 0, 0.4);
+}
+
+[data-theme="dark"] .shadow-sm {
+  box-shadow: 0 0 35px 0 rgba(0, 0, 0, 0.3);
+}
+
+[data-theme="dark"] input,
+[data-theme="dark"] select,
+[data-theme="dark"] textarea {
+  background: var(--bg-primary);
+  color: var(--text-1);
+  border-color: var(--border);
+}
+
+[data-theme="dark"] th {
+  background: var(--bg-hover);
+}
+
+/* Theme toggle button */
+.theme-toggle {
+  background: none;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 6px 10px;
+  cursor: pointer;
+  font-size: 16px;
+  transition: all 0.2s;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.theme-toggle:hover {
+  background: var(--bg-hover);
+  border-color: var(--accent);
+}
