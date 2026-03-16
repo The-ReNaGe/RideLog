@@ -79,17 +79,17 @@ export default function Dashboard({ onSelectVehicle, currentUser }) {
         </div>
       </div>
 
-      {/* Alerts Row — per vehicle */}
+      {/* Alerts Row */}
       {data.alert_details && data.alert_details.length > 0 && (
         <div className="card p-4 mb-6">
           <h3 className="text-lg font-bold mb-3" style={{ color: 'var(--text-1)' }}>⚠️ Alertes</h3>
           <div className="space-y-2">
             {data.alert_details.map((alert, i) => {
               const cfg = alert.type === 'overdue'
-                ? { icon: '⛔', label: 'En retard', color: 'var(--danger)', bg: 'var(--danger-light)' }
+                ? { icon: '⛔', label: 'En retard', color: 'var(--danger)' }
                 : alert.type === 'urgent'
-                ? { icon: '🔴', label: 'Urgent', color: 'var(--warning)', bg: 'var(--warning-light)' }
-                : { icon: '🟡', label: 'À prévoir', color: 'var(--accent)', bg: 'var(--accent-light, var(--bg-base))' };
+                ? { icon: '🔴', label: 'Urgent', color: 'var(--warning)' }
+                : { icon: '🟡', label: 'À prévoir', color: 'var(--accent)' };
               return (
                 <div
                   key={i}
@@ -101,9 +101,7 @@ export default function Dashboard({ onSelectVehicle, currentUser }) {
                     <span>{cfg.icon}</span>
                     <span className="font-bold text-sm" style={{ color: 'var(--text-1)' }}>{alert.vehicle_name}</span>
                   </div>
-                  <div className="flex items-center gap-2">
-                    <span className="text-xs font-bold" style={{ color: cfg.color }}>{alert.count} {cfg.label}</span>
-                  </div>
+                  <span className="text-xs font-bold" style={{ color: cfg.color }}>{alert.count} {cfg.label}</span>
                 </div>
               );
             })}
@@ -124,45 +122,28 @@ export default function Dashboard({ onSelectVehicle, currentUser }) {
             >
               <div className="flex items-start gap-4 mb-4">
                 {v.photo_url ? (
-                  <img
-                    src={v.photo_url}
-                    alt={v.name}
-                    className="w-20 h-20 rounded-lg object-cover flex-shrink-0"
-                    style={{ background: 'var(--bg-base)' }}
-                  />
+                  <img src={v.photo_url} alt={v.name} className="w-20 h-20 rounded-lg object-cover flex-shrink-0" style={{ background: 'var(--bg-base)' }} />
                 ) : (
-                  <div
-                    className="w-20 h-20 rounded-lg flex items-center justify-center flex-shrink-0 text-3xl"
-                    style={{ background: 'var(--bg-base)' }}
-                  >
+                  <div className="w-20 h-20 rounded-lg flex items-center justify-center flex-shrink-0 text-3xl" style={{ background: 'var(--bg-base)' }}>
                     {v.vehicle_type === 'motorcycle' ? '🏍️' : '🚗'}
                   </div>
                 )}
                 <div className="flex-1 min-w-0">
                   <div className="font-bold text-base" style={{ color: 'var(--text-1)' }}>{v.name}</div>
-                  <div className="text-sm" style={{ color: 'var(--text-3)' }}>
-                    {v.brand} {v.model} • {v.year}
-                  </div>
-                  <div className="text-sm" style={{ color: 'var(--text-2)' }}>
-                    {fmt(v.current_mileage)} km
-                  </div>
+                  <div className="text-sm" style={{ color: 'var(--text-3)' }}>{v.brand} {v.model} • {v.year}</div>
+                  <div className="text-sm" style={{ color: 'var(--text-2)' }}>{fmt(v.current_mileage)} km</div>
                 </div>
-                {/* Status icon */}
                 <div className="flex-shrink-0 text-lg">
                   {v.overdue_count > 0 ? '⛔' : v.urgent_count > 0 ? '🔴' : v.warning_count > 0 ? '🟡' : '✅'}
                 </div>
               </div>
-
-              {/* Vehicle stats row */}
               <div className="grid grid-cols-3 gap-3 text-center">
                 <div className="p-3 rounded" style={{ background: 'var(--bg-base)' }}>
                   <div className="text-sm font-bold" style={{ color: 'var(--text-1)' }}>{fmtEuro(v.total_cost)}</div>
                   <div className="text-xs" style={{ color: 'var(--text-3)' }}>Dépenses</div>
                 </div>
                 <div className="p-3 rounded" style={{ background: 'var(--bg-base)' }}>
-                  <div className="text-sm font-bold" style={{ color: 'var(--text-1)' }}>
-                    {v.purchase_price ? fmtEuro(v.purchase_price) : '—'}
-                  </div>
+                  <div className="text-sm font-bold" style={{ color: 'var(--text-1)' }}>{v.purchase_price ? fmtEuro(v.purchase_price) : '—'}</div>
                   <div className="text-xs" style={{ color: 'var(--text-3)' }}>Prix d'achat</div>
                 </div>
                 <div className="p-3 rounded" style={{ background: 'var(--bg-base)' }}>
@@ -183,8 +164,9 @@ export default function Dashboard({ onSelectVehicle, currentUser }) {
         })}
       </div>
 
-      {/* Bottom row: Recent Activity + Monthly Costs */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+      {/* Bottom row: Recent Activity + Charts — items-stretch pour aligner les hauteurs */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 items-stretch">
+
         {/* Recent Activity */}
         <div className="card p-4">
           <h3 className="text-lg font-bold mb-3" style={{ color: 'var(--text-1)' }}>🕐 Activité récente</h3>
@@ -200,18 +182,12 @@ export default function Dashboard({ onSelectVehicle, currentUser }) {
                   onClick={() => onSelectVehicle(a.vehicle_id)}
                 >
                   <div>
-                    <span className="text-sm font-medium" style={{ color: 'var(--text-1)' }}>
-                      {a.intervention_type}
-                    </span>
-                    <span className="text-xs ml-2" style={{ color: 'var(--text-3)' }}>
-                      — {a.vehicle_name}
-                    </span>
+                    <span className="text-sm font-medium" style={{ color: 'var(--text-1)' }}>{a.intervention_type}</span>
+                    <span className="text-xs ml-2" style={{ color: 'var(--text-3)' }}>— {a.vehicle_name}</span>
                   </div>
                   <div className="flex items-center gap-3">
                     {a.cost_paid != null && (
-                      <span className="text-xs font-semibold" style={{ color: 'var(--text-2)' }}>
-                        {fmtEuro(a.cost_paid)}
-                      </span>
+                      <span className="text-xs font-semibold" style={{ color: 'var(--text-2)' }}>{fmtEuro(a.cost_paid)}</span>
                     )}
                     <span className="text-xs" style={{ color: 'var(--text-3)' }}>
                       {new Date(a.execution_date).toLocaleDateString('fr-FR')}
@@ -223,13 +199,100 @@ export default function Dashboard({ onSelectVehicle, currentUser }) {
           )}
         </div>
 
-        {/* Monthly Costs Chart */}
-        <div className="card p-4">
-          <h3 className="text-lg font-bold mb-3" style={{ color: 'var(--text-1)' }}>📈 Dépenses mensuelles</h3>
-          {data.monthly_costs.length === 0 ? (
+        
+        <div className="card p-4 flex flex-col gap-5">
+          <CostCharts monthlyCosts={data.monthly_costs} />
+        </div>
+
+      </div>
+    </div>
+  );
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Composant graphiques : mensuel (année sélectionnable) + annuel
+// ─────────────────────────────────────────────────────────────────────────────
+
+const MONTH_LABELS = ['Jan', 'Fév', 'Mar', 'Avr', 'Mai', 'Jun', 'Jul', 'Aoû', 'Sep', 'Oct', 'Nov', 'Déc'];
+
+function CostCharts({ monthlyCosts }) {
+  const fmtEuro = (n) => new Intl.NumberFormat('fr-FR', { style: 'currency', currency: 'EUR', maximumFractionDigits: 0 }).format(n);
+
+  // Construire les données par année et par mois depuis monthlyCosts
+  // monthlyCosts = [{ month: "2024-03", cost: 150 }, ...]
+  const byYearMonth = {};
+  const years = new Set();
+
+  for (const { month, cost } of monthlyCosts) {
+    const [year, mon] = month.split('-');
+    years.add(year);
+    if (!byYearMonth[year]) byYearMonth[year] = {};
+    byYearMonth[year][parseInt(mon) - 1] = (byYearMonth[year][parseInt(mon) - 1] || 0) + cost;
+  }
+
+  const sortedYears = [...years].sort();
+  const currentYear = String(new Date().getFullYear());
+
+  const [selectedYear, setSelectedYear] = useState(
+    sortedYears.includes(currentYear) ? currentYear : sortedYears[sortedYears.length - 1] || currentYear
+  );
+
+  // Données mensuelles pour l'année sélectionnée — 12 mois fixes
+  const monthlyData = MONTH_LABELS.map((label, i) => ({
+    label,
+    cost: byYearMonth[selectedYear]?.[i] || 0,
+  }));
+
+  // Données annuelles — total par année
+  const annualData = sortedYears.map(year => ({
+    label: year,
+    cost: Object.values(byYearMonth[year] || {}).reduce((a, b) => a + b, 0),
+  }));
+
+  const maxMonthly = Math.max(...monthlyData.map(d => d.cost), 1);
+  const maxAnnual = Math.max(...annualData.map(d => d.cost), 1);
+
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', flex: 1, gap: '1.25rem' }}>
+      {/* Graphique mensuel */}
+      <div>
+        <div className="flex items-center justify-between mb-3">
+          <h3 className="text-base font-bold" style={{ color: 'var(--text-1)' }}>📅 Dépenses mensuelles</h3>
+          {sortedYears.length > 1 && (
+            <div className="flex gap-1">
+              {sortedYears.map(y => (
+                <button
+                  key={y}
+                  onClick={() => setSelectedYear(y)}
+                  style={{
+                    fontSize: '0.72rem', fontWeight: 600,
+                    padding: '2px 8px', borderRadius: 6,
+                    border: '1px solid var(--border)',
+                    background: selectedYear === y ? 'var(--accent)' : 'var(--bg-base)',
+                    color: selectedYear === y ? 'white' : 'var(--text-3)',
+                    cursor: 'pointer',
+                  }}
+                >
+                  {y}
+                </button>
+              ))}
+            </div>
+          )}
+        </div>
+        <BarChart data={monthlyData} max={maxMonthly} fmtEuro={fmtEuro} height={160} />
+      </div>
+
+      {/* Séparateur */}
+      <div style={{ borderTop: '1px solid var(--border)' }} />
+
+      {/* Graphique annuel — titre en haut, graphique en bas */}
+      <div style={{ flex: 1, display: 'flex', flexDirection: 'column' }}>
+        <h3 className="text-base font-bold mb-3" style={{ color: 'var(--text-1)' }}>📈 Dépenses annuelles</h3>
+        <div style={{ flex: 1, display: 'flex', flexDirection: 'column', justifyContent: 'flex-end' }}>
+          {annualData.length === 0 ? (
             <p className="text-sm" style={{ color: 'var(--text-3)' }}>Aucune donnée</p>
           ) : (
-            <MonthlyChart data={data.monthly_costs} />
+            <BarChart data={annualData} max={maxAnnual} fmtEuro={fmtEuro} height={120} accentOpacity={0.75} minBarWidth={36} />
           )}
         </div>
       </div>
@@ -237,77 +300,124 @@ export default function Dashboard({ onSelectVehicle, currentUser }) {
   );
 }
 
-function MonthlyChart({ data }) {
+// Graphique à barres générique
+// minBarWidth : si défini, active le scroll horizontal avec une largeur fixe par barre
+function BarChart({ data, max, fmtEuro, height = 160, accentOpacity = 0.6, minBarWidth = null }) {
   const [hovered, setHovered] = useState(null);
-  const maxCost = Math.max(...data.map(d => d.cost), 1);
-  const fmtEuro = (n) => new Intl.NumberFormat('fr-FR', { style: 'currency', currency: 'EUR', maximumFractionDigits: 0 }).format(n);
 
-  const formatMonth = (m) => {
-    const [year, month] = m.split('-');
-    const months = ['Jan', 'Fév', 'Mar', 'Avr', 'Mai', 'Jun', 'Jul', 'Aoû', 'Sep', 'Oct', 'Nov', 'Déc'];
-    return `${months[parseInt(month) - 1] || month} ${year}`;
-  };
+  // Largeur totale minimale si scroll activé
+  const scrollWidth = minBarWidth ? data.length * (minBarWidth + 4) : null;
+  const useScroll = scrollWidth !== null;
 
-  const formatMonthShort = (m) => {
-    const [, month] = m.split('-');
-    const months = ['Jan', 'Fév', 'Mar', 'Avr', 'Mai', 'Jun', 'Jul', 'Aoû', 'Sep', 'Oct', 'Nov', 'Déc'];
-    return months[parseInt(month) - 1] || month;
-  };
+  // Position du tooltip en px si scroll, en % sinon
+  const tooltipLeft = hovered !== null
+    ? useScroll
+      ? `${(hovered + 0.5) * (minBarWidth + 4)}px`
+      : `${((hovered + 0.5) / data.length) * 100}%`
+    : '0';
 
-  return (
-    <div className="relative">
+  const inner = (
+    <div style={{ position: 'relative', width: scrollWidth ? `${scrollWidth}px` : '100%' }}>
       {/* Tooltip */}
       {hovered !== null && (
         <div
-          className="absolute z-20 px-3 py-2 rounded shadow-lg text-center pointer-events-none"
           style={{
+            position: 'absolute',
+            zIndex: 20,
             background: 'var(--bg-surface)',
             border: '1px solid var(--border)',
-            left: `${((hovered + 0.5) / data.length) * 100}%`,
+            borderRadius: '0.4rem',
+            padding: '3px 10px',
+            textAlign: 'center',
+            pointerEvents: 'none',
+            left: tooltipLeft,
             transform: 'translateX(-50%)',
-            top: '-8px',
+            top: '-4px',
+            whiteSpace: 'nowrap',
+            boxShadow: '0 2px 8px rgba(0,0,0,0.12)',
           }}
         >
-          <div className="text-xs font-bold" style={{ color: 'var(--text-1)' }}>{fmtEuro(data[hovered].cost)}</div>
-          <div className="text-[10px]" style={{ color: 'var(--text-3)' }}>{formatMonth(data[hovered].month)}</div>
+          <div style={{ fontSize: '0.75rem', fontWeight: 700, color: 'var(--text-1)' }}>{fmtEuro(data[hovered].cost)}</div>
+          <div style={{ fontSize: '0.65rem', color: 'var(--text-3)' }}>{data[hovered].label}</div>
         </div>
       )}
-      <div className="flex items-end gap-1" style={{ height: '240px', paddingTop: '32px' }}>
+
+      {/* Barres */}
+      <div
+        style={{
+          display: 'flex',
+          alignItems: 'flex-end',
+          gap: '4px',
+          height: `${height + 24}px`,
+          paddingTop: '28px',
+        }}
+      >
         {data.map((d, i) => {
-          const height = Math.max(4, (d.cost / maxCost) * 200);
+          const barH = max > 0 ? Math.max(d.cost > 0 ? 3 : 0, (d.cost / max) * height) : 0;
           const isActive = hovered === i;
           return (
             <div
               key={i}
-              className="flex-1 flex flex-col items-center justify-end cursor-pointer"
+              style={{
+                flex: useScroll ? 'none' : 1,
+                width: useScroll ? `${minBarWidth}px` : undefined,
+                display: 'flex',
+                flexDirection: 'column',
+                alignItems: 'center',
+                justifyContent: 'flex-end',
+                cursor: 'pointer',
+              }}
               onMouseEnter={() => setHovered(i)}
               onMouseLeave={() => setHovered(null)}
             >
               <div
-                className="w-full rounded-t transition-all duration-150"
                 style={{
-                  height: `${height}px`,
-                  background: isActive ? 'var(--accent)' : 'var(--accent)',
-                  opacity: isActive ? 1 : 0.6,
-                  minWidth: '12px',
-                  transform: isActive ? 'scaleX(1.1)' : 'scaleX(1)',
+                  width: '100%',
+                  height: `${barH}px`,
+                  background: 'var(--accent)',
+                  opacity: isActive ? 1 : accentOpacity,
+                  borderRadius: '3px 3px 0 0',
+                  transition: 'opacity 0.15s, transform 0.15s',
+                  transform: isActive ? 'scaleX(1.08)' : 'scaleX(1)',
+                  minWidth: '6px',
                 }}
               />
             </div>
           );
         })}
       </div>
-      <div className="flex gap-1 mt-2">
+
+      {/* Labels */}
+      <div style={{ display: 'flex', gap: '4px', marginTop: '4px' }}>
         {data.map((d, i) => (
           <div
             key={i}
-            className="flex-1 text-center text-[10px] font-medium transition-colors"
-            style={{ color: hovered === i ? 'var(--text-1)' : 'var(--text-3)' }}
+            style={{
+              flex: useScroll ? 'none' : 1,
+              width: useScroll ? `${minBarWidth}px` : undefined,
+              textAlign: 'center',
+              fontSize: '0.62rem',
+              fontWeight: 500,
+              color: hovered === i ? 'var(--text-1)' : 'var(--text-3)',
+              overflow: 'hidden',
+              textOverflow: 'ellipsis',
+              whiteSpace: 'nowrap',
+            }}
           >
-            {formatMonthShort(d.month)}
+            {d.label}
           </div>
         ))}
       </div>
     </div>
   );
+
+  if (useScroll) {
+    return (
+      <div style={{ overflowX: 'auto', overflowY: 'visible', paddingBottom: '2px' }}>
+        {inner}
+      </div>
+    );
+  }
+
+  return inner;
 }
