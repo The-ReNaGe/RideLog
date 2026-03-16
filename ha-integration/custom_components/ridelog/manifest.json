@@ -11,6 +11,6 @@
   "requirements": [
     "httpx>=0.24.0"
   ],
-  "version": "1.2.1",
+  "version": "1.2.2",
   "homeassistant": "2024.1.0"
 }

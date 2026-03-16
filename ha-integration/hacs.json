@@ -2,7 +2,7 @@
   "name": "AutoLab",
   "hacs": "integration",
   "homeassistant": "2024.1.0",
-  "version": "1.2.1",
+  "version": "1.2.2",
   "description": "AutoLab integration for Home Assistant - Vehicle maintenance tracking and fuel price finder",
   "domain": "ridelog"
 }

@@ -11,7 +11,7 @@ from fastapi.responses import FileResponse
 from sqlalchemy.orm import Session
 import httpx
 
-from models import Vehicle, Maintenance, FuelLog, User, get_db
+from models import Vehicle, Maintenance, FuelLog, User, VehicleMaintenanceOverride, get_db
 from security import get_current_user
 from routes import secure_delete
 from schemas import VehicleCreate, VehicleUpdate
@@ -89,7 +89,6 @@ def _parse_displacement_cc(data: dict):
         if 80 <= cc <= 3000:
             return cc
 
-    # Fallback: extract from sra_commercial (e.g. "GSF BANDIT 600")
     sra = str(data.get("sra_commercial") or "")
     if sra:
         sra_cc = re.search(r"\b(\d{3,4})\b", sra)
@@ -156,25 +155,16 @@ def parse_plate_response(payload: dict, vehicle_type_hint: str = None) -> dict:
     if vehicle_type == "motorcycle" and motorization != "electric":
         motorization = "thermal"
 
-    # Registration date (MEC)
     registration_date = None
     date_fr = data.get("date1erCir_fr") or ""
     if date_fr:
-        # Format: "22-07-2002" → "2002-07-22"
         parts = date_fr.split("-")
         if len(parts) == 3 and len(parts[2]) == 4:
             registration_date = f"{parts[2]}-{parts[1]}-{parts[0]}"
 
-    # Fiscal power
     fiscal_power = _to_int(data.get("puisFisc"))
-
-    # Extra info from SRA
     sra_commercial = (data.get("sra_commercial") or "").strip()
-
-    # VIN if available
     vin = (data.get("vin") or "").strip()
-
-    # Cylinders
     cylinders = _to_int(data.get("cylindres"))
 
     return {
@@ -211,10 +201,19 @@ def get_planning(
 ):
     """Get upcoming and overdue maintenances for all user vehicles."""
     vehicles = db.query(Vehicle).filter(Vehicle.user_id == current_user.id).all()
-    
+
+    # Charger tous les overrides en une seule requête
+    vehicle_ids = [v.id for v in vehicles]
+    all_overrides = db.query(VehicleMaintenanceOverride).filter(
+        VehicleMaintenanceOverride.vehicle_id.in_(vehicle_ids)
+    ).all() if vehicle_ids else []
+
+    overrides_by_vehicle = {}
+    for o in all_overrides:
+        overrides_by_vehicle.setdefault(o.vehicle_id, {})[o.intervention_key] = o
+
     all_items = []
     for vehicle in vehicles:
-        # Build last maintenance map for this vehicle
         last_maintenances = {}
         all_maintenances = db.query(Maintenance).filter(Maintenance.vehicle_id == vehicle.id).all()
         for m in all_maintenances:
@@ -222,6 +221,8 @@ def get_planning(
             current_last = last_maintenances.get(key)
             if current_last is None or m.execution_date > current_last[0]:
                 last_maintenances[key] = (m.execution_date, m.mileage_at_intervention)
+
+        vehicle_overrides = overrides_by_vehicle.get(vehicle.id, {})
 
         upcoming = planning_calculator.get_all_upcoming_maintenances(
             vehicle.vehicle_type,
@@ -234,6 +235,7 @@ def get_planning(
             service_interval_km=vehicle.service_interval_km,
             service_interval_months=vehicle.service_interval_months,
             motorization=vehicle.motorization,
+            overrides=vehicle_overrides,  # ← overrides appliqués
         )
 
         maintenance_category = planning_calculator.get_maintenance_category(
@@ -254,15 +256,12 @@ def get_planning(
             item["vehicle_type"] = vehicle.vehicle_type
             all_items.append(item)
 
-    # Compute estimated_date for each item so the frontend can place them on a calendar
-    # Only set estimated_date when a real due date exists (not km-only estimates)
     for item in all_items:
         if item.get("next_due_date"):
-            item["estimated_date"] = item["next_due_date"][:10]  # YYYY-MM-DD
+            item["estimated_date"] = item["next_due_date"][:10]
         else:
             item["estimated_date"] = None
 
-    # Sort: overdue first, then urgent, then warning, then ok
     status_order = {"overdue": 0, "urgent": 1, "warning": 2, "ok": 3}
     all_items.sort(key=lambda x: (status_order.get(x.get("status"), 4), x.get("days_remaining", 999999)))
 
@@ -278,19 +277,9 @@ def list_vehicles(
     db: Session = Depends(get_db),
     authorization: str = None
 ):
-    """
-    Liste tous les véhicules de l'utilisateur connecté.
-    
-    Si l'utilisateur est un compte d'intégration (ex: homeassistant),
-    retourne tous les véhicules de tous les utilisateurs.
-    
-    Requires: Bearer token dans Authorization header
-    """
     if current_user.is_integration_account:
-        # Compte intégration (homeassistant) voit tous les véhicules
         vehicles = db.query(Vehicle).all()
     else:
-        # User normal voit ses véhicules uniquement
         vehicles = db.query(Vehicle).filter(Vehicle.user_id == current_user.id).all()
     return [v.to_dict() for v in vehicles]
 
@@ -302,11 +291,6 @@ def create_vehicle(
     db: Session = Depends(get_db),
     authorization: str = None
 ):
-    """
-    Crée un nouveau véhicule pour l'utilisateur connecté.
-    
-    Requires: Bearer token dans Authorization header
-    """
     vehicle = Vehicle(
         name=data.name,
         vehicle_type=data.vehicle_type,
@@ -322,7 +306,7 @@ def create_vehicle(
         service_interval_km=data.service_interval_km,
         service_interval_months=data.service_interval_months,
         notes=data.notes,
-        user_id=current_user.id  # Lier le véhicule à l'utilisateur
+        user_id=current_user.id
     )
     db.add(vehicle)
     db.commit()
@@ -336,19 +320,12 @@ def decode_vin(
     vin: str,
     current_user: User = Depends(get_current_user),
 ):
-    """Decode VIN using NHTSA public API to extract vehicle information.
-    
-    Returns: brand, model, year, and motorization information.
-    No authentication required - uses free public NHTSA API.
-    """
-    # Clean up VIN
     vin = vin.strip().upper()
     
     if len(vin) != 17:
         raise HTTPException(status_code=400, detail="VIN must be 17 characters long")
     
     try:
-        # Call NHTSA API (free, no authentication required)
         url = f"https://vpic.nhtsa.dot.gov/api/vehicles/DecodeVin/{vin}?format=json"
         response = httpx.get(url, timeout=10.0)
         response.raise_for_status()
@@ -360,20 +337,14 @@ def decode_vin(
         results = {item["Variable"]: item["Value"] for item in data["Results"]}
         
         def _val(key: str) -> str:
-            """Get a cleaned non-None string from NHTSA results."""
             v = (results.get(key) or "").strip()
             return "" if v.lower() in ("not applicable", "null", "n/a") else v
 
-        # Extract relevant fields
         brand = _val("Make")
         model = _val("Model")
         year = _val("Model Year")
-        engine_displacement = _val("Displacement (CC)")
-        if not engine_displacement:
-            engine_displacement = _val("Engine Displacement (CC)")
-        engine_type = _val("Fuel Type - Primary")
-        if not engine_type:
-            engine_type = _val("Fuel Type Primary")
+        engine_displacement = _val("Displacement (CC)") or _val("Engine Displacement (CC)")
+        engine_type = _val("Fuel Type - Primary") or _val("Fuel Type Primary")
         vehicle_type_raw = _val("Vehicle Type").lower()
         series = _val("Series")
         series2 = _val("Series2")
@@ -387,12 +358,10 @@ def decode_vin(
         if not brand:
             raise HTTPException(status_code=400, detail="Impossible d'extraire la marque depuis ce VIN")
         
-        # Build model from Series/Trim when Model is empty (common for motorcycles)
         if not model:
             parts = [p for p in [series, series2, trim, trim2] if p]
             model = " ".join(parts)
         
-        # Map fuel type to our motorization options
         motorization_map = {
             "Gasoline": "essence",
             "Diesel": "diesel",
@@ -401,13 +370,12 @@ def decode_vin(
             "CNG": "essence",
         }
         
-        motorization = "essence"  # default
+        motorization = "essence"
         for fuel_key, fuel_value in motorization_map.items():
             if fuel_key.lower() in engine_type.lower():
                 motorization = fuel_value
                 break
         
-        # Auto-detect vehicle type from NHTSA data
         detected_type = "car"
         if any(kw in vehicle_type_raw for kw in ["motorcycle", "moto"]):
             detected_type = "motorcycle"
@@ -418,7 +386,6 @@ def decode_vin(
             if motorization == "essence":
                 motorization = "thermal"
         
-        # Parse displacement
         displacement = None
         if engine_displacement:
             try:
@@ -440,7 +407,7 @@ def decode_vin(
     
     except httpx.TimeoutException:
         raise HTTPException(status_code=504, detail="VIN decoder service timeout, please try again")
-    except httpx.HTTPError as e:
+    except httpx.HTTPError:
         raise HTTPException(status_code=503, detail="VIN decoder service unavailable, please enter details manually")
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Error decoding VIN: {str(e)}")
@@ -472,7 +439,6 @@ def decode_license_plate(
         )
 
     try:
-        # Prefer RapidAPI (free tier available)
         if rapidapi_key:
             url = "https://api-plaque-immatriculation-siv.p.rapidapi.com/get-vehicule-info"
             response = httpx.get(
@@ -504,7 +470,6 @@ def decode_license_plate(
             )
             provider = "direct"
 
-        # Handle non-2xx responses – surface the API error message
         if response.status_code != 200:
             try:
                 body = response.json()
@@ -568,16 +533,13 @@ def suggest_category(
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
-    """Suggest a vehicle category based on brand, year, and price."""
     from maintenance_calculator import calculator
-    
     suggested_category = calculator.auto_categorize_vehicle(
         brand=brand,
         year=year,
         purchase_price=purchase_price,
         vehicle_type=vehicle_type
     )
-    
     price_info = f"price {int(purchase_price)}EUR" if purchase_price else "market positioning"
     return {
         "suggested_category": suggested_category,
@@ -592,21 +554,12 @@ def get_vehicle(
     db: Session = Depends(get_db),
     authorization: str = None
 ):
-    """
-    Récupère un véhicule spécifique.
-    
-    Requires: Bearer token dans Authorization header
-    Sécurité: Un utilisateur ne peut voir que ses propres véhicules
-    (sauf s'il est un compte d'intégration, auquel cas il voit tous)
-    """
     if current_user.is_integration_account:
-        # Compte intégration voit tous les véhicules
         vehicle = db.query(Vehicle).filter(Vehicle.id == vehicle_id).first()
     else:
-        # User normal voit ses véhicules uniquement
         vehicle = db.query(Vehicle).filter(
             Vehicle.id == vehicle_id,
-            Vehicle.user_id == current_user.id  # Vérification de propriété
+            Vehicle.user_id == current_user.id
         ).first()
     
     if not vehicle:
@@ -622,15 +575,9 @@ def update_vehicle(
     db: Session = Depends(get_db),
     authorization: str = None
 ):
-    """
-    Met à jour un véhicule.
-    
-    Requires: Bearer token dans Authorization header
-    Sécurité: Un utilisateur ne peut mettre à jour que ses propres véhicules
-    """
     vehicle = db.query(Vehicle).filter(
         Vehicle.id == vehicle_id,
-        Vehicle.user_id == current_user.id  # Vérification de propriété
+        Vehicle.user_id == current_user.id
     ).first()
     
     if not vehicle:
@@ -644,7 +591,6 @@ def update_vehicle(
         vehicle.registration_date = data.registration_date
     if data.current_mileage is not None and data.current_mileage != vehicle.current_mileage:
         if data.current_mileage < vehicle.current_mileage:
-            # Rollback: check if any maintenance or fuel log exists above the new value
             max_maintenance_km = db.query(
                 Maintenance.mileage_at_intervention
             ).filter(
@@ -692,25 +638,17 @@ def delete_vehicle(
     db: Session = Depends(get_db),
     authorization: str = None
 ):
-    """
-    Supprime un véhicule.
-    
-    Requires: Bearer token dans Authorization header
-    Sécurité: Un utilisateur ne peut supprimer que ses propres véhicules
-    """
     vehicle = db.query(Vehicle).filter(
         Vehicle.id == vehicle_id,
-        Vehicle.user_id == current_user.id  # Vérification de propriété
+        Vehicle.user_id == current_user.id
     ).first()
     
     if not vehicle:
         raise HTTPException(status_code=404, detail="Vehicle not found")
 
-    # Remove photo file if exists
     if vehicle.photo_path:
         secure_delete(vehicle.photo_path)
 
-    # Remove invoice files before cascade delete
     for maintenance in vehicle.maintenances:
         for invoice in maintenance.invoices:
             if invoice.file_path:
@@ -722,9 +660,6 @@ def delete_vehicle(
     return {"deleted": True}
 
 
-# ---------------------------------------------------------------------------
-# Vehicle photo
-# ---------------------------------------------------------------------------
 @router.post("/{vehicle_id}/photo", status_code=201)
 async def upload_vehicle_photo(
     vehicle_id: int,
@@ -732,10 +667,9 @@ async def upload_vehicle_photo(
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
-    """Upload or replace the vehicle photo."""
     vehicle = db.query(Vehicle).filter(
         Vehicle.id == vehicle_id,
-        Vehicle.user_id == current_user.id  # Vérification de propriété
+        Vehicle.user_id == current_user.id
     ).first()
     if not vehicle:
         raise HTTPException(status_code=404, detail="Vehicle not found")
@@ -750,7 +684,6 @@ async def upload_vehicle_photo(
 
     PHOTO_STORAGE_DIR.mkdir(parents=True, exist_ok=True)
 
-    # Remove old photo
     if vehicle.photo_path:
         secure_delete(vehicle.photo_path)
 
@@ -773,7 +706,6 @@ def get_vehicle_photo(
     vehicle_id: int,
     db: Session = Depends(get_db)
 ):
-    """Serve the vehicle photo (public access - filenames are random UUIDs)."""
     vehicle = db.query(Vehicle).filter(Vehicle.id == vehicle_id).first()
     if not vehicle:
         raise HTTPException(status_code=404, detail="Vehicle not found")
@@ -793,10 +725,9 @@ def delete_vehicle_photo(
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
-    """Remove the vehicle photo."""
     vehicle = db.query(Vehicle).filter(
         Vehicle.id == vehicle_id,
-        Vehicle.user_id == current_user.id  # Vérification de propriété
+        Vehicle.user_id == current_user.id
     ).first()
     if not vehicle:
         raise HTTPException(status_code=404, detail="Vehicle not found")

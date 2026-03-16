@@ -12,20 +12,18 @@ import asyncio
 import logging
 from datetime import datetime, timezone
 
-from models import SessionLocal, Vehicle, Maintenance, NotificationLog
+from models import SessionLocal, Vehicle, Maintenance, NotificationLog, VehicleMaintenanceOverride
 from maintenance_calculator import MaintenanceCalculator, get_intervention_key
 from routes.webhooks import send_webhook_notification
 
 logger = logging.getLogger("ridelog.scheduler")
 calculator = MaintenanceCalculator()
 
-# Intervals (seconds) – check every hour
 CHECK_INTERVAL = 3600
 
 
 async def _check_vehicle_reminders(vehicle, db):
     """Check a single vehicle for upcoming reminders and send notifications."""
-    # Build last maintenance map
     all_maintenances = db.query(Maintenance).filter(
         Maintenance.vehicle_id == vehicle.id
     ).all()
@@ -36,6 +34,12 @@ async def _check_vehicle_reminders(vehicle, db):
         current_last = last_maintenances.get(key)
         if current_last is None or m.execution_date > current_last[0]:
             last_maintenances[key] = (m.execution_date, m.mileage_at_intervention)
+
+    # Charger les overrides du véhicule
+    override_rows = db.query(VehicleMaintenanceOverride).filter(
+        VehicleMaintenanceOverride.vehicle_id == vehicle.id
+    ).all()
+    vehicle_overrides = {o.intervention_key: o for o in override_rows}
 
     upcoming = calculator.get_all_upcoming_maintenances(
         vehicle.vehicle_type,
@@ -48,9 +52,9 @@ async def _check_vehicle_reminders(vehicle, db):
         service_interval_km=vehicle.service_interval_km,
         service_interval_months=vehicle.service_interval_months,
         motorization=vehicle.motorization,
+        overrides=vehicle_overrides,  # ← overrides appliqués
     )
 
-    # Enrich with cost estimates
     maint_category = calculator.get_maintenance_category(
         vehicle.vehicle_type, vehicle.brand, vehicle.year
     )
@@ -76,13 +80,7 @@ async def _check_vehicle_reminders(vehicle, db):
         intervention_key = get_intervention_key(item["intervention_type"])
         km_rem = item.get("km_remaining", 999999)
         days_rem = item.get("days_remaining", 999999)
-        status = item.get("status", "ok")
 
-        # ── 3-tier reminder system ──────────────────────────────────
-        # Uses raw km_rem / days_rem values only (not the display status)
-        # Tier 3 – en retard (due date reached or passed)
-        # Tier 2 – à prévoir (≤ 30 days OR ≤ 500 km)
-        # Tier 1 – à prévoir (≤ 90 days OR ≤ 1500 km)
         notif_types = []
 
         if days_rem <= 0 or km_rem <= 0:
@@ -93,7 +91,6 @@ async def _check_vehicle_reminders(vehicle, db):
             notif_types.append(("tier1_warning", "warning"))
 
         for notif_type, notif_status in notif_types:
-            # Check if already sent
             already_sent = db.query(NotificationLog).filter(
                 NotificationLog.vehicle_id == vehicle.id,
                 NotificationLog.intervention_key == intervention_key,
@@ -120,7 +117,6 @@ async def _check_vehicle_reminders(vehicle, db):
                 days_remaining=days_rem,
             )
 
-            # Only record in log if at least one webhook received it
             if sent:
                 db.add(NotificationLog(
                     vehicle_id=vehicle.id,
@@ -164,7 +160,6 @@ def clear_notification_logs_for(vehicle_id: int, intervention_type: str, db):
 async def scheduler_loop():
     """Background loop that checks reminders periodically."""
     logger.info("Maintenance reminder scheduler started (interval: %ds)", CHECK_INTERVAL)
-    # Wait 60s after startup before first check
     await asyncio.sleep(60)
 
     while True:
