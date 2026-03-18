@@ -8,34 +8,24 @@
    CSS VARIABLES - Hyper Dashboard
    ============================================ */
 :root {
-  /* Backgrounds */
   --bg-base: #f3f4f8;
   --bg-surface: #ffffff;
   --bg-topbar: #ffffff;
   --bg-hover: #f9fafc;
   --bg-primary: #ffffff;
   --bg-secondary: #f9fafc;
-  
-  /* Accent & Semantic */
   --accent: #6c8af7;
   --accent-light: #eef2ff;
   --accent-dim: #4262e3;
-  
   --success: #1abc9c;
   --success-light: rgba(26, 188, 156, 0.15);
-  
   --danger: #ff5b5b;
   --danger-light: rgba(255, 91, 91, 0.15);
-  
   --warning: #f7b84b;
   --warning-light: rgba(247, 184, 75, 0.15);
-  
-  /* Text */
   --text-1: #313a46;
   --text-2: #6c757d;
   --text-3: #98a6ad;
-  
-  /* Borders */
   --border: #dee2e6;
   --border-light: #e9ecef;
 }
@@ -50,24 +40,18 @@
   --bg-hover: #2a2e36;
   --bg-primary: #22262e;
   --bg-secondary: #2a2e36;
-
   --accent: #7c9aff;
   --accent-light: rgba(124, 154, 255, 0.15);
   --accent-dim: #5a7de8;
-
   --success: #2dd4a8;
   --success-light: rgba(45, 212, 168, 0.15);
-
   --danger: #ff6b6b;
   --danger-light: rgba(255, 107, 107, 0.15);
-
   --warning: #ffc857;
   --warning-light: rgba(255, 200, 87, 0.15);
-
   --text-1: #e1e4e8;
   --text-2: #9ca3af;
   --text-3: #6b7280;
-
   --border: #374151;
   --border-light: #2d3748;
 }
@@ -88,6 +72,7 @@ body {
   color: var(--text-1);
   font-family: 'Nunito', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
   font-weight: 400;
+  font-size: 16px;
   line-height: 1.6;
 }
 
@@ -202,6 +187,8 @@ input,
 select,
 textarea {
   width: 100%;
+  min-width: 0;           /* fix débordement mobile */
+  box-sizing: border-box; /* fix débordement mobile */
   border: 1px solid var(--border);
   border-radius: 4px;
   padding: 8px 14px;
@@ -210,6 +197,14 @@ textarea {
   font-family: 'Nunito', sans-serif;
   font-size: 14px;
   transition: border-color 0.2s ease, box-shadow 0.2s ease;
+}
+
+/* Fix Safari iOS — inputs date ne dépassent pas */
+input[type="date"],
+input[type="datetime-local"] {
+  -webkit-appearance: none;
+  appearance: none;
+  max-width: 100%;
 }
 
 input::placeholder,
@@ -239,57 +234,26 @@ textarea:focus {
   letter-spacing: 0.05em;
 }
 
-.badge-success {
-  background: var(--success-light);
-  color: var(--success);
-}
-
-.badge-danger {
-  background: var(--danger-light);
-  color: var(--danger);
-}
-
-.badge-warning {
-  background: var(--warning-light);
-  color: var(--warning);
-}
-
-.badge-info {
-  background: rgba(108, 138, 247, 0.15);
-  color: var(--accent);
-}
+.badge-success { background: var(--success-light); color: var(--success); }
+.badge-danger  { background: var(--danger-light);  color: var(--danger); }
+.badge-warning { background: var(--warning-light); color: var(--warning); }
+.badge-info    { background: rgba(108, 138, 247, 0.15); color: var(--accent); }
 
 /* ============================================
    ICON BOXES
    ============================================ */
 .icon-box {
-  width: 40px;
-  height: 40px;
-  min-width: 40px;
+  width: 40px; height: 40px; min-width: 40px;
   border-radius: 6px;
   background: var(--accent-light);
   color: var(--accent);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-size: 18px;
-  font-weight: 600;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 18px; font-weight: 600;
 }
 
-.icon-box.success {
-  background: var(--success-light);
-  color: var(--success);
-}
-
-.icon-box.danger {
-  background: var(--danger-light);
-  color: var(--danger);
-}
-
-.icon-box.warning {
-  background: var(--warning-light);
-  color: var(--warning);
-}
+.icon-box.success { background: var(--success-light); color: var(--success); }
+.icon-box.danger  { background: var(--danger-light);  color: var(--danger); }
+.icon-box.warning { background: var(--warning-light); color: var(--warning); }
 
 /* ============================================
    TYPOGRAPHY HELPERS
@@ -310,33 +274,15 @@ textarea:focus {
   margin-bottom: 6px;
 }
 
-.trend-up {
-  font-size: 12px;
-  color: var(--success);
-  font-weight: 600;
-}
-
-.trend-down {
-  font-size: 12px;
-  color: var(--danger);
-  font-weight: 600;
-}
-
-.text-secondary {
-  color: var(--text-2);
-}
-
-.text-muted {
-  color: var(--text-3);
-}
+.trend-up   { font-size: 12px; color: var(--success); font-weight: 600; }
+.trend-down { font-size: 12px; color: var(--danger);  font-weight: 600; }
+.text-secondary { color: var(--text-2); }
+.text-muted     { color: var(--text-3); }
 
 /* ============================================
    TABLES
    ============================================ */
-table {
-  width: 100%;
-  border-collapse: collapse;
-}
+table { width: 100%; border-collapse: collapse; }
 
 th {
   font-size: 12px;
@@ -357,12 +303,10 @@ td {
   font-size: 14px;
 }
 
-tbody tr:hover td {
-  background: var(--bg-hover);
-}
+tbody tr:hover td { background: var(--bg-hover); }
 
 /* ============================================
-   PHOTO CONTAINERS - FIXED
+   PHOTO CONTAINERS
    ============================================ */
 .photo-container {
   aspect-ratio: 16 / 9;
@@ -376,11 +320,9 @@ tbody tr:hover td {
 }
 
 .photo-container img {
-  max-width: 100%;
-  max-height: 100%;
+  max-width: 100%; max-height: 100%;
   object-fit: contain;
-  width: 100%;
-  height: 100%;
+  width: 100%; height: 100%;
 }
 
 /* ============================================
@@ -395,37 +337,18 @@ main {
 }
 
 @keyframes fadeIn {
-  from {
-    opacity: 0;
-  }
-  to {
-    opacity: 1;
-  }
+  from { opacity: 0; }
+  to   { opacity: 1; }
 }
 
 /* ============================================
    UTILITIES
    ============================================ */
-.shadow-sm {
-  box-shadow: 0 0 35px 0 rgba(154, 161, 171, 0.15);
-}
+.shadow-sm    { box-shadow: 0 0 35px 0 rgba(154, 161, 171, 0.15); }
+.gap-section  { margin-bottom: 32px; }
+.divider      { border-top: 1px solid var(--border); margin: 16px 0; }
+.text-ellipsis { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 
-.gap-section {
-  margin-bottom: 32px;
-}
-
-.divider {
-  border-top: 1px solid var(--border);
-  margin: 16px 0;
-}
-
-.text-ellipsis {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-/* Loading spinner */
 .spinner {
   @apply inline-block w-5 h-5 rounded-full;
   border: 2px solid var(--border);
@@ -433,99 +356,48 @@ main {
   animation: spin 0.6s linear infinite;
 }
 
-@keyframes spin {
-  to { transform: rotate(360deg); }
-}
+@keyframes spin { to { transform: rotate(360deg); } }
 
 /* ============================================
-   RESPONSIVE OVERRIDES
+   RESPONSIVE OVERRIDES — mobile
    ============================================ */
 @media (max-width: 640px) {
-  .card {
-    padding: 16px;
-  }
-  
-  .stat-number {
-    font-size: 24px;
-  }
-  
-  .btn {
-    @apply px-4 py-2 text-xs;
-  }
+  .card        { padding: 16px; }
+  .stat-number { font-size: 24px; }
+  .btn         { @apply px-4 py-2 text-xs; }
+  body         { font-size: 14px; }
 }
 
 /* ============================================
    PLANNING CALENDAR
    ============================================ */
 .calendar-cell {
-  min-height: 90px;
-  padding: 4px;
+  min-height: 90px; padding: 4px;
   border: 1px solid var(--border);
   background: var(--bg-card);
   transition: background 0.15s;
   position: relative;
 }
 
-.calendar-cell:hover {
-  background: var(--bg-surface);
-}
-
-.calendar-cell-other {
-  opacity: 0.35;
-}
-
-.calendar-cell-today {
-  background: var(--accent-light) !important;
-}
-
-.calendar-cell-has-items {
-  cursor: pointer;
-}
-
-.calendar-cell-has-items:hover {
-  background: var(--accent-light) !important;
-  opacity: 1;
-}
-
-.calendar-day-number {
-  font-size: 13px;
-  font-weight: 600;
-  color: var(--text-2);
-  margin-bottom: 2px;
-}
-
-.calendar-day-items {
-  display: flex;
-  flex-direction: column;
-  gap: 1px;
-}
+.calendar-cell:hover            { background: var(--bg-surface); }
+.calendar-cell-other            { opacity: 0.35; }
+.calendar-cell-today            { background: var(--accent-light) !important; }
+.calendar-cell-has-items        { cursor: pointer; }
+.calendar-cell-has-items:hover  { background: var(--accent-light) !important; opacity: 1; }
+.calendar-day-number { font-size: 13px; font-weight: 600; color: var(--text-2); margin-bottom: 2px; }
+.calendar-day-items  { display: flex; flex-direction: column; gap: 1px; }
 
 @media (max-width: 640px) {
-  .calendar-cell {
-    min-height: 60px;
-    padding: 2px;
-  }
-  
-  .calendar-item-dot {
-    font-size: 8px !important;
-    padding: 0 2px !important;
-  }
+  .calendar-cell     { min-height: 60px; padding: 2px; }
+  .calendar-item-dot { font-size: 8px !important; padding: 0 2px !important; }
 }
 
 /* ============================================
    DARK MODE OVERRIDES
    ============================================ */
-[data-theme="dark"] .card {
-  box-shadow: 0 0 35px 0 rgba(0, 0, 0, 0.3);
-}
-
-[data-theme="dark"] .card:hover {
-  box-shadow: 0 0 45px 0 rgba(0, 0, 0, 0.4);
-}
-
-[data-theme="dark"] .shadow-sm {
-  box-shadow: 0 0 35px 0 rgba(0, 0, 0, 0.3);
-}
+[data-theme="dark"] .card       { box-shadow: 0 0 35px 0 rgba(0, 0, 0, 0.3); }
+[data-theme="dark"] .card:hover { box-shadow: 0 0 45px 0 rgba(0, 0, 0, 0.4); }
+[data-theme="dark"] .shadow-sm  { box-shadow: 0 0 35px 0 rgba(0, 0, 0, 0.3); }
 
 [data-theme="dark"] input,
 [data-theme="dark"] select,
@@ -535,9 +407,7 @@ main {
   border-color: var(--border);
 }
 
-[data-theme="dark"] th {
-  background: var(--bg-hover);
-}
+[data-theme="dark"] th { background: var(--bg-hover); }
 
 /* Theme toggle button */
 .theme-toggle {

@@ -9,7 +9,6 @@ import Planning from './pages/Planning';
 import Dashboard from './pages/Dashboard';
 import version from './version';
 
-// Simple error boundary
 class ErrorBoundary extends React.Component {
   constructor(props) {
     super(props);
@@ -28,10 +27,7 @@ class ErrorBoundary extends React.Component {
           <div className="card p-8 max-w-md text-center">
             <h2 className="text-xl font-bold" style={{ color: 'var(--danger)' }}>Une erreur est survenue</h2>
             <p className="text-secondary mb-4 text-sm mt-2">{this.state.error?.message}</p>
-            <button
-              onClick={() => { this.setState({ hasError: false }); window.location.reload(); }}
-              className="btn btn-primary w-full"
-            >
+            <button onClick={() => { this.setState({ hasError: false }); window.location.reload(); }} className="btn btn-primary w-full">
               Recharger l'application
             </button>
           </div>
@@ -41,6 +37,14 @@ class ErrorBoundary extends React.Component {
     return this.props.children;
   }
 }
+
+const NAV_ITEMS = [
+  { key: 'vehicles',      icon: '🚗', label: 'Véhicules',  matchKeys: ['vehicles', 'vehicle-detail'] },
+  { key: 'dashboard',     icon: '📊', label: 'Dashboard' },
+  { key: 'fuel-stations', icon: '⛽', label: 'Stations' },
+  { key: 'planning',      icon: '📅', label: 'Planning' },
+  { key: 'settings',      icon: '⚙️', label: 'Paramètres' },
+];
 
 function AppContent({ isAuthenticated, currentUser, onLogout }) {
   const [currentPage, setCurrentPage] = useState('vehicles');
@@ -56,155 +60,191 @@ function AppContent({ isAuthenticated, currentUser, onLogout }) {
     setTheme(t => t === 'light' ? 'dark' : 'light');
   }, []);
 
+  // Initialiser l'historique une seule fois
+  useEffect(() => {
+    window.history.replaceState({ page: 'vehicles' }, '');
+  }, []);
+
+  // Listener popstate — sans dépendance sur currentPage pour éviter les sorties accidentelles
+  useEffect(() => {
+    const handlePopState = (e) => {
+      const state = e.state;
+      if (state?.page === 'vehicle-detail' && state?.vehicleId) {
+        setSelectedVehicleId(state.vehicleId);
+        setCurrentPage('vehicle-detail');
+      } else if (state?.page) {
+        setCurrentPage(state.page);
+        setSelectedVehicleId(null);
+      } else {
+        // Pas d'état connu → revenir à vehicles et bloquer la sortie
+        setCurrentPage('vehicles');
+        setSelectedVehicleId(null);
+        window.history.pushState({ page: 'vehicles' }, '');
+      }
+    };
+    window.addEventListener('popstate', handlePopState);
+    return () => window.removeEventListener('popstate', handlePopState);
+  }, []);
+
   const handleSelectVehicle = (vehicleId) => {
     setSelectedVehicleId(vehicleId);
     setCurrentPage('vehicle-detail');
+    window.history.pushState({ page: 'vehicle-detail', vehicleId }, '');
   };
 
   const handleBack = () => {
     setCurrentPage('vehicles');
     setSelectedVehicleId(null);
+    window.history.pushState({ page: 'vehicles' }, '');
   };
 
+  const navigateTo = (page) => {
+    setCurrentPage(page);
+    setSelectedVehicleId(null);
+    window.history.pushState({ page }, '');
+  };
+
+  const isActive = (item) => {
+    if (item.matchKeys) return item.matchKeys.includes(currentPage);
+    return currentPage === item.key;
+  };
+
+  const navItems = currentUser?.is_admin
+    ? [...NAV_ITEMS, { key: 'admin', icon: '🛡️', label: 'Admin' }]
+    : NAV_ITEMS;
+
   return (
-    <div className="min-h-screen flex flex-col" style={{ background: 'var(--bg-base)' }}>
+    <div className="min-h-screen flex flex-col pb-16 sm:pb-0" style={{ background: 'var(--bg-base)' }}>
+
       {/* Header */}
-      <header className="card no-shadow" style={{ background: 'var(--bg-topbar)', borderRadius: '0', boxShadow: '0 1px 3px rgba(154, 161, 171, 0.1)' }}>
-        <div className="container py-4 sm:py-5 flex items-center justify-between">
-          <div
-            className="cursor-pointer flex items-center gap-6 group transition-all"
-            style={{ minHeight: '96px', minWidth: '220px' }}
-            onClick={handleBack}
-          >
-            <div className="flex items-center justify-center bg-white/90 rounded-2xl shadow-md border border-gray-200 group-hover:scale-105 transition-transform duration-200"
-                 style={{ width: '96px', height: '96px' }}>
-              <img
-                src="/RideLog.png"
-                alt="RideLog logo"
-                style={{ maxHeight: '80px', maxWidth: '80px', objectFit: 'contain', display: 'block' }}
-                className="select-none pointer-events-none"
-                draggable="false"
-              />
+      <header style={{ background: 'var(--bg-topbar)', borderRadius: 0, boxShadow: '0 1px 3px rgba(154,161,171,0.1)' }}>
+        <div className="flex items-center justify-between px-6 sm:px-10 lg:px-16" style={{ paddingTop: '12px', paddingBottom: '12px' }}>
+          <div className="cursor-pointer flex items-center gap-3 sm:gap-6 group" onClick={handleBack}
+               style={{ minHeight: '60px' }}>
+
+            {/* Logo : taille via CSS responsive, un seul élément */}
+            {/* Logo mobile */}
+            <div className="sm:hidden flex items-center justify-center bg-white/90 rounded-xl shadow-sm border border-gray-200 flex-shrink-0"
+                 style={{ width: '44px', height: '44px' }}>
+              <img src="/RideLog.png" alt="RideLog"
+                   style={{ maxHeight: '34px', maxWidth: '34px', objectFit: 'contain', display: 'block' }}
+                   className="select-none pointer-events-none" draggable="false" />
             </div>
-            <div className="flex flex-col justify-center h-full">
-              <p className="text-lg sm:text-xl font-semibold" style={{ color: 'var(--text-2)', letterSpacing: '0.01em' }}>
+            {/* Logo desktop */}
+            <div className="hidden sm:flex items-center justify-center bg-white/90 rounded-2xl shadow-md border border-gray-200 group-hover:scale-105 transition-transform duration-200 flex-shrink-0"
+                 style={{ width: '72px', height: '72px' }}>
+              <img src="/RideLog.png" alt="RideLog"
+                   style={{ maxHeight: '58px', maxWidth: '58px', objectFit: 'contain', display: 'block' }}
+                   className="select-none pointer-events-none" draggable="false" />
+            </div>
+
+            <div className="flex flex-col justify-center">
+              <span className="hidden sm:block font-semibold" style={{ color: 'var(--text-2)', fontSize: '1.2rem', letterSpacing: '0.01em' }}>
                 Suivi d'entretien véhicules
-              </p>
+              </span>
+              <span className="sm:hidden font-bold" style={{ color: 'var(--text-1)', fontSize: '1.05rem' }}>
+                RideLog
+              </span>
             </div>
           </div>
-          <div className="flex items-center gap-3">
+
+          <div className="flex items-center gap-2">
             <span className="text-xs hidden sm:inline" style={{ color: 'var(--text-3)' }}>v{version}</span>
+            <button
+              onClick={toggleTheme}
+              title={theme === 'light' ? 'Mode nuit' : 'Mode jour'}
+              style={{
+                background: 'var(--bg-surface)', border: '1px solid var(--border)',
+                borderRadius: '0.5rem', width: '36px', height: '36px',
+                display: 'flex', alignItems: 'center', justifyContent: 'center',
+                cursor: 'pointer', fontSize: '1rem', flexShrink: 0,
+              }}
+            >
+              {theme === 'light' ? '🌙' : '☀️'}
+            </button>
             {isAuthenticated && currentUser && (
               <button
                 onClick={onLogout}
-                className="btn btn-secondary text-xs"
-                title={`Connecté en tant que ${currentUser.display_name}`}
+                title={`Connecté en tant que ${currentUser.display_name} — Déconnexion`}
+                style={{
+                  background: 'var(--bg-surface)', border: '1px solid var(--border)',
+                  borderRadius: '0.5rem', height: '36px',
+                  display: 'flex', alignItems: 'center', justifyContent: 'center',
+                  cursor: 'pointer', flexShrink: 0, padding: '0 10px', gap: '6px',
+                  fontSize: '0.8rem', color: 'var(--text-2)',
+                }}
               >
-                👤 Déconnexion
+                <span>👤</span>
+                <span className="hidden sm:inline">Déconnexion</span>
               </button>
             )}
           </div>
         </div>
       </header>
 
-      {/* Navigation */}
-      <nav style={{ background: 'var(--bg-topbar)', borderBottom: '1px solid var(--border)' }} className="sticky top-0 z-10">
-        <div className="container flex gap-2 sm:gap-4 py-3 overflow-x-auto items-center">
-          <button
-            onClick={handleBack}
-            className={`px-4 sm:px-6 py-2 rounded text-sm font-semibold transition-all whitespace-nowrap ${
-              currentPage === 'vehicles' || currentPage === 'vehicle-detail'
-                ? 'btn btn-primary'
-                : 'btn btn-secondary'
-            }`}
-          >
-            🚗 Véhicules
-          </button>
-          <button
-            onClick={() => setCurrentPage('dashboard')}
-            className={`px-4 sm:px-6 py-2 rounded text-sm font-semibold transition-all whitespace-nowrap ${
-              currentPage === 'dashboard'
-                ? 'btn btn-primary'
-                : 'btn btn-secondary'
-            }`}
-          >
-            📊 Dashboard
-          </button>
-          <button
-            onClick={() => setCurrentPage('fuel-stations')}
-            className={`px-4 sm:px-6 py-2 rounded text-sm font-semibold transition-all whitespace-nowrap ${
-              currentPage === 'fuel-stations'
-                ? 'btn btn-primary'
-                : 'btn btn-secondary'
-            }`}
-          >
-            ⛽ Stations
-          </button>
-          <button
-            onClick={() => setCurrentPage('planning')}
-            className={`px-4 sm:px-6 py-2 rounded text-sm font-semibold transition-all whitespace-nowrap ${
-              currentPage === 'planning'
-                ? 'btn btn-primary'
-                : 'btn btn-secondary'
-            }`}
-          >
-            📅 Planning
-          </button>
-          <button
-            onClick={() => setCurrentPage('settings')}
-            className={`px-4 sm:px-6 py-2 rounded text-sm font-semibold transition-all whitespace-nowrap ${
-              currentPage === 'settings'
-                ? 'btn btn-primary'
-                : 'btn btn-secondary'
-            }`}
-          >
-            ⚙️ Paramètres
-          </button>
-          {currentUser?.is_admin && (
+      {/* Nav desktop */}
+      <nav className="hidden sm:block sticky top-0 z-10" style={{ background: 'var(--bg-topbar)', borderBottom: '1px solid var(--border)' }}>
+        <div className="flex gap-2 sm:gap-4 py-3 overflow-x-auto items-center px-6 sm:px-10 lg:px-16">
+          {navItems.map(item => (
             <button
-              onClick={() => setCurrentPage('admin')}
-              className={`px-4 sm:px-6 py-2 rounded text-sm font-semibold transition-all whitespace-nowrap ${
-                currentPage === 'admin'
-                  ? 'btn btn-primary'
-                  : 'btn btn-secondary'
-              }`}
+              key={item.key}
+              onClick={() => item.key === 'vehicles' ? handleBack() : navigateTo(item.key)}
+              className={`px-4 sm:px-6 py-2 rounded text-sm font-semibold transition-all whitespace-nowrap ${isActive(item) ? 'btn btn-primary' : 'btn btn-secondary'}`}
             >
-              🛡️ Admin
+              {item.icon} {item.label}
             </button>
-          )}
-          <div className="ml-auto">
-            <button onClick={toggleTheme} className="theme-toggle" title={theme === 'light' ? 'Mode nuit' : 'Mode jour'}>
-              {theme === 'light' ? '🌙' : '☀️'}
-            </button>
-          </div>
+          ))}
         </div>
       </nav>
 
-      {/* Main Content */}
-      <main className="container py-6 sm:py-8 flex-1">
-        {currentPage === 'dashboard' && (
-          <Dashboard onSelectVehicle={handleSelectVehicle} currentUser={currentUser} />
-        )}
-        {currentPage === 'vehicles' && (
-          <VehicleList onSelectVehicle={handleSelectVehicle} currentUser={currentUser} />
-        )}
-        {currentPage === 'vehicle-detail' && selectedVehicleId && (
-          <VehicleDetail vehicleId={selectedVehicleId} onBack={handleBack} />
-        )}
-        {currentPage === 'fuel-stations' && (
-          <FuelStations />
-        )}
+      {/* Contenu */}
+      <main className="py-4 sm:py-8 flex-1 px-6 sm:px-10 lg:px-16">
+        {currentPage === 'dashboard' && <Dashboard onSelectVehicle={handleSelectVehicle} currentUser={currentUser} />}
+        {currentPage === 'vehicles' && <VehicleList onSelectVehicle={handleSelectVehicle} currentUser={currentUser} />}
+        {currentPage === 'vehicle-detail' && selectedVehicleId && <VehicleDetail vehicleId={selectedVehicleId} onBack={handleBack} />}
+        {currentPage === 'fuel-stations' && <FuelStations />}
         {currentPage === 'planning' && <Planning />}
         {currentPage === 'settings' && <Settings currentUser={currentUser} />}
         {currentPage === 'admin' && <Admin currentUser={currentUser} />}
       </main>
 
-      {/* Footer */}
-      <footer style={{ background: 'var(--bg-surface)', borderTop: '1px solid var(--border)' }}>
-        <div className="container py-4 text-center text-xs" style={{ color: 'var(--text-3)' }}>
+      {/* Footer desktop */}
+      <footer className="hidden sm:block" style={{ background: 'var(--bg-surface)', borderTop: '1px solid var(--border)' }}>
+        <div className="py-4 text-center text-xs px-4" style={{ color: 'var(--text-3)' }}>
           RideLog v{version} — Suivi d'entretien open source • {currentUser?.username && `Utilisateur: ${currentUser.display_name}`}
         </div>
       </footer>
+
+      {/* Barre nav mobile — scrollable si beaucoup d'items */}
+      <nav
+        className="sm:hidden fixed bottom-0 left-0 right-0 z-50"
+        style={{ background: 'var(--bg-topbar)', borderTop: '1px solid var(--border)', boxShadow: '0 -2px 10px rgba(0,0,0,0.08)' }}
+      >
+        <div style={{ display: 'flex', overflowX: 'auto', scrollbarWidth: 'none', paddingBottom: 'env(safe-area-inset-bottom, 0px)', WebkitOverflowScrolling: 'touch' }}>
+          {navItems.map(item => {
+            const active = isActive(item);
+            return (
+              <button
+                key={item.key}
+                onClick={() => item.key === 'vehicles' ? handleBack() : navigateTo(item.key)}
+                style={{
+                  flex: '0 0 auto', minWidth: '64px',
+                  display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
+                  padding: '8px 8px', border: 'none', background: 'none', cursor: 'pointer', gap: '2px', position: 'relative',
+                }}
+              >
+                {active && (
+                  <div style={{ position: 'absolute', top: 0, left: '20%', right: '20%', height: '2px', background: 'var(--accent)', borderRadius: '0 0 2px 2px' }} />
+                )}
+                <span style={{ fontSize: '1.3rem', lineHeight: 1 }}>{item.icon}</span>
+                <span style={{ fontSize: '0.6rem', fontWeight: active ? 700 : 500, color: active ? 'var(--accent)' : 'var(--text-3)' }}>
+                  {item.label}
+                </span>
+              </button>
+            );
+          })}
+        </div>
+      </nav>
     </div>
   );
 }
@@ -214,50 +254,31 @@ export default function App() {
   const [currentUser, setCurrentUser] = useState(null);
   const [loading, setLoading] = useState(true);
 
-  // Vérifie si l'utilisateur est déjà connecté au démarrage
   useEffect(() => {
-    const checkAuth = () => {
-      const token = localStorage.getItem('access_token');
-      const user = localStorage.getItem('user');
+    const token = localStorage.getItem('access_token');
+    const user = localStorage.getItem('user');
+    if (token && user) {
+      setIsAuthenticated(true);
+      try { setCurrentUser(JSON.parse(user)); } catch { localStorage.removeItem('user'); }
+    }
+    setLoading(false);
 
-      if (token && user) {
-        setIsAuthenticated(true);
-        try {
-          setCurrentUser(JSON.parse(user));
-        } catch (e) {
-          console.error('Erreur lors du parsing du user du localStorage:', e);
-          localStorage.removeItem('user');
-        }
-      }
-      setLoading(false);
-    };
-
-    checkAuth();
-
-    // Écoute l'événement de token expiré
     const handleTokenExpired = () => {
       setIsAuthenticated(false);
       setCurrentUser(null);
       localStorage.removeItem('access_token');
       localStorage.removeItem('user');
     };
-
     window.addEventListener('tokenExpired', handleTokenExpired);
     return () => window.removeEventListener('tokenExpired', handleTokenExpired);
   }, []);
 
   const handleLoginSuccess = () => {
-    // Récupère le token et l'utilisateur depuis le localStorage
     const token = localStorage.getItem('access_token');
     const user = localStorage.getItem('user');
-
     if (token && user) {
       setIsAuthenticated(true);
-      try {
-        setCurrentUser(JSON.parse(user));
-      } catch (e) {
-        console.error('Erreur au parsing user:', e);
-      }
+      try { setCurrentUser(JSON.parse(user)); } catch {}
     }
   };
 
@@ -270,33 +291,17 @@ export default function App() {
 
   if (loading) {
     return (
-      <div
-        className="min-h-screen flex items-center justify-center"
-        style={{ background: 'var(--bg-base)' }}
-      >
-        <div className="text-center">
-          <div className="spinner mx-auto mb-4"></div>
-          <p style={{ color: 'var(--text-2)' }}>Chargement...</p>
-        </div>
+      <div className="min-h-screen flex items-center justify-center" style={{ background: 'var(--bg-base)' }}>
+        <div className="text-center"><div className="spinner mx-auto mb-4"></div><p style={{ color: 'var(--text-2)' }}>Chargement...</p></div>
       </div>
     );
   }
 
-  if (!isAuthenticated) {
-    return (
-      <ErrorBoundary>
-        <AuthPage onLoginSuccess={handleLoginSuccess} />
-      </ErrorBoundary>
-    );
-  }
+  if (!isAuthenticated) return <ErrorBoundary><AuthPage onLoginSuccess={handleLoginSuccess} /></ErrorBoundary>;
 
   return (
     <ErrorBoundary>
-      <AppContent
-        isAuthenticated={isAuthenticated}
-        currentUser={currentUser}
-        onLogout={handleLogout}
-      />
+      <AppContent isAuthenticated={isAuthenticated} currentUser={currentUser} onLogout={handleLogout} />
     </ErrorBoundary>
   );
 }

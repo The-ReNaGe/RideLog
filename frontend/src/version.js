@@ -1,2 +1,2 @@
 // version.js — version codée en dur, mise à jour automatiquement par update-version.js
-export default "1.3.1";
+export default "1.4.0";
