@@ -331,12 +331,7 @@ class MaintenanceCalculator:
         next_due_date = None
 
         if km_interval is not None and last_maintenance_mileage is not None:
-            raw_next = last_maintenance_mileage + km_interval
-            remainder = raw_next % km_interval
-            if remainder <= km_interval // 2:
-                next_due_mileage = raw_next - remainder
-            else:
-                next_due_mileage = raw_next - remainder + km_interval
+            next_due_mileage = last_maintenance_mileage + km_interval
             km_remaining = next_due_mileage - current_mileage
         else:
             km_remaining = float('inf')
