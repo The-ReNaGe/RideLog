@@ -45,7 +45,7 @@ services:
     networks:
       - ridelog
     ports:
-      - "8000:8000"
+      - "${BACKEND_PORT:-8000}:8000"
     expose:
       - "8000"
     deploy:
@@ -60,7 +60,7 @@ services:
     container_name: ridelog-frontend
     restart: unless-stopped
     ports:
-      - "3100:80"
+      - "${FRONTEND_PORT:-3100}:80"
     expose:
       - "80"
     depends_on:

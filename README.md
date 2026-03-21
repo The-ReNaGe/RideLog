@@ -57,9 +57,9 @@ docker compose up -d --build
 ```
 
 **Interface** : [http://localhost:3100](http://localhost:3100)
-**API docs** : [http://localhost:8000/docs](http://localhost:8000/docs)
 
 Le premier utilisateur créé est automatiquement admin.
+La documentation de l'API est accessible depuis l'interface : **Paramètres → Documentation API**.
 
 ---
 
@@ -82,8 +82,6 @@ cp .env.example .env   # à faire une seule fois à l'installation
 | `REMINDER_ENABLED` | `true` | Active/désactive les rappels automatiques |
 | `LOG_LEVEL` | `INFO` | Niveau de log (`DEBUG`, `INFO`, `WARNING`, `ERROR`) |
 | `CORS_ORIGINS` | `*` | Origines CORS autorisées |
-
-> ⚠️ **Mise à jour** : si vous avez une installation existante sans fichier `.env`, créez-le avant de faire `git pull` + rebuild, sinon le backend refusera de démarrer.
 
 ### Changer le port
 
@@ -189,6 +187,24 @@ Prérequis HACS : [Mushroom Cards](https://github.com/piitaya/lovelace-mushroom)
 
 ---
 
+## Mise à jour
+
+```bash
+cd RideLog
+git pull origin main
+docker compose up -d --build
+```
+
+Les migrations de base de données sont appliquées automatiquement au redémarrage du backend.
+
+> ⚠️ **Première mise à jour depuis une version sans `.env`** : créez le fichier avant de rebuild, sinon le backend refusera de démarrer.
+> ```bash
+> cp .env.example .env
+> # Remplir JWT_SECRET et HA_INIT_KEY dans .env
+> ```
+
+---
+
 ## Sauvegarde et restauration
 
 ```bash
@@ -206,7 +222,7 @@ Les données sont stockées dans `./data/` : base de données SQLite, photos et 
 
 ## API
 
-Documentation interactive Swagger : **http://localhost:8000/docs**
+La documentation complète de l'API est accessible depuis l'interface : **Paramètres → Documentation API**.
 
 ### Principaux endpoints
 
