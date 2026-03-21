@@ -16,9 +16,11 @@ logger = logging.getLogger("ridelog.fuel_stations")
 router = APIRouter(prefix="/fuel-stations", tags=["fuel-stations"])
 
 def _remove_accents(text: str) -> str:
-	"""Remove accents from text for accent-insensitive search (é -> e, ç -> c, etc)."""
-	nfd = unicodedata.normalize('NFD', text)
-	return ''.join(c for c in nfd if unicodedata.category(c) != 'Mn')
+    """Remove accents and normalize separators (é -> e, ç -> c, - -> space, etc)."""
+    nfd = unicodedata.normalize('NFD', text)
+    result = ''.join(c for c in nfd if unicodedata.category(c) != 'Mn')
+    # Normaliser tirets et apostrophes → espace : "pont-péan" == "pont pean"
+    return result.replace('-', ' ').replace("'", ' ').replace('\u2019', ' ')
 
 # Nominatim (OpenStreetMap) for geocoding - with rate limiting
 NOMINATIM_URL = "https://nominatim.openstreetmap.org/search"

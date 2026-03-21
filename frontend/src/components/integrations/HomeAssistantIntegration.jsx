@@ -3,14 +3,18 @@ import { api } from '../../lib/api';
 
 export default function HomeAssistantIntegration() {
   const [activeTab, setActiveTab] = useState('setup');
-  const [haAccountStatus, setHaAccountStatus] = useState('unknown');
-  const [isCreating, setIsCreating] = useState(false);
+
+  // État de l'intégration : null = chargement, true/false = actif/inactif
+  const [haEnabled, setHaEnabled] = useState(null);
+  const [haAccountExists, setHaAccountExists] = useState(false);
+
+  const [isWorking, setIsWorking] = useState(false); // action en cours (enable/disable)
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
   const [currentUser, setCurrentUser] = useState(null);
 
-  // Template generator state
+  // Carte Lovelace
   const [vehicles, setVehicles] = useState([]);
   const [selectedVehicleId, setSelectedVehicleId] = useState('');
   const [generatedYaml, setGeneratedYaml] = useState('');
@@ -18,314 +22,268 @@ export default function HomeAssistantIntegration() {
   const [copySuccess, setCopySuccess] = useState(false);
   const yamlRef = useRef(null);
 
-  // Récupère l'utilisateur courant et vérifie si le compte homeassistant existe
   useEffect(() => {
-    fetchCurrentUser();
-    fetchVehicles();
+    loadAll();
   }, []);
 
-  const fetchVehicles = async () => {
-    try {
-      const response = await api.getVehicles();
-      setVehicles(response.data || []);
-    } catch (err) {
-      console.error('Erreur chargement véhicules:', err);
-    }
-  };
-
-  const fetchCurrentUser = async () => {
+  const loadAll = async () => {
     setIsLoading(true);
     try {
-      const response = await api.getCurrentUser();
-      const user = response.data;
-      console.log('Utilisateur courant:', user);
+      const userRes = await api.getCurrentUser();
+      const user = userRes.data;
       setCurrentUser(user);
-      if (user && user.is_admin) {
-        checkHaAccount();
-      } else if (user) {
-        // Non-admin, on reste en unknown
-        setHaAccountStatus('notadmin');
+
+      if (user?.is_admin) {
+        await loadHaStatus();
       }
+
+      const vehiclesRes = await api.getVehicles();
+      setVehicles(vehiclesRes.data || []);
     } catch (err) {
-      console.error('Erreur lors de la récupération de l\'utilisateur courant:', err);
-      setHaAccountStatus('error');
+      console.error('Erreur chargement HA:', err);
     } finally {
       setIsLoading(false);
     }
   };
 
-  const checkHaAccount = async () => {
+  const loadHaStatus = async () => {
     try {
-      const response = await api.getAllUsers();
-      const users = response.data;
-      const haUser = users.find(u => u.username === 'homeassistant');
-      if (haUser) {
-        setHaAccountStatus('exists');
-      } else {
-        setHaAccountStatus('notfound');
-      }
+      const res = await api.getHaIntegrationStatus();
+      setHaEnabled(res.data.enabled);
+      setHaAccountExists(res.data.account_exists);
     } catch (err) {
-      console.error('Erreur lors de la vérification du compte HA:', err);
-      setHaAccountStatus('unknown');
+      console.error('Erreur statut HA:', err);
+      setHaEnabled(false);
+      setHaAccountExists(false);
     }
   };
 
-  const createHaAccount = async () => {
-    setIsCreating(true);
+  const handleEnable = async () => {
+    setIsWorking(true);
     setError('');
     setSuccess('');
-    
     try {
-      const response = await api.initHomeAssistant();
-      // La réponse contient le token, mais on met juste à jour le statut
-      setHaAccountStatus('exists');
-      setSuccess('✅ Compte Home Assistant créé avec succès! Le token a été généré.');
-      // Réinitialiser le message après 5 secondes
-      setTimeout(() => setSuccess(''), 5000);
+      await api.enableHaIntegration();
+      setHaEnabled(true);
+      setSuccess('✅ Intégration activée. Home Assistant peut maintenant créer/renouveler le compte.');
+      setTimeout(() => setSuccess(''), 6000);
     } catch (err) {
-      setError('❌ Erreur lors de la création du compte: ' + (err.response?.data?.detail || err.message));
+      setError('❌ ' + (err.response?.data?.detail || err.message));
     } finally {
-      setIsCreating(false);
+      setIsWorking(false);
     }
   };
+
+  const handleDisable = async () => {
+    if (!window.confirm(
+      'Désactiver l\'intégration Home Assistant ?\n\n' +
+      '• Le compte homeassistant sera supprimé\n' +
+      '• Home Assistant ne pourra plus accéder à RideLog\n' +
+      '• HA ne pourra pas recréer le compte automatiquement'
+    )) return;
+
+    setIsWorking(true);
+    setError('');
+    setSuccess('');
+    try {
+      const res = await api.disableHaIntegration();
+      setHaEnabled(false);
+      setHaAccountExists(false);
+      setSuccess('✅ Intégration désactivée. Home Assistant n\'a plus accès à RideLog.');
+      setTimeout(() => setSuccess(''), 6000);
+    } catch (err) {
+      setError('❌ ' + (err.response?.data?.detail || err.message));
+    } finally {
+      setIsWorking(false);
+    }
+  };
+
+  // Détermine le statut affiché
+  const statusLabel = haEnabled && haAccountExists
+    ? { text: '✅ Intégration active', color: 'var(--success)', bg: 'var(--success-light)', border: 'var(--success)' }
+    : haEnabled && !haAccountExists
+    ? { text: '⚙️ Activée — compte non encore créé par HA', color: 'var(--warning)', bg: 'var(--warning-light)', border: 'var(--warning)' }
+    : { text: '⛔ Intégration désactivée', color: 'var(--danger)', bg: 'var(--danger-light)', border: 'var(--danger)' };
 
   return (
     <div className="card p-6 mb-6">
-      <div className="flex justify-between items-center mb-6">
-        <div>
-          <h3 className="text-xl font-bold flex items-center gap-2" style={{ color: 'var(--text-1)' }}>
-            🏠 Home Assistant
-          </h3>
-          <p className="text-sm mt-2" style={{ color: 'var(--text-2)' }}>
-            Intégrez vos véhicules dans votre tableau de bord Home Assistant
-          </p>
-        </div>
+      <div className="mb-6">
+        <h3 className="text-xl font-bold" style={{ color: 'var(--text-1)' }}>🏠 Home Assistant</h3>
+        <p className="text-sm mt-2" style={{ color: 'var(--text-2)' }}>
+          Intégrez vos véhicules dans votre tableau de bord Home Assistant
+        </p>
       </div>
 
-      {/* Statut et Setup du compte HA */}
+      {/* Bannière de statut */}
       {isLoading ? (
         <div className="rounded p-4 mb-6" style={{ background: 'var(--bg-base)', border: '1px solid var(--border)' }}>
-          <p className="font-bold" style={{ color: 'var(--text-2)' }}>
-            ⏳ Chargement...
-          </p>
+          <p style={{ color: 'var(--text-2)' }}>⏳ Chargement...</p>
         </div>
-      ) : currentUser?.is_admin ? (
-        <div className="rounded p-4 mb-6" style={{
-          background: haAccountStatus === 'exists' ? 'var(--success-light)' : 'var(--accent-light)',
-          border: `1px solid ${haAccountStatus === 'exists' ? 'var(--success)' : 'var(--accent)'}`
-        }}>
-          <div className="flex justify-between items-center">
-            <div>
-              <p className="font-bold" style={{ color: haAccountStatus === 'exists' ? 'var(--success)' : 'var(--accent)' }}>
-                {haAccountStatus === 'exists' 
-                  ? '✅ Compte Home Assistant activé' 
-                  : '⚙️ Configuration requise'}
-              </p>
-              <p className="text-sm mt-1" style={{ color: 'var(--text-2)' }}>
-                {haAccountStatus === 'exists'
-                  ? 'Le compte de service Home Assistant est prêt. Procédez à la configuration du custom component.'
-                  : 'Créez le compte de service Home Assistant qui permettra à votre instance HA d\'accéder à tous vos véhicules.'}
-              </p>
-            </div>
-            {haAccountStatus !== 'exists' && (
-              <button
-                onClick={createHaAccount}
-                disabled={isCreating}
-                className="btn btn-primary whitespace-nowrap ml-4"
-              >
-                {isCreating ? '⏳ Création...' : '🚀 Créer le compte'}
-              </button>
-            )}
-          </div>
-          {success && <p className="text-sm mt-2" style={{ color: 'var(--success)' }}>{success}</p>}
-          {error && <p className="text-sm mt-2" style={{ color: 'var(--danger)' }}>{error}</p>}
+      ) : !currentUser?.is_admin ? (
+        <div className="rounded p-4 mb-6" style={{ background: 'var(--warning-light)', border: '1px solid var(--warning)' }}>
+          <p className="font-bold" style={{ color: 'var(--warning)' }}>⛔ Accès administrateur requis</p>
+          <p className="text-sm mt-1" style={{ color: 'var(--text-2)' }}>Seul un administrateur peut gérer l'intégration Home Assistant.</p>
         </div>
       ) : (
-        <div className="rounded p-4 mb-6" style={{ background: 'var(--warning-light)', border: '1px solid var(--warning)' }}>
-          <p className="font-bold" style={{ color: 'var(--warning)' }}>
-            ⛔ Accès administrateur requis
-          </p>
-          <p className="text-sm mt-1" style={{ color: 'var(--text-2)' }}>
-            Seul un administrateur peut créer/gérer le compte Home Assistant.
-          </p>
+        <div className="rounded p-4 mb-6" style={{ background: statusLabel.bg, border: `1px solid ${statusLabel.border}` }}>
+          <div className="flex items-center justify-between flex-wrap gap-3">
+            <div>
+              <p className="font-bold" style={{ color: statusLabel.color }}>{statusLabel.text}</p>
+              <p className="text-sm mt-1" style={{ color: 'var(--text-2)' }}>
+                {haEnabled && haAccountExists
+                  ? 'Le compte homeassistant est actif. Home Assistant peut accéder à tous les véhicules.'
+                  : haEnabled && !haAccountExists
+                  ? 'L\'intégration est activée mais HA n\'a pas encore appelé ha-init. Redémarrez Home Assistant.'
+                  : 'L\'intégration est désactivée. HA ne peut pas recréer le compte même avec la bonne clé.'}
+              </p>
+            </div>
+            <div className="flex gap-2 flex-wrap">
+              {haEnabled ? (
+                <button
+                  onClick={handleDisable}
+                  disabled={isWorking}
+                  className="btn whitespace-nowrap disabled:opacity-50"
+                  style={{ background: 'var(--danger)', color: 'white' }}
+                >
+                  {isWorking ? '⏳...' : '🔒 Désactiver'}
+                </button>
+              ) : (
+                <button
+                  onClick={handleEnable}
+                  disabled={isWorking}
+                  className="btn btn-primary whitespace-nowrap disabled:opacity-50"
+                >
+                  {isWorking ? '⏳...' : '🔓 Activer'}
+                </button>
+              )}
+            </div>
+          </div>
+          {success && <p className="text-sm mt-3 font-medium" style={{ color: 'var(--success)' }}>{success}</p>}
+          {error && <p className="text-sm mt-3 font-medium" style={{ color: 'var(--danger)' }}>{error}</p>}
         </div>
       )}
 
-      {/* Navigation Tabs */}
+      {/* Tabs */}
       <div className="flex gap-2 mb-6 overflow-x-auto" style={{ borderBottom: '1px solid var(--border)' }}>
-        <button
-          onClick={() => setActiveTab('setup')}
-          className="px-4 py-2 font-medium text-sm transition-colors whitespace-nowrap border-b-2"
-          style={{
-            borderColor: activeTab === 'setup' ? 'var(--accent)' : 'transparent',
-            color: activeTab === 'setup' ? 'var(--accent)' : 'var(--text-2)',
-          }}
-        >
-          📋 Configuration
-        </button>
-        <button
-          onClick={() => setActiveTab('auth')}
-          className="px-4 py-2 font-medium text-sm transition-colors whitespace-nowrap border-b-2"
-          style={{
-            borderColor: activeTab === 'auth' ? 'var(--accent)' : 'transparent',
-            color: activeTab === 'auth' ? 'var(--accent)' : 'var(--text-2)',
-          }}
-        >
-          🔑 Authentification
-        </button>
-        <button
-          onClick={() => setActiveTab('cards')}
-          className="px-4 py-2 font-medium text-sm transition-colors whitespace-nowrap border-b-2"
-          style={{
-            borderColor: activeTab === 'cards' ? 'var(--accent)' : 'transparent',
-            color: activeTab === 'cards' ? 'var(--accent)' : 'var(--text-2)',
-          }}
-        >
-          🎨 Carte Lovelace
-        </button>
+        {[
+          { key: 'setup', label: '📋 Configuration' },
+          { key: 'auth',  label: '🔑 Authentification' },
+          { key: 'cards', label: '🎨 Carte Lovelace' },
+        ].map(tab => (
+          <button
+            key={tab.key}
+            onClick={() => setActiveTab(tab.key)}
+            className="px-4 py-2 font-medium text-sm whitespace-nowrap border-b-2"
+            style={{
+              borderColor: activeTab === tab.key ? 'var(--accent)' : 'transparent',
+              color: activeTab === tab.key ? 'var(--accent)' : 'var(--text-2)',
+            }}
+          >
+            {tab.label}
+          </button>
+        ))}
       </div>
 
       {/* Setup Tab */}
       {activeTab === 'setup' && (
-        <div className="space-y-6">
-          {/* Étape 1 : Créer le compte */}
-          <div className="rounded p-4" style={{
-            background: haAccountStatus === 'exists' ? 'var(--success-light)' : 'var(--accent-light)',
-            border: `1px solid ${haAccountStatus === 'exists' ? 'var(--success)' : 'var(--accent)'}`
-          }}>
-            <div className="flex items-start gap-3">
-              <span className="text-2xl">{haAccountStatus === 'exists' ? '✅' : '📋'}</span>
-              <div className="flex-1">
-                <p className="font-bold" style={{ color: haAccountStatus === 'exists' ? 'var(--success)' : 'var(--accent)' }}>
-                  Étape 1 : Compte Home Assistant
-                </p>
-                <p className="text-sm mt-1" style={{ color: 'var(--text-2)' }}>
-                  {haAccountStatus === 'exists'
-                    ? '✓ Compte homeassistant créé et prêt'
-                    : 'Créez le compte de service en cliquant sur le bouton ci-dessus'}
-                </p>
-              </div>
-            </div>
-          </div>
+        <div className="space-y-4">
 
-          {/* Étape 2 : Installation du custom component */}
-          <div className="rounded p-4" style={{ background: 'var(--accent-light)', border: '1px solid var(--accent)' }}>
-            <div className="flex items-start gap-3">
-              <span className="text-2xl">📦</span>
-              <div className="flex-1">
-                <p className="font-bold" style={{ color: 'var(--accent)' }}>Étape 2 : Installer le custom component</p>
-                <p className="text-sm mt-2" style={{ color: 'var(--text-2)' }}>
-                  Copiez les fichiers du custom component dans votre instance Home Assistant :
-                </p>
+          {[
+            {
+              icon: haEnabled ? '✅' : '📋',
+              color: haEnabled ? 'var(--success)' : 'var(--accent)',
+              bg: haEnabled ? 'var(--success-light)' : 'var(--accent-light)',
+              border: haEnabled ? 'var(--success)' : 'var(--accent)',
+              title: 'Étape 1 : Activer l\'intégration',
+              desc: haEnabled
+                ? '✓ Intégration activée — Home Assistant peut créer le compte via ha-init'
+                : 'Activez l\'intégration ci-dessus pour autoriser Home Assistant à se connecter',
+            },
+            {
+              icon: '📦', color: 'var(--accent)', bg: 'var(--accent-light)', border: 'var(--accent)',
+              title: 'Étape 2 : Installer le custom component',
+              desc: null,
+              custom: (
                 <div className="mt-3 space-y-2 text-xs">
-                  <p style={{ color: 'var(--text-1)' }}><strong>Source :</strong> <code style={{ background: 'var(--bg-base)', padding: '2px 8px', borderRadius: 4 }}>backend/../ha-integration/custom_components/ridelog/</code></p>
-                  <p style={{ color: 'var(--text-1)' }}><strong>Destination :</strong> <code style={{ background: 'var(--bg-base)', padding: '2px 8px', borderRadius: 4 }}>~/.homeassistant/custom_components/ridelog/</code></p>
-                  <p className="mt-3" style={{ color: 'var(--text-1)' }}><strong>📝 Fichiers à copier :</strong></p>
-                  <ul className="list-disc list-inside space-y-1 ml-2" style={{ color: 'var(--text-2)' }}>
-                    <li><code style={{ background: 'var(--bg-base)', padding: '1px 4px', borderRadius: 4 }}>__init__.py</code></li>
-                    <li><code style={{ background: 'var(--bg-base)', padding: '1px 4px', borderRadius: 4 }}>manifest.json</code></li>
-                    <li><code style={{ background: 'var(--bg-base)', padding: '1px 4px', borderRadius: 4 }}>config_flow.py</code></li>
-                    <li><code style={{ background: 'var(--bg-base)', padding: '1px 4px', borderRadius: 4 }}>const.py</code></li>
-                    <li><code style={{ background: 'var(--bg-base)', padding: '1px 4px', borderRadius: 4 }}>api.py</code></li>
-                    <li><code style={{ background: 'var(--bg-base)', padding: '1px 4px', borderRadius: 4 }}>strings.json</code> (et autres fichiers)</li>
-                  </ul>
+                  <p style={{ color: 'var(--text-1)' }}><strong>Source :</strong><br/>
+                    <code style={{ background: 'var(--bg-base)', padding: '2px 8px', borderRadius: 4, display: 'block', wordBreak: 'break-all', marginTop: 4 }}>ha-integration/custom_components/ridelog/</code>
+                  </p>
+                  <p style={{ color: 'var(--text-1)' }}><strong>Destination :</strong><br/>
+                    <code style={{ background: 'var(--bg-base)', padding: '2px 8px', borderRadius: 4, display: 'block', wordBreak: 'break-all', marginTop: 4 }}>~/.homeassistant/custom_components/ridelog/</code>
+                  </p>
                 </div>
-              </div>
-            </div>
-          </div>
-
-          {/* Étape 3 : Redémarrer HA */}
-          <div className="rounded p-4" style={{ background: 'var(--warning-light)', border: '1px solid var(--warning)' }}>
-            <div className="flex items-start gap-3">
-              <span className="text-2xl">🔄</span>
-              <div className="flex-1">
-                <p className="font-bold" style={{ color: 'var(--warning)' }}>Étape 3 : Redémarrer Home Assistant</p>
-                <p className="text-sm mt-2" style={{ color: 'var(--text-2)' }}>
-                  Après la copie des fichiers, redémarrez Home Assistant pour qu'il détecte le nouveau custom component.
-                </p>
-                <p className="text-xs mt-2" style={{ color: 'var(--text-2)' }}>
-                  <strong>Chemin :</strong> Paramètres → Système → ⋮ (menu) → Redémarrer
-                </p>
-              </div>
-            </div>
-          </div>
-
-          {/* Étape 4 : Créer l'intégration */}
-          <div className="rounded p-4" style={{ background: 'rgba(139,92,246,0.1)', border: '1px solid #8b5cf6' }}>
-            <div className="flex items-start gap-3">
-              <span className="text-2xl">🎛️</span>
-              <div className="flex-1">
-                <p className="font-bold" style={{ color: '#8b5cf6' }}>Étape 4 : Créer l'intégration RideLog</p>
-                <p className="text-sm mt-2" style={{ color: 'var(--text-2)' }}>
-                  Une fois HA redémarré, créez l'intégration RideLog :
-                </p>
+              ),
+            },
+            {
+              icon: '🔄', color: 'var(--warning)', bg: 'var(--warning-light)', border: 'var(--warning)',
+              title: 'Étape 3 : Redémarrer Home Assistant',
+              desc: 'Redémarrez HA pour qu\'il détecte le custom component et appelle ha-init automatiquement.',
+            },
+            {
+              icon: '🎛️', color: '#8b5cf6', bg: 'rgba(139,92,246,0.1)', border: '#8b5cf6',
+              title: 'Étape 4 : Créer l\'intégration RideLog dans HA',
+              desc: null,
+              custom: (
                 <div className="mt-3 space-y-1 text-xs" style={{ color: 'var(--text-2)' }}>
-                  <p><strong>1.</strong> Allez à <strong>Paramètres → Appareils et services</strong></p>
-                  <p><strong>2.</strong> Cliquez sur <strong>Créer une intégration</strong> (bouton en bas à droite)</p>
-                  <p><strong>3.</strong> Recherchez <strong>"RideLog"</strong></p>
-                  <p><strong>4.</strong> Sélectionnez <strong>RideLog</strong> (avec le logo auto)</p>
-                  <p className="mt-2"><strong>5.</strong> Remplissez le formulaire :</p>
-                  <div className="p-2 rounded mt-1 ml-4" style={{ background: 'var(--bg-base)' }}>
-                    <p className="font-mono" style={{ color: 'var(--text-1)' }}>URL API: <strong>http://192.168.1.x:8000</strong></p>
+                  <p><strong>1.</strong> Paramètres → Appareils et services</p>
+                  <p><strong>2.</strong> Créer une intégration → rechercher <strong>RideLog</strong></p>
+                  <p><strong>3.</strong> URL API :</p>
+                  <div className="p-2 rounded mt-1 ml-4" style={{ background: 'var(--bg-base)', wordBreak: 'break-all' }}>
+                    <p className="font-mono" style={{ color: 'var(--text-1)' }}>http://192.168.1.x:8000</p>
                     <p className="text-xs mt-1" style={{ color: 'var(--text-3)' }}>(Remplacez par votre IP/domaine)</p>
                   </div>
-                  <p className="mt-2"><strong>6.</strong> Cliquez sur <strong>Créer</strong></p>
+                </div>
+              ),
+            },
+            {
+              icon: '🎉', color: 'var(--success)', bg: 'var(--success-light)', border: 'var(--success)',
+              title: 'Étape 5 : Vérification',
+              desc: 'Les capteurs sensor.ridelog_* sont disponibles dans Paramètres → Appareils et services → RideLog',
+            },
+          ].map((step, i) => (
+            <div key={i} className="rounded p-4" style={{ background: step.bg, border: `1px solid ${step.border}` }}>
+              <div className="flex items-start gap-3">
+                <span className="text-2xl flex-shrink-0">{step.icon}</span>
+                <div className="flex-1 min-w-0">
+                  <p className="font-bold" style={{ color: step.color }}>{step.title}</p>
+                  {step.desc && <p className="text-sm mt-1" style={{ color: 'var(--text-2)' }}>{step.desc}</p>}
+                  {step.custom}
                 </div>
               </div>
             </div>
-          </div>
+          ))}
 
-          {/* Étape 5 : Vérification */}
-          <div className="rounded p-4" style={{ background: 'var(--success-light)', border: '1px solid var(--success)' }}>
-            <div className="flex items-start gap-3">
-              <span className="text-2xl">🎉</span>
-              <div className="flex-1">
-                <p className="font-bold" style={{ color: 'var(--success)' }}>Étape 5 : Vérification</p>
-                <p className="text-sm mt-2" style={{ color: 'var(--text-2)' }}>
-                  Les capteurs RideLog doivent maintenant être disponibles dans Home Assistant.
-                </p>
-                <p className="text-xs mt-2" style={{ color: 'var(--text-2)' }}>
-                  <strong>Allez à :</strong> Paramètres → Appareils et services → RideLog
-                </p>
-                <p className="text-xs mt-2" style={{ color: 'var(--text-2)' }}>
-                  <strong>Capteurs visibles :</strong> <code style={{ background: 'var(--bg-base)', padding: '1px 4px', borderRadius: 4 }}>sensor.ridelog_*</code>
-                </p>
-              </div>
-            </div>
-          </div>
-
-          {/* Notes importantes */}
           <div className="rounded p-4" style={{ background: 'var(--warning-light)', border: '1px solid var(--warning)' }}>
             <p className="font-bold" style={{ color: 'var(--warning)' }}>⚠️ Notes importantes</p>
             <ul className="list-disc list-inside space-y-1 text-xs mt-2" style={{ color: 'var(--text-2)' }}>
-              <li>L'URL API doit être accessible depuis votre réseau Home Assistant</li>
-              <li>Pour un accès distant, utilisez un domaine avec certificat SSL (https://)</li>
-              <li>Le compte homeassistant est un compte de service protégé (ne pas promouvoir en admin)</li>
-              <li>Les tokens valent 30 jours - un renouvellement automatique est recommandé</li>
+              <li>L'URL API doit être accessible depuis le réseau de Home Assistant</li>
+              <li>Pour un accès distant, utilisez HTTPS avec un certificat SSL valide</li>
+              <li>Ne promouvez jamais le compte homeassistant en administrateur</li>
+              <li>Les tokens valent 30 jours — Home Assistant les renouvelle automatiquement</li>
+              <li>Désactiver l'intégration révoque immédiatement l'accès de HA</li>
             </ul>
           </div>
         </div>
       )}
 
-      {/* Authentication Tab */}
+      {/* Auth Tab */}
       {activeTab === 'auth' && (
         <div className="space-y-6">
           <div className="rounded p-4 text-sm" style={{ background: 'var(--accent-light)', border: '1px solid var(--accent)', color: 'var(--text-1)' }}>
-            <p className="font-bold mb-3">🔑 Comment fonctionne l'authentification</p>
+            <p className="font-bold mb-3">🔑 Flux d'authentification</p>
             <ol className="list-decimal list-inside space-y-2 text-xs">
-              <li>Vous créez le compte Home Assistant dans RideLog (bouton ci-dessus ↑)</li>
-              <li>RideLog crée un compte de service spécial <strong>homeassistant</strong></li>
-              <li>Home Assistant appelle <code style={{ background: 'var(--bg-base)', padding: '1px 4px', borderRadius: 4 }}>POST /auth/ha-init</code></li>
-              <li>RideLog retourne un token Bearer valide 30 jours</li>
-              <li>Home Assistant stocke le token de manière sécurisée</li>
-              <li>Le compte homeassistant voit TOUS les véhicules de tous les utilisateurs</li>
-              <li>Utilisez <code style={{ background: 'var(--bg-base)', padding: '1px 4px', borderRadius: 4 }}>POST /auth/refresh</code> pour renouveler le token</li>
+              <li>L'admin active l'intégration depuis cette page</li>
+              <li>HA installe le custom component et redémarre</li>
+              <li>HA appelle <code style={{ background: 'var(--bg-base)', padding: '1px 4px', borderRadius: 4 }}>POST /auth/ha-init?init_key=…</code></li>
+              <li>RideLog crée le compte et retourne un token Bearer 30 jours</li>
+              <li>Le compte homeassistant accède à TOUS les véhicules</li>
+              <li>HA renouvelle le token via <code style={{ background: 'var(--bg-base)', padding: '1px 4px', borderRadius: 4 }}>POST /auth/refresh</code></li>
+              <li>L'admin peut désactiver à tout moment → HA perd l'accès immédiatement</li>
             </ol>
           </div>
 
           <div className="rounded p-4 text-sm" style={{ background: 'var(--warning-light)', border: '1px solid var(--warning)', color: 'var(--text-1)' }}>
             <p className="font-bold mb-3">⏰ Renouvellement automatique (optionnel)</p>
-            <p className="text-xs mb-3" style={{ color: 'var(--text-2)' }}>Créez une automation pour renouveler le token chaque semaine (avant les 30 jours):</p>
             <pre className="p-3 rounded text-xs overflow-auto font-mono" style={{ background: 'var(--bg-base)', color: 'var(--text-1)' }}>
 {`alias: "Renouveler token RideLog"
 trigger:
@@ -336,7 +294,7 @@ condition:
     weekday: [sun]
 action:
   - service: rest_command.ridelog_refresh
-  
+
 rest_command:
   ridelog_refresh:
     url: "http://localhost:8000/api/auth/refresh"
@@ -349,83 +307,70 @@ rest_command:
           <div className="rounded p-4 text-sm" style={{ background: 'var(--success-light)', border: '1px solid var(--success)', color: 'var(--text-1)' }}>
             <p className="font-bold mb-2">🔐 Sécurité</p>
             <ul className="text-xs space-y-1">
-              <li>✓ Pas de password stocké (token générés aléatoirement)</li>
-              <li>✓ Token Bearer avec expiration 30 jours</li>
-              <li>✓ Token stocké chiffré dans Home Assistant</li>
-              <li>✓ Zéro modification de configuration.yaml requise</li>
-              <li>✓ Compte de service interne dédié (pas admin)</li>
+              <li>✓ Mot de passe aléatoire non utilisable (compte de service)</li>
+              <li>✓ Token Bearer 30 jours avec renouvellement automatique</li>
+              <li>✓ Comparaison timing-safe de la HA_INIT_KEY</li>
+              <li>✓ Désactivation immédiate depuis l'UI sans redémarrage</li>
+              <li>✓ Impossible de promouvoir le compte homeassistant en admin</li>
             </ul>
           </div>
 
           <div className="rounded p-4 text-sm" style={{ background: 'rgba(139,92,246,0.1)', border: '1px solid #8b5cf6', color: 'var(--text-1)' }}>
-            <p className="font-bold mb-2">📝 Endpoints API disponibles</p>
-            <ul className="text-xs space-y-1 font-mono">
-              <li><code style={{ background: 'var(--bg-base)', padding: '1px 4px', borderRadius: 4 }}>POST /auth/ha-init</code> — Créer/récupérer compte homeassistant</li>
-              <li><code style={{ background: 'var(--bg-base)', padding: '1px 4px', borderRadius: 4 }}>POST /auth/refresh</code> — Renouveler le token</li>
-              <li><code style={{ background: 'var(--bg-base)', padding: '1px 4px', borderRadius: 4 }}>GET /vehicles</code> — Liste des véhicules</li>
-              <li><code style={{ background: 'var(--bg-base)', padding: '1px 4px', borderRadius: 4 }}>GET /maintenances</code> — Historique d'entretien</li>
+            <p className="font-bold mb-2">📝 Endpoints utilisés par HA</p>
+            <ul className="text-xs space-y-1">
+              {[
+                ['POST /auth/ha-init', 'Créer le compte (bloqué si désactivé)'],
+                ['POST /auth/refresh', 'Renouveler le token'],
+                ['GET /vehicles', 'Liste tous les véhicules'],
+                ['GET /vehicles/{id}/upcoming', 'Maintenances à venir'],
+              ].map(([ep, desc]) => (
+                <li key={ep}>
+                  <code style={{ background: 'var(--bg-base)', padding: '1px 4px', borderRadius: 4 }}>{ep}</code>
+                  {' — '}{desc}
+                </li>
+              ))}
             </ul>
           </div>
         </div>
       )}
 
-      {/* Cards Tab – Template Generator */}
+      {/* Cards Tab */}
       {activeTab === 'cards' && (
         <div className="space-y-6">
           <div className="rounded p-4 text-sm" style={{ background: 'var(--accent-light)', border: '1px solid var(--accent)', color: 'var(--text-1)' }}>
             <p className="font-bold mb-2">🎨 Générateur de carte Lovelace</p>
             <p className="text-xs" style={{ color: 'var(--text-2)' }}>
-              Sélectionnez un véhicule pour générer automatiquement le YAML de la carte Mushroom 
-              avec les bonnes entités. Copiez-le dans votre tableau de bord Home Assistant.
+              Sélectionnez un véhicule pour générer le YAML Mushroom. Copiez-le dans votre tableau de bord HA.
             </p>
           </div>
 
-          {/* Dépendances HACS */}
           <div className="rounded p-4" style={{ background: 'rgba(139,92,246,0.1)', border: '1px solid #8b5cf6' }}>
-            <p className="font-bold mb-2" style={{ color: '#8b5cf6' }}>📦 Dépendances requises (HACS)</p>
-            <p className="text-xs mb-3" style={{ color: 'var(--text-2)' }}>
-              Ces composants doivent être installés via <strong>HACS → Frontend</strong> avant d'utiliser la carte :
-            </p>
+            <p className="font-bold mb-2" style={{ color: '#8b5cf6' }}>📦 Dépendances HACS requises</p>
             <div className="space-y-2">
-              <div className="flex items-center gap-2 text-xs" style={{ color: 'var(--text-2)' }}>
-                <code style={{ background: 'var(--bg-base)', padding: '2px 8px', borderRadius: 4 }} className="font-mono">mushroom</code>
-                <span>— Cartes stylisées (mushroom-template-card, mushroom-title-card, mushroom-chips-card)</span>
-              </div>
-              <div className="flex items-center gap-2 text-xs" style={{ color: 'var(--text-2)' }}>
-                <code style={{ background: 'var(--bg-base)', padding: '2px 8px', borderRadius: 4 }} className="font-mono">card-mod</code>
-                <span>— Permet le CSS conditionnel (afficher/masquer les items selon les données)</span>
-              </div>
+              {[
+                ['mushroom', 'Cartes stylisées (mushroom-template-card, etc.)'],
+                ['card-mod', 'CSS conditionnel'],
+              ].map(([pkg, desc]) => (
+                <div key={pkg} className="flex items-center gap-2 text-xs" style={{ color: 'var(--text-2)' }}>
+                  <code style={{ background: 'var(--bg-base)', padding: '2px 8px', borderRadius: 4, flexShrink: 0 }}>{pkg}</code>
+                  <span>{desc}</span>
+                </div>
+              ))}
             </div>
-            <p className="text-xs mt-3" style={{ color: 'var(--text-3)' }}>
-              HACS → Frontend → <strong>Explorer et télécharger des dépôts</strong> → Rechercher le nom → Installer → Redémarrer HA
-            </p>
           </div>
 
-          {/* Vehicle selector */}
           <div className="flex gap-3 items-end">
             <div className="flex-1">
-              <label className="block text-sm font-medium mb-1" style={{ color: 'var(--text-1)' }}>
-                Véhicule
-              </label>
+              <label className="block text-sm font-medium mb-1" style={{ color: 'var(--text-1)' }}>Véhicule</label>
               <select
                 value={selectedVehicleId}
-                onChange={(e) => {
-                  setSelectedVehicleId(e.target.value);
-                  setGeneratedYaml('');
-                  setCopySuccess(false);
-                }}
+                onChange={e => { setSelectedVehicleId(e.target.value); setGeneratedYaml(''); setCopySuccess(false); }}
                 className="w-full border rounded px-3 py-2 text-sm"
-                style={{ 
-                  backgroundColor: 'var(--surface-2)', 
-                  color: 'var(--text-1)',
-                  borderColor: 'var(--border)'
-                }}
+                style={{ backgroundColor: 'var(--bg-surface)', color: 'var(--text-1)', borderColor: 'var(--border)' }}
               >
                 <option value="">— Choisir un véhicule —</option>
                 {vehicles.map(v => (
-                  <option key={v.id} value={v.id}>
-                    {v.vehicle_type === 'motorcycle' ? '🏍️' : '🚗'} {v.name}
-                  </option>
+                  <option key={v.id} value={v.id}>{v.vehicle_type === 'motorcycle' ? '🏍️' : '🚗'} {v.name}</option>
                 ))}
               </select>
             </div>
@@ -437,66 +382,44 @@ rest_command:
                 try {
                   const res = await api.getHaDashboardCard(selectedVehicleId);
                   setGeneratedYaml(res.data.yaml);
-                } catch (err) {
-                  setGeneratedYaml('# Erreur lors de la génération');
-                } finally {
-                  setIsGenerating(false);
-                }
+                } catch { setGeneratedYaml('# Erreur lors de la génération'); }
+                finally { setIsGenerating(false); }
               }}
               disabled={!selectedVehicleId || isGenerating}
-              className="btn btn-primary whitespace-nowrap"
+              className="btn btn-primary whitespace-nowrap disabled:opacity-50"
             >
-              {isGenerating ? '⏳ Génération...' : '⚡ Générer'}
+              {isGenerating ? '⏳...' : '⚡ Générer'}
             </button>
           </div>
 
-          {/* Generated YAML */}
           {generatedYaml && (
             <div>
               <div className="flex justify-between items-center mb-2">
-                <p className="text-xs font-bold" style={{ color: 'var(--text-2)' }}>
-                  YAML généré — cliquez pour copier
-                </p>
+                <p className="text-xs font-bold" style={{ color: 'var(--text-2)' }}>YAML généré</p>
                 <button
-                  onClick={() => {
-                    navigator.clipboard.writeText(generatedYaml);
-                    setCopySuccess(true);
-                    setTimeout(() => setCopySuccess(false), 3000);
-                  }}
-                  className="text-xs px-3 py-1 rounded font-medium transition-colors"
+                  onClick={() => { navigator.clipboard.writeText(generatedYaml); setCopySuccess(true); setTimeout(() => setCopySuccess(false), 3000); }}
+                  className="text-xs px-3 py-1 rounded font-medium"
                   style={copySuccess
                     ? { background: 'var(--success-light)', color: 'var(--success)', border: '1px solid var(--success)' }
-                    : { background: 'var(--accent-light)', color: 'var(--accent)', border: '1px solid var(--accent)' }
-                  }
+                    : { background: 'var(--accent-light)', color: 'var(--accent)', border: '1px solid var(--accent)' }}
                 >
                   {copySuccess ? '✅ Copié !' : '📋 Copier'}
                 </button>
               </div>
-              <pre 
+              <pre
                 ref={yamlRef}
                 className="p-4 rounded overflow-auto text-xs border cursor-pointer"
-                style={{
-                  backgroundColor: 'var(--surface-2)',
-                  borderColor: 'var(--border)',
-                  color: 'var(--text-1)',
-                  maxHeight: '500px',
-                }}
-                onClick={() => {
-                  navigator.clipboard.writeText(generatedYaml);
-                  setCopySuccess(true);
-                  setTimeout(() => setCopySuccess(false), 3000);
-                }}
+                style={{ backgroundColor: 'var(--bg-base)', borderColor: 'var(--border)', color: 'var(--text-1)', maxHeight: '400px' }}
+                onClick={() => { navigator.clipboard.writeText(generatedYaml); setCopySuccess(true); setTimeout(() => setCopySuccess(false), 3000); }}
               >
                 {generatedYaml}
               </pre>
               <div className="mt-3 rounded p-3 text-xs" style={{ background: 'var(--warning-light)', border: '1px solid var(--warning)', color: 'var(--text-1)' }}>
                 <p className="font-bold">💡 Comment utiliser :</p>
                 <ol className="list-decimal list-inside space-y-1 mt-1">
-                  <li>Copiez le YAML ci-dessus</li>
-                  <li>Dans HA : ouvrez votre <strong>Tableau de bord</strong> → cliquez sur <strong>✏️</strong> (modifier) en haut à droite</li>
-                  <li>Cliquez <strong>+ Ajouter une carte</strong></li>
-                  <li>Tout en bas, cliquez <strong>Manuel</strong></li>
-                  <li>Effacez le contenu par défaut, collez le YAML et cliquez <strong>Enregistrer</strong></li>
+                  <li>Copiez le YAML</li>
+                  <li>Dans HA : Tableau de bord → ✏️ → + Ajouter une carte → Manuel</li>
+                  <li>Collez et cliquez Enregistrer</li>
                 </ol>
               </div>
             </div>

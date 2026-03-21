@@ -52,18 +52,20 @@ export default function VehicleDetail({ vehicleId, onBack }) {
     try {
       setLoading(true);
       setError(null);
-      const [vehicleRes, upcomingRes, recommendationsRes, forecastRes, estimateRes] = await Promise.all([
+      const [vehicleRes, upcomingRes, recommendationsRes, forecastRes, estimateRes, recapRes] = await Promise.all([
         api.getVehicle(vehicleId),
         api.getUpcoming(vehicleId),
         api.getRecommendations(vehicleId),
         api.getCostForecast(vehicleId),
         api.getVehicleEstimate(vehicleId),
+        api.getMaintenanceRecap(vehicleId),
       ]);
       setVehicle(vehicleRes.data);
       setUpcoming(upcomingRes.data);
       setRecommendations(recommendationsRes.data);
       setCostForecast(forecastRes.data);
       setEstimate(estimateRes.data);
+      setRecap(recapRes.data);
     } catch (err) {
       setError(err.response?.data?.detail || err.message || 'Erreur inconnue');
     } finally {
@@ -147,6 +149,38 @@ export default function VehicleDetail({ vehicleId, onBack }) {
       alert(err.response?.data?.detail || 'Erreur lors de la mise à jour du véhicule');
     } finally { setEditSaving(false); }
   }, [editedVehicle, vehicleId, fetchData]);
+
+  // Kilométrage moyen annuel — calculé depuis l'historique recap
+  // Prend le premier et le dernier point km enregistrés, calcule le delta / durée
+  // Nécessite au moins 6 mois de données pour être fiable
+  const avgKmPerYear = React.useMemo(() => {
+    if (!recap?.maintenances?.length) return null;
+
+    // Récupérer tous les points (date, km) avec km connu > 0
+    const points = recap.maintenances
+      .filter(m => m.mileage_at_intervention > 0)
+      .map(m => ({ date: new Date(m.execution_date), km: m.mileage_at_intervention }))
+      .sort((a, b) => a.date - b.date);
+
+    if (points.length < 2) return null;
+
+    const first = points[0];
+    const last = points[points.length - 1];
+
+    // Utiliser le km max parmi les derniers enregistrements comme point final
+    const maxKm = Math.max(...points.map(p => p.km));
+    const minKm = points[0].km;
+
+    const yearsElapsed = (last.date - first.date) / (1000 * 60 * 60 * 24 * 365.25);
+
+    // Moins d'un mois → vraiment pas assez
+    if (yearsElapsed < 0.08) return { value: null, estimated: false };
+
+    const avg = Math.round((maxKm - minKm) / yearsElapsed);
+    // Moins de 6 mois → estimation extrapolée, on le signale
+    const estimated = yearsElapsed < 0.5;
+    return { value: avg, estimated };
+  }, [recap]);
 
   if (error) {
     return (
@@ -276,30 +310,86 @@ export default function VehicleDetail({ vehicleId, onBack }) {
         </div>
       </div>
 
-      {/* Cost Forecast */}
-      {costForecast && (
-        <div className="mb-6">
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-4">
-            <div className="card p-3 text-center">
-              <div className="card-label">Coût estimé</div>
-              <div className="stat-number text-sm" style={{ color: 'var(--accent)' }}>€{costForecast.total_cost_min || 0}–{costForecast.total_cost_max || 0}</div>
-            </div>
-            <div className="card p-3 text-center">
-              <div className="card-label">Prévues</div>
-              <div className="stat-number" style={{ color: 'var(--text-1)' }}>{costForecast.upcoming_count}</div>
-            </div>
-            <div className="card p-3 text-center">
-              <div className="card-label">Urgentes</div>
-              <div className="stat-number" style={{ color: costForecast.urgent_count > 0 ? 'var(--danger)' : 'var(--success)' }}>{costForecast.urgent_count}</div>
-            </div>
-            <div className="card p-3 flex items-center justify-center">
-              <button onClick={() => setShowMaintenanceForm(!showMaintenanceForm)} className="btn btn-primary w-full text-sm">
+      {/* KPI Cards */}
+      {(() => {
+        const overdue = upcoming?.upcoming?.filter(u => u.status === 'overdue').length || 0;
+        const urgent  = upcoming?.upcoming?.filter(u => u.status === 'urgent').length || 0;
+        const warning = upcoming?.upcoming?.filter(u => u.status === 'warning').length || 0;
+        const next    = upcoming?.upcoming?.find(u => u.days_remaining != null);
+        const nextDays = next ? Math.round(next.days_remaining) : null;
+
+        const stateConfig = overdue > 0
+          ? { icon: '🔴', label: 'En retard',    color: 'var(--danger)' }
+          : urgent > 0
+          ? { icon: '🟠', label: 'Urgent',       color: 'var(--warning)' }
+          : warning > 0
+          ? { icon: '🟡', label: 'À surveiller', color: '#f59e0b' }
+          : { icon: '✅', label: 'À jour',        color: 'var(--success)' };
+
+        const nextLabel = nextDays == null ? '—'
+          : nextDays <= 0 ? 'En retard'
+          : nextDays === 1 ? 'Demain'
+          : `${nextDays} j`;
+        const nextColor = nextDays == null ? 'var(--text-3)'
+          : nextDays <= 0 ? 'var(--danger)'
+          : nextDays <= 7 ? 'var(--warning)'
+          : 'var(--text-1)';
+        const nextName = next?.intervention_type
+          ? (next.intervention_type.length > 16 ? next.intervention_type.slice(0, 14) + '…' : next.intervention_type)
+          : null;
+
+        const fmtEuro = (n) => n.toLocaleString('fr-FR', { style: 'currency', currency: 'EUR', maximumFractionDigits: 0 });
+
+        // Style commun à toutes les cards — label + valeur + sous-label
+        const KpiCard = ({ label, value, valueColor = 'var(--text-1)', sub = null }) => (
+          <div className="card p-3 text-center" style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', minHeight: '90px' }}>
+            <div className="card-label" style={{ marginBottom: '6px' }}>{label}</div>
+            <div style={{ fontSize: '22px', fontWeight: 700, lineHeight: 1.2, color: valueColor }}>{value}</div>
+            {sub && <div style={{ fontSize: '0.68rem', color: 'var(--text-3)', marginTop: '4px' }}>{sub}</div>}
+          </div>
+        );
+
+        return (
+          <div className="mb-6">
+            <div className="flex justify-end mb-3">
+              <button onClick={() => setShowMaintenanceForm(!showMaintenanceForm)} className="btn btn-primary">
                 {showMaintenanceForm ? 'Annuler' : '+ Intervention'}
               </button>
             </div>
+            <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
+              <KpiCard
+                label="État"
+                value={<span style={{ fontSize: '1.5rem' }}>{stateConfig.icon}</span>}
+                valueColor={stateConfig.color}
+                sub={stateConfig.label}
+              />
+              <KpiCard
+                label="En retard"
+                value={overdue}
+                valueColor={overdue > 0 ? 'var(--danger)' : 'var(--success)'}
+                sub={overdue === 0 ? 'aucun' : overdue === 1 ? 'intervention' : 'interventions'}
+              />
+              <KpiCard
+                label="Prochaine"
+                value={nextLabel}
+                valueColor={nextColor}
+                sub={nextName}
+              />
+              <KpiCard
+                label="Total dépensé"
+                value={recap?.total_cost != null ? fmtEuro(recap.total_cost) : '—'}
+                valueColor={recap?.total_cost != null ? 'var(--accent)' : 'var(--text-3)'}
+              />
+              <KpiCard
+                label="Moy. km/an"
+                value={avgKmPerYear?.value ? `${avgKmPerYear.value.toLocaleString('fr-FR')} km` : '—'}
+                valueColor={avgKmPerYear?.value ? 'var(--text-1)' : 'var(--text-3)'}
+                sub={avgKmPerYear?.estimated ? 'estimation' : null}
+              />
+            </div>
           </div>
-        </div>
-      )}
+        );
+      })()}
 
       {estimate && estimate.estimated_value != null && (
         <div className="card p-4 mb-6" style={{ borderLeft: '4px solid var(--success)' }}>

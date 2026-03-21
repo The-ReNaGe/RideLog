@@ -155,36 +155,13 @@ export const api = {
   getAvailableInterventions: (vehicleId, vehicleType, displacement) => 
     client.get(`/vehicles/${vehicleId}/available-interventions?vehicle_type=${vehicleType}&displacement=${displacement || ''}`),
 
-  // ─────────────────────────────────────────────────────────────────────
-  // ★ Surcharges d'intervalles de maintenance par véhicule ★
-  // ─────────────────────────────────────────────────────────────────────
-
-  /**
-   * Liste toutes les surcharges configurées pour un véhicule.
-   */
+  // Surcharges d'intervalles
   getIntervalOverrides: (vehicleId) =>
     client.get(`/vehicles/${vehicleId}/interval-overrides`),
-
-  /**
-   * Crée ou met à jour la surcharge pour une intervention donnée.
-   * @param {number} vehicleId
-   * @param {string} interventionKey  - clé technique ex: "fork_service"
-   * @param {object} data
-   *   - km_interval {number|null}       - nouvel intervalle km (null = inchangé)
-   *   - months_interval {number|null}   - nouvel intervalle mois (null = inchangé)
-   *   - is_km_disabled {boolean}        - true = supprimer le critère km
-   *   - is_months_disabled {boolean}    - true = supprimer le critère temps
-   */
   upsertIntervalOverride: (vehicleId, interventionKey, data) =>
     client.put(`/vehicles/${vehicleId}/interval-overrides/${interventionKey}`, data),
-
-  /**
-   * Supprime la surcharge → revient aux valeurs par défaut du JSON.
-   */
   deleteIntervalOverride: (vehicleId, interventionKey) =>
     client.delete(`/vehicles/${vehicleId}/interval-overrides/${interventionKey}`),
-
-  // ─────────────────────────────────────────────────────────────────────
 
   // Fuel tracking
   getFuelLogs: (vehicleId) => client.get(`/vehicles/${vehicleId}/fuel-logs`),
@@ -207,6 +184,14 @@ export const api = {
 
   // Dashboard
   getDashboard: () => client.get('/dashboard'),
+
+  // Intégration Home Assistant — gestion activation/désactivation
+  getHaIntegrationStatus: () =>
+    client.get('/admin/ha-integration-status'),
+  enableHaIntegration: () =>
+    client.post('/admin/ha-integration/enable'),
+  disableHaIntegration: () =>
+    client.post('/admin/ha-integration/disable'),
 
   request: (method, url, data = null, config = {}) => {
     return client({ method, url, data, ...config });

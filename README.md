@@ -38,6 +38,21 @@ Conçu pour les particuliers passionnés comme pour les petits parcs de véhicul
 
 ```bash
 git clone https://github.com/The-ReNaGe/RideLog.git RideLog && cd RideLog
+```
+
+**Avant de lancer les containers, créez votre fichier de configuration :**
+
+```bash
+cp .env.example .env
+```
+
+Ouvrez `.env` et renseignez au minimum :
+- `JWT_SECRET` — clé secrète JWT (`openssl rand -hex 32`)
+- `HA_INIT_KEY` — clé pour Home Assistant (`openssl rand -hex 16`)
+
+Puis lancez :
+
+```bash
 docker compose up -d --build
 ```
 
@@ -50,20 +65,25 @@ Le premier utilisateur créé est automatiquement admin.
 
 ## Configuration
 
-### Variables d'environnement
+Toute la configuration se fait via le fichier `.env` (créé depuis `.env.example`).  
+Le fichier `.env` n'est jamais commité — il reste sur votre machine uniquement.
 
-Toutes configurables dans `docker-compose.yml` :
+```bash
+cp .env.example .env   # à faire une seule fois à l'installation
+```
 
 | Variable | Défaut | Description |
 |---|---|---|
-| `JWT_SECRET` | *(généré)* | Secret pour les tokens JWT — **changer en production** |
+| `JWT_SECRET` | *(à définir)* | Secret pour les tokens JWT — **obligatoire** |
+| `HA_INIT_KEY` | *(à définir)* | Clé pour initialiser le compte Home Assistant — **obligatoire** |
 | `REGISTRATION_MODE` | `invite` | Mode d'inscription : `open`, `invite`, `closed` |
-| `HA_INIT_KEY` | *(généré)* | Clé pour initialiser le compte Home Assistant |
 | `RAPIDAPI_KEY` | — | Clé RapidAPI pour le décodage de plaque (optionnel) |
 | `REMINDER_INTERVAL` | `3600` | Intervalle du scheduler de rappels en secondes |
 | `REMINDER_ENABLED` | `true` | Active/désactive les rappels automatiques |
 | `LOG_LEVEL` | `INFO` | Niveau de log (`DEBUG`, `INFO`, `WARNING`, `ERROR`) |
 | `CORS_ORIGINS` | `*` | Origines CORS autorisées |
+
+> ⚠️ **Mise à jour** : si vous avez une installation existante sans fichier `.env`, créez-le avant de faire `git pull` + rebuild, sinon le backend refusera de démarrer.
 
 ### Changer le port
 
@@ -201,7 +221,7 @@ Documentation interactive Swagger : **http://localhost:8000/docs**
 | `GET/POST` | `/api/vehicles/{id}/fuel-logs` | Pleins carburant |
 | `GET` | `/api/vehicles/{id}/fuel-stats` | Statistiques conso |
 | `GET` | `/api/fuel-stations/search` | Recherche stations |
-| `GET/POST/DELETE` | `/api/webhooks/settings/webhooks` | Gestion webhooks |
+| `GET/POST/DELETE` | `/api/settings/webhooks` | Gestion webhooks |
 | `GET` | `/api/vehicles/planning` | Planning global |
 | `GET` | `/api/dashboard/stats` | Stats dashboard |
 
@@ -212,7 +232,8 @@ Documentation interactive Swagger : **http://localhost:8000/docs**
 ```
 RideLog/
 ├── docker-compose.yml          # Orchestration des services
-├── claude.md                   # Documentation technique détaillée
+├── .env.example                # Template de configuration (à copier en .env)
+├── CLAUDE.md                   # Documentation technique détaillée
 ├── backend/
 │   ├── main.py                 # Point d'entrée FastAPI
 │   ├── models.py               # Modèles SQLAlchemy + migrations
@@ -233,7 +254,7 @@ RideLog/
     └── templates/                  # Templates cartes Lovelace
 ```
 
-Pour la documentation technique complète (comment modifier chaque comportement), voir [claude.md](claude.md).
+Pour la documentation technique complète (comment modifier chaque comportement), voir [CLAUDE.md](CLAUDE.md).
 
 ---
 
@@ -246,25 +267,17 @@ Les contributions sont les bienvenues ! Consulte [CONTRIBUTING.md](CONTRIBUTING.
 git clone https://github.com/The-ReNaGe/RideLog.git
 cd RideLog
 git checkout -b feat/ma-feature
+cp .env.example .env  # configurer avant de lancer
 docker compose up -d --build
 # ... code, test, commit, push, ouvre une PR
 ```
 
 ---
 
-## Stack technique
-
-| Composant | Technologie |
-|---|---|
-| Backend | Python 3.11, FastAPI, SQLAlchemy, SQLite |
-| Frontend | React 18, Vite 5, Tailwind CSS 3 |
-| Auth | JWT HS256 (7 jours), bcrypt, rate limiting progressif |
-| Conteneurs | Docker Compose (backend + nginx) |
-| Données | SQLite dans `./data/ridelog.db` (volume persistant) |
-| Version | RideLog v1.4.0
-
----
-
 ## Licence
 
 Ce projet est sous licence [AGPL-3.0](LICENSE).
+
+---
+
+<p align="right">RideLog v1.5.0</p>

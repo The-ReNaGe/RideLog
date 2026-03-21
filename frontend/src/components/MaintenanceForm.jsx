@@ -143,7 +143,9 @@ export default function MaintenanceForm({
       const payload = new FormData();
       payload.append('intervention_type', formData.intervention_type);
       payload.append('execution_date', new Date(formData.execution_date).toISOString());
-      payload.append('mileage_at_intervention', String(parseInt(formData.mileage_at_intervention)));
+      if (formData.mileage_at_intervention) {
+        payload.append('mileage_at_intervention', String(parseInt(formData.mileage_at_intervention)));
+      }
       payload.append('maintenance_category', formData.maintenance_category);
       if (formData.other_title && formData.intervention_type === 'Autre') {
         payload.append('other_description', formData.other_title);
@@ -158,7 +160,7 @@ export default function MaintenanceForm({
       if (vehicleType === 'motorcycle' && CHECKLIST_TRIGGERS.includes(formData.intervention_type)) {
         setChecklistData({
           date: new Date(formData.execution_date).toISOString(),
-          mileage: parseInt(formData.mileage_at_intervention),
+          mileage: formData.mileage_at_intervention ? parseInt(formData.mileage_at_intervention) : 0,
         });
         // onSubmit sera appelé par la modale à sa fermeture
       } else {
@@ -251,13 +253,16 @@ export default function MaintenanceForm({
           </div>
 
           <div>
-            <label className="block text-sm font-medium mb-1">Kilométrage (km)*</label>
+            <label className="block text-sm font-medium mb-1">
+              Kilométrage (km)
+              <span className="ml-1 font-normal text-xs" style={{ color: 'var(--text-3)' }}>(optionnel — estimé si absent)</span>
+            </label>
             <input
               type="number"
               name="mileage_at_intervention"
               value={formData.mileage_at_intervention}
               onChange={handleChange}
-              required
+              placeholder="Laisser vide pour estimation auto"
               className="w-full px-3 py-2 border border-gray-300 rounded-lg"
             />
           </div>

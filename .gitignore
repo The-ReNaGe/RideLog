@@ -1,93 +1,79 @@
 # RideLog .gitignore
 
-# Python
+# ── Python ───────────────────────────────────────────────────────────────────
 __pycache__/
 *.py[cod]
 *$py.class
 *.so
 .Python
-
-# Build outputs
-build/
-dist/
-frontend/dist/
-frontend/build/
-
-# Eggs
 .eggs/
 eggs/
 *.egg-info/
 *.egg
 .installed.cfg
+wheels/
+downloads/
+parts/
+sdist/
+.coverage
+htmlcov/
+coverage.xml
 
-# Virtualenv
-.env
+# ── Virtualenv ───────────────────────────────────────────────────────────────
 .venv
 env/
 venv/
 ENV/
 
-# Node/npm
+# ── Node / npm ───────────────────────────────────────────────────────────────
 node_modules/
+frontend/.cache/
 
-# SQLite database and data
+# ── Build outputs ────────────────────────────────────────────────────────────
+build/
+dist/
+frontend/dist/
+frontend/build/
+
+# ── Base de données et données persistantes ───────────────────────────────────
 /data/
 *.db
 *.sqlite3
 *.sqlite
 
-# Downloads, wheels, parts
-wheels/
-downloads/
-parts/
-sdist/
+# ── Configuration sensible ────────────────────────────────────────────────────
+# .env contient les secrets (JWT_SECRET, HA_INIT_KEY, etc.) — ne jamais commiter
+.env
+secrets.env
+# IMPORTANT : .env.example est versionné intentionnellement (valeurs fictives)
+# La ligne .env ci-dessus ne l'exclut pas car elle correspond uniquement à ".env" exact
 
-# Logs
+# ── Logs ─────────────────────────────────────────────────────────────────────
 *.log
 
-# OS
+# ── OS ───────────────────────────────────────────────────────────────────────
 .DS_Store
 Thumbs.db
+*.orig
 
-# Docker
+# ── Docker ───────────────────────────────────────────────────────────────────
 *.pid
 *.sock
 
-# VSCode
+# ── Éditeurs ─────────────────────────────────────────────────────────────────
 .vscode/
+.idea/
+*.sublime-workspace
+*.sublime-project
 
-# Secrets
-secrets.env
-.env.*
-
-# Backups
+# ── Fichiers temporaires ─────────────────────────────────────────────────────
 *.bak
 *.old
 *.swp
-
-# Frontend static cache
-frontend/.cache/
-
-# Ignore backup files
 *~
 
-# Ignore coverage and test outputs
-.coverage
-htmlcov/
-coverage.xml
-
-# Ignore exported ZIPs
+# ── Exports ──────────────────────────────────────────────────────────────────
 *.zip
 
-# Ignore Home Assistant custom_components cache
+# ── Home Assistant ───────────────────────────────────────────────────────────
 ha-integration/custom_components/ridelog/__pycache__/
-
-# Ignore personal settings
-*.sublime-workspace
-*.sublime-project
-.idea/
-
-# Ignore system files
-*.orig
-
-# End of .gitignore
