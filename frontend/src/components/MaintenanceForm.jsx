@@ -11,7 +11,7 @@ const CHECKLIST_TRIGGERS_MOTO = [
 
 // Types déclenchant la checklist sur les voitures
 const CHECKLIST_TRIGGERS_CAR = [
-  'Vidange d\'huile + filtre',
+  'Vidange d\'huile',
 ];
 
 const STATIC_MAINTENANCE_TYPES = {
