@@ -1,11 +1,17 @@
 import React, { useState, useEffect } from 'react';
 import { api } from '../lib/api';
 import RevisionChecklistModal from './RevisionChecklistModal';
+import CarRevisionChecklistModal from './CarRevisionChecklistModal';
 
 // Types déclenchant la checklist sur les motos
-const CHECKLIST_TRIGGERS = [
+const CHECKLIST_TRIGGERS_MOTO = [
   'Révision périodique (km)',
   'Entretien annuel',
+];
+
+// Types déclenchant la checklist sur les voitures
+const CHECKLIST_TRIGGERS_CAR = [
+  'Vidange d\'huile + filtre',
 ];
 
 const STATIC_MAINTENANCE_TYPES = {
@@ -156,8 +162,11 @@ export default function MaintenanceForm({
 
       await api.createMaintenance(vehicleId, payload);
 
-      // Ouvrir la checklist si c'est une révision moto déclenchante
-      if (vehicleType === 'motorcycle' && CHECKLIST_TRIGGERS.includes(formData.intervention_type)) {
+      // Ouvrir la checklist si c'est une révision déclenchante
+      const isMotoChecklist = vehicleType === 'motorcycle' && CHECKLIST_TRIGGERS_MOTO.includes(formData.intervention_type);
+      const isCarChecklist = vehicleType === 'car' && CHECKLIST_TRIGGERS_CAR.includes(formData.intervention_type);
+
+      if (isMotoChecklist || isCarChecklist) {
         setChecklistData({
           date: new Date(formData.execution_date).toISOString(),
           mileage: formData.mileage_at_intervention ? parseInt(formData.mileage_at_intervention) : 0,
@@ -175,7 +184,8 @@ export default function MaintenanceForm({
   };
 
   const estimatedPrice = getEstimatedPrice();
-  const willShowChecklist = vehicleType === 'motorcycle' && CHECKLIST_TRIGGERS.includes(formData.intervention_type);
+  const willShowChecklist = (vehicleType === 'motorcycle' && CHECKLIST_TRIGGERS_MOTO.includes(formData.intervention_type)) ||
+                            (vehicleType === 'car' && CHECKLIST_TRIGGERS_CAR.includes(formData.intervention_type));
 
   return (
     <>
@@ -347,19 +357,33 @@ export default function MaintenanceForm({
         </div>
       </form>
 
-      {/* Checklist — ouverte après submit réussi d'une révision moto */}
+      {/* Checklist — ouverte après submit réussi d'une révision */}
       {checklistData && (
-        <RevisionChecklistModal
-          vehicleId={vehicleId}
-          date={checklistData.date}
-          mileage={checklistData.mileage}
-          upcomingData={upcomingMaintenances}
-          onClose={() => {
-            setChecklistData(null);
-            onSubmit();
-          }}
-          onSuccess={() => {}}
-        />
+        vehicleType === 'motorcycle' ? (
+          <RevisionChecklistModal
+            vehicleId={vehicleId}
+            date={checklistData.date}
+            mileage={checklistData.mileage}
+            upcomingData={upcomingMaintenances}
+            onClose={() => {
+              setChecklistData(null);
+              onSubmit();
+            }}
+            onSuccess={() => {}}
+          />
+        ) : (
+          <CarRevisionChecklistModal
+            vehicleId={vehicleId}
+            date={checklistData.date}
+            mileage={checklistData.mileage}
+            upcomingData={upcomingMaintenances}
+            onClose={() => {
+              setChecklistData(null);
+              onSubmit();
+            }}
+            onSuccess={() => {}}
+          />
+        )
       )}
     </>
   );
