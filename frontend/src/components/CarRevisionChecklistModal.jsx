@@ -1,18 +1,9 @@
 import { useState, useEffect, useCallback } from "react";
 import { api } from "../lib/api";
 
-// Items toujours pré-cochés à chaque révision voiture
-const ALWAYS_CHECKED_CAR = [
-  "oil_change",
-  "air_filter",
-  "cabin_filter",
-  "fuel_filter_diesel",
-  "fuel_filter_gasoline",
-];
-
 // Mapping clé technique → nom français
 const RECORDABLE_LABELS_CAR = {
-  oil_change:           "Vidange d'huile + filtre",
+  oil_change:           "Entretien général",
   air_filter:           "Remplacement filtre à air",
   cabin_filter:         "Remplacement filtre d'habitacle",
   fuel_filter_diesel:   "Remplacement filtre à gasoil",
@@ -43,6 +34,7 @@ const ITEM_GROUPS_CAR = [
  *   vehicleId    {number}    ID du véhicule
  *   date         {string}    Date ISO de la révision
  *   mileage      {number}    Kilométrage de la révision
+ *   motorization {string}    Motorisation du véhicule (diesel, essence, hybride, electrique, thermal)
  *   upcomingData {Array}     Résultat de GET /upcoming (pré-cochage intelligent)
  *   onClose      {Function}  Fermeture (annulation ou fin)
  *   onSuccess    {Function}  Appelé après enregistrement réussi
@@ -51,6 +43,7 @@ export default function CarRevisionChecklistModal({
   vehicleId,
   date,
   mileage,
+  motorization,
   upcomingData = [],
   onClose,
   onSuccess,
@@ -76,15 +69,27 @@ export default function CarRevisionChecklistModal({
     return map;
   }, [upcomingData]);
 
-  // Initialiser coches : ALWAYS_CHECKED_CAR + items "due"
+  // Initialiser coches : items pertinents selon motorisation + items "due"
   useEffect(() => {
     const urg = urgencyMap();
     const initial = {};
+
+    // Items toujours pré-cochés selon la motorisation
+    const alwaysChecked = [
+      "oil_change",
+      "air_filter",
+      "cabin_filter",
+      // Filtre gasoil uniquement pour diesel
+      ...(motorization === "diesel" ? ["fuel_filter_diesel"] : []),
+      // Filtre essence uniquement pour essence/hybride
+      ...(["essence", "hybride"].includes(motorization) ? ["fuel_filter_gasoline"] : []),
+    ];
+
     for (const key of Object.keys(RECORDABLE_LABELS_CAR)) {
-      initial[key] = ALWAYS_CHECKED_CAR.includes(key) || urg[key] === "due";
+      initial[key] = alwaysChecked.includes(key) || urg[key] === "due";
     }
     setChecked(initial);
-  }, [urgencyMap]);
+  }, [urgencyMap, motorization]);
 
   const toggle = (key) => setChecked((prev) => ({ ...prev, [key]: !prev[key] }));
   const selectedKeys = Object.entries(checked).filter(([, v]) => v).map(([k]) => k);
@@ -193,7 +198,22 @@ export default function CarRevisionChecklistModal({
             {/* Liste scrollable */}
             <div style={{ flex: 1, overflowY: "auto", padding: "1rem 1.25rem", display: "flex", flexDirection: "column", gap: "1.1rem" }}>
               {ITEM_GROUPS_CAR.map((group) => {
-                const items = group.keys.filter((k) => k in RECORDABLE_LABELS_CAR);
+                // Filtrer les items selon la motorisation
+                const items = group.keys.filter((k) => {
+                  if (!(k in RECORDABLE_LABELS_CAR)) return false;
+
+                  // Filtre à gasoil : uniquement pour diesel
+                  if (k === "fuel_filter_diesel" && motorization !== "diesel") return false;
+
+                  // Filtre à essence : uniquement pour essence, hybride
+                  if (k === "fuel_filter_gasoline" && !["essence", "hybride"].includes(motorization)) return false;
+
+                  // Bougies : uniquement pour essence, hybride (pas diesel ni électrique)
+                  if (k === "spark_plug" && !["essence", "hybride"].includes(motorization)) return false;
+
+                  return true;
+                });
+
                 if (!items.length) return null;
                 return (
                   <div key={group.label}>

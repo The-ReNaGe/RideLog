@@ -63,6 +63,7 @@ export default function MaintenanceForm({
   vehicleType,
   displacement,
   rangeCategory,
+  motorization,
   upcomingMaintenances = [],
   onSubmit,
   onCancel,
@@ -376,6 +377,7 @@ export default function MaintenanceForm({
             vehicleId={vehicleId}
             date={checklistData.date}
             mileage={checklistData.mileage}
+            motorization={motorization}
             upcomingData={upcomingMaintenances}
             onClose={() => {
               setChecklistData(null);
