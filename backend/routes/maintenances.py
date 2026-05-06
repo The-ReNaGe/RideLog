@@ -1,6 +1,7 @@
 import logging
 import os
 import uuid
+import json
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import List, Optional
@@ -215,6 +216,13 @@ async def create_maintenance(
     if "multipart/form-data" in content_type:
         form = await request.form()
         raw_mileage = form.get("mileage_at_intervention")
+        raw_sub_interventions = form.get("sub_interventions")
+        sub_interventions = None
+        if raw_sub_interventions:
+            try:
+                sub_interventions = json.loads(raw_sub_interventions)
+            except (json.JSONDecodeError, TypeError):
+                logger.warning("Invalid JSON in sub_interventions, ignoring")
         data = {
             "intervention_type": form.get("intervention_type"),
             "execution_date": form.get("execution_date"),
@@ -223,12 +231,14 @@ async def create_maintenance(
             "notes": form.get("notes"),
             "maintenance_category": form.get("maintenance_category", "scheduled"),
             "other_description": form.get("other_description"),
+            "sub_interventions": sub_interventions,
         }
         invoice_files = form.getlist("invoice_files") if "invoice_files" in form else []
     else:
         data = await request.json()
         if not data.get("mileage_at_intervention"):
             data["mileage_at_intervention"] = None
+        # sub_interventions est déjà un objet JSON dans ce cas
 
     execution_date = data.get("execution_date")
     if isinstance(execution_date, str):
@@ -255,6 +265,7 @@ async def create_maintenance(
         notes=data.get("notes"),
         maintenance_category=data.get("maintenance_category", "scheduled"),
         other_description=data.get("other_description"),
+        sub_interventions=data.get("sub_interventions"),
     )
     db.add(maintenance)
     db.flush()
@@ -284,7 +295,7 @@ async def create_maintenance(
     vehicle.updated_at = datetime.now(timezone.utc)
     db.commit()
     db.refresh(maintenance)
-    clear_notification_logs_for(vehicle_id, maintenance.intervention_type, db)
+    clear_notification_logs_for(vehicle_id, maintenance.intervention_type, db, maintenance.sub_interventions)
     try:
         await _check_vehicle_reminders(vehicle, db)
     except Exception:
@@ -375,7 +386,7 @@ async def update_maintenance(
     maintenance.updated_at = datetime.now(timezone.utc)
     db.commit()
     db.refresh(maintenance)
-    clear_notification_logs_for(vehicle_id, maintenance.intervention_type, db)
+    clear_notification_logs_for(vehicle_id, maintenance.intervention_type, db, maintenance.sub_interventions)
     try:
         await _check_vehicle_reminders(vehicle, db)
     except Exception:
@@ -401,7 +412,7 @@ def delete_maintenance(
     for invoice in maintenance.invoices:
         if invoice.file_path:
             secure_delete(invoice.file_path)
-    clear_notification_logs_for(vehicle_id, maintenance.intervention_type, db)
+    clear_notification_logs_for(vehicle_id, maintenance.intervention_type, db, maintenance.sub_interventions)
     db.delete(maintenance)
     db.commit()
     return {"detail": "Maintenance deleted"}
@@ -487,10 +498,22 @@ def _compute_upcoming(vehicle: Vehicle, db: Session) -> dict:
     last_maintenances = {}
     all_maintenances = db.query(Maintenance).filter(Maintenance.vehicle_id == vehicle.id).all()
     for maintenance in all_maintenances:
+        # Traiter l'intervention principale
         key = get_intervention_key(maintenance.intervention_type)
         current_last = last_maintenances.get(key)
         if current_last is None or maintenance.execution_date > current_last[0]:
             last_maintenances[key] = (maintenance.execution_date, maintenance.mileage_at_intervention)
+
+        # Traiter les sous-interventions (checklist révision)
+        if maintenance.sub_interventions:
+            for sub in maintenance.sub_interventions:
+                sub_name = sub.get("name") if isinstance(sub, dict) else None
+                if sub_name:
+                    sub_key = get_intervention_key(sub_name)
+                    if sub_key:
+                        current_last = last_maintenances.get(sub_key)
+                        if current_last is None or maintenance.execution_date > current_last[0]:
+                            last_maintenances[sub_key] = (maintenance.execution_date, maintenance.mileage_at_intervention)
 
     overrides = _load_overrides(vehicle.id, db)
     upcoming = calculator.get_all_upcoming_maintenances(

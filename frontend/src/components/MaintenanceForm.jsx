@@ -11,11 +11,12 @@ const CHECKLIST_TRIGGERS_MOTO = [
 
 // Types déclenchant la checklist sur les voitures
 const CHECKLIST_TRIGGERS_CAR = [
-  'Vidange d\'huile',
+  'Entretien annuel',
 ];
 
 const STATIC_MAINTENANCE_TYPES = {
   car: [
+    'Entretien annuel',
     'Vidange d\'huile',
     'Remplacement filtre à air',
     'Remplacement filtre d\'habitacle',
@@ -147,33 +148,40 @@ export default function MaintenanceForm({
       setLoading(true);
       setError(null);
 
-      const payload = new FormData();
-      payload.append('intervention_type', formData.intervention_type);
-      payload.append('execution_date', new Date(formData.execution_date).toISOString());
-      if (formData.mileage_at_intervention) {
-        payload.append('mileage_at_intervention', String(parseInt(formData.mileage_at_intervention)));
-      }
-      payload.append('maintenance_category', formData.maintenance_category);
-      if (formData.other_title && formData.intervention_type === 'Autre') {
-        payload.append('other_description', formData.other_title);
-      }
-      if (formData.cost_paid) payload.append('cost_paid', String(parseFloat(formData.cost_paid)));
-      if (formData.notes) payload.append('notes', formData.notes);
-      invoiceFiles.forEach((file) => payload.append('invoice_files', file));
-
-      await api.createMaintenance(vehicleId, payload);
-
-      // Ouvrir la checklist si c'est une révision déclenchante
       const isMotoChecklist = vehicleType === 'motorcycle' && CHECKLIST_TRIGGERS_MOTO.includes(formData.intervention_type);
       const isCarChecklist = vehicleType === 'car' && CHECKLIST_TRIGGERS_CAR.includes(formData.intervention_type);
 
       if (isMotoChecklist || isCarChecklist) {
+        // Pour les révisions déclenchant une checklist, on passe les données à la modale
+        // qui créera un seul enregistrement avec sub_interventions
         setChecklistData({
+          intervention_type: formData.intervention_type,
           date: new Date(formData.execution_date).toISOString(),
           mileage: formData.mileage_at_intervention ? parseInt(formData.mileage_at_intervention) : 0,
+          cost: formData.cost_paid ? parseFloat(formData.cost_paid) : 0,
+          notes: formData.notes,
+          maintenance_category: formData.maintenance_category,
+          other_title: formData.other_title,
+          invoiceFiles: invoiceFiles,
         });
         // onSubmit sera appelé par la modale à sa fermeture
       } else {
+        // Pour les autres interventions, on crée directement l'enregistrement
+        const payload = new FormData();
+        payload.append('intervention_type', formData.intervention_type);
+        payload.append('execution_date', new Date(formData.execution_date).toISOString());
+        if (formData.mileage_at_intervention) {
+          payload.append('mileage_at_intervention', String(parseInt(formData.mileage_at_intervention)));
+        }
+        payload.append('maintenance_category', formData.maintenance_category);
+        if (formData.other_title && formData.intervention_type === 'Autre') {
+          payload.append('other_description', formData.other_title);
+        }
+        if (formData.cost_paid) payload.append('cost_paid', String(parseFloat(formData.cost_paid)));
+        if (formData.notes) payload.append('notes', formData.notes);
+        invoiceFiles.forEach((file) => payload.append('invoice_files', file));
+
+        await api.createMaintenance(vehicleId, payload);
         onSubmit();
       }
     } catch (err) {
@@ -363,8 +371,14 @@ export default function MaintenanceForm({
         vehicleType === 'motorcycle' ? (
           <RevisionChecklistModal
             vehicleId={vehicleId}
+            interventionType={checklistData.intervention_type}
             date={checklistData.date}
             mileage={checklistData.mileage}
+            cost={checklistData.cost}
+            notes={checklistData.notes}
+            maintenanceCategory={checklistData.maintenance_category}
+            otherTitle={checklistData.other_title}
+            invoiceFiles={checklistData.invoiceFiles}
             upcomingData={upcomingMaintenances}
             onClose={() => {
               setChecklistData(null);
@@ -375,8 +389,14 @@ export default function MaintenanceForm({
         ) : (
           <CarRevisionChecklistModal
             vehicleId={vehicleId}
+            interventionType={checklistData.intervention_type}
             date={checklistData.date}
             mileage={checklistData.mileage}
+            cost={checklistData.cost}
+            notes={checklistData.notes}
+            maintenanceCategory={checklistData.maintenance_category}
+            otherTitle={checklistData.other_title}
+            invoiceFiles={checklistData.invoiceFiles}
             motorization={motorization}
             upcomingData={upcomingMaintenances}
             onClose={() => {

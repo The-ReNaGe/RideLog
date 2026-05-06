@@ -3,7 +3,7 @@ import { api } from "../lib/api";
 
 // Mapping clé technique → nom français
 const RECORDABLE_LABELS_CAR = {
-  oil_change:           "Entretien général",
+  oil_change:           "Vidange + filtre à huile",
   air_filter:           "Remplacement filtre à air",
   cabin_filter:         "Remplacement filtre d'habitacle",
   fuel_filter_diesel:   "Remplacement filtre à gasoil",
@@ -31,18 +31,30 @@ const ITEM_GROUPS_CAR = [
  * CarRevisionChecklistModal
  *
  * Props:
- *   vehicleId    {number}    ID du véhicule
- *   date         {string}    Date ISO de la révision
- *   mileage      {number}    Kilométrage de la révision
- *   motorization {string}    Motorisation du véhicule (diesel, essence, hybride, electrique, thermal)
- *   upcomingData {Array}     Résultat de GET /upcoming (pré-cochage intelligent)
- *   onClose      {Function}  Fermeture (annulation ou fin)
- *   onSuccess    {Function}  Appelé après enregistrement réussi
+ *   vehicleId           {number}    ID du véhicule
+ *   interventionType    {string}    Type d'intervention principal (ex: "Vidange d'huile")
+ *   date                {string}    Date ISO de la révision
+ *   mileage             {number}    Kilométrage de la révision
+ *   cost                {number}    Coût total de la révision
+ *   notes               {string}    Notes additionnelles
+ *   maintenanceCategory {string}    Catégorie de maintenance
+ *   otherTitle          {string}    Titre personnalisé (si "Autre")
+ *   invoiceFiles        {Array}     Fichiers de facture
+ *   motorization        {string}    Motorisation du véhicule (diesel, essence, hybride, electrique, thermal)
+ *   upcomingData        {Array}     Résultat de GET /upcoming (pré-cochage intelligent)
+ *   onClose             {Function}  Fermeture (annulation ou fin)
+ *   onSuccess           {Function}  Appelé après enregistrement réussi
  */
 export default function CarRevisionChecklistModal({
   vehicleId,
+  interventionType,
   date,
   mileage,
+  cost = 0,
+  notes = '',
+  maintenanceCategory = 'scheduled',
+  otherTitle = '',
+  invoiceFiles = [],
   motorization,
   upcomingData = [],
   onClose,
@@ -99,17 +111,29 @@ export default function CarRevisionChecklistModal({
     setLoading(true);
     setError(null);
     try {
-      await Promise.all(
-        selectedKeys.map((key) => {
-          const fd = new FormData();
-          fd.append("intervention_type", RECORDABLE_LABELS_CAR[key]);
-          fd.append("execution_date", date);
-          fd.append("mileage_at_intervention", String(mileage));
-          fd.append("maintenance_category", "scheduled");
-          fd.append("notes", "Enregistré via checklist de révision");
-          return api.createMaintenance(vehicleId, fd);
-        })
-      );
+      // Construire la liste des sous-interventions
+      const subInterventions = selectedKeys.map(key => ({
+        key: key,
+        name: RECORDABLE_LABELS_CAR[key],
+      }));
+
+      // Créer un seul enregistrement avec sub_interventions
+      const payload = new FormData();
+      payload.append('intervention_type', interventionType);
+      payload.append('execution_date', date);
+      payload.append('mileage_at_intervention', String(mileage));
+      payload.append('maintenance_category', maintenanceCategory);
+      if (cost > 0) payload.append('cost_paid', String(cost));
+      if (notes) payload.append('notes', notes);
+      if (otherTitle && interventionType === 'Autre') {
+        payload.append('other_description', otherTitle);
+      }
+      // Envoyer sub_interventions comme JSON string
+      payload.append('sub_interventions', JSON.stringify(subInterventions));
+      // Ajouter les fichiers de facture
+      invoiceFiles.forEach((file) => payload.append('invoice_files', file));
+
+      await api.createMaintenance(vehicleId, payload);
       setSaved(selectedKeys.length);
       setDone(true);
       onSuccess?.();

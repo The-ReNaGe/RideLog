@@ -151,6 +151,7 @@ class Maintenance(Base):
     notes = Column(Text, nullable=True)
     maintenance_category = Column(String(50), default="scheduled", nullable=False)  # scheduled, repair
     other_description = Column(String(200), nullable=True)  # Custom title for 'Autre' intervention type
+    sub_interventions = Column(JSON, nullable=True)  # Liste des interventions détaillées (checklist révision)
     created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
 
     vehicle = relationship("Vehicle", back_populates="maintenances")
@@ -167,6 +168,7 @@ class Maintenance(Base):
             "notes": self.notes,
             "maintenance_category": self.maintenance_category,
             "other_description": self.other_description,
+            "sub_interventions": self.sub_interventions,
             "invoices": [inv.to_dict() for inv in self.invoices],
             "created_at": self.created_at.isoformat(),
         }
@@ -359,6 +361,8 @@ def init_db():
                 conn.execute(text("ALTER TABLE maintenances ADD COLUMN maintenance_category VARCHAR(50) DEFAULT 'scheduled'"))
             if "other_description" not in columns:
                 conn.execute(text("ALTER TABLE maintenances ADD COLUMN other_description VARCHAR(200)"))
+            if "sub_interventions" not in columns:
+                conn.execute(text("ALTER TABLE maintenances ADD COLUMN sub_interventions JSON"))
 
     if "vehicles" in inspector.get_table_names():
         columns = {column["name"] for column in inspector.get_columns("vehicles")}

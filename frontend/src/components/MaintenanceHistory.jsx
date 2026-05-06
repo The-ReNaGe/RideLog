@@ -277,6 +277,30 @@ export default function MaintenanceHistory({ vehicleId, onDataChanged }) {
                   </p>
                 )}
 
+                {/* Sous-interventions (checklist révision) */}
+                {maintenance.sub_interventions && maintenance.sub_interventions.length > 0 && (
+                  <div className="mt-2 pt-2" style={{ borderTop: '1px solid var(--border)' }}>
+                    <div className="text-xs font-semibold mb-1.5" style={{ color: 'var(--text-2)' }}>
+                      🔧 Interventions effectuées ({maintenance.sub_interventions.length})
+                    </div>
+                    <div className="flex flex-wrap gap-1.5">
+                      {maintenance.sub_interventions.map((sub, idx) => (
+                        <span
+                          key={idx}
+                          className="text-xs px-2 py-1 rounded"
+                          style={{
+                            background: 'var(--bg-base)',
+                            color: 'var(--text-2)',
+                            border: '1px solid var(--border)',
+                          }}
+                        >
+                          {sub.name}
+                        </span>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
                 {/* Factures */}
                 {maintenance.invoices?.length > 0 && (
                   <div className="mt-2 pt-2" style={{ borderTop: '1px solid var(--border)' }}>

@@ -38,17 +38,29 @@ const ITEM_GROUPS = [
  * RevisionChecklistModal
  *
  * Props:
- *   vehicleId    {number}    ID du véhicule
- *   date         {string}    Date ISO de la révision
- *   mileage      {number}    Kilométrage de la révision
- *   upcomingData {Array}     Résultat de GET /upcoming (pré-cochage intelligent)
- *   onClose      {Function}  Fermeture (annulation ou fin)
- *   onSuccess    {Function}  Appelé après enregistrement réussi
+ *   vehicleId           {number}    ID du véhicule
+ *   interventionType    {string}    Type d'intervention principal (ex: "Révision périodique (km)")
+ *   date                {string}    Date ISO de la révision
+ *   mileage             {number}    Kilométrage de la révision
+ *   cost                {number}    Coût total de la révision
+ *   notes               {string}    Notes additionnelles
+ *   maintenanceCategory {string}    Catégorie de maintenance
+ *   otherTitle          {string}    Titre personnalisé (si "Autre")
+ *   invoiceFiles        {Array}     Fichiers de facture
+ *   upcomingData        {Array}     Résultat de GET /upcoming (pré-cochage intelligent)
+ *   onClose             {Function}  Fermeture (annulation ou fin)
+ *   onSuccess           {Function}  Appelé après enregistrement réussi
  */
 export default function RevisionChecklistModal({
   vehicleId,
+  interventionType,
   date,
   mileage,
+  cost = 0,
+  notes = '',
+  maintenanceCategory = 'scheduled',
+  otherTitle = '',
+  invoiceFiles = [],
   upcomingData = [],
   onClose,
   onSuccess,
@@ -92,17 +104,29 @@ export default function RevisionChecklistModal({
     setLoading(true);
     setError(null);
     try {
-      await Promise.all(
-        selectedKeys.map((key) => {
-          const fd = new FormData();
-          fd.append("intervention_type", RECORDABLE_LABELS[key]);
-          fd.append("execution_date", date);
-          fd.append("mileage_at_intervention", String(mileage));
-          fd.append("maintenance_category", "scheduled");
-          fd.append("notes", "Enregistré via checklist de révision");
-          return api.createMaintenance(vehicleId, fd);
-        })
-      );
+      // Construire la liste des sous-interventions
+      const subInterventions = selectedKeys.map(key => ({
+        key: key,
+        name: RECORDABLE_LABELS[key],
+      }));
+
+      // Créer un seul enregistrement avec sub_interventions
+      const payload = new FormData();
+      payload.append('intervention_type', interventionType);
+      payload.append('execution_date', date);
+      payload.append('mileage_at_intervention', String(mileage));
+      payload.append('maintenance_category', maintenanceCategory);
+      if (cost > 0) payload.append('cost_paid', String(cost));
+      if (notes) payload.append('notes', notes);
+      if (otherTitle && interventionType === 'Autre') {
+        payload.append('other_description', otherTitle);
+      }
+      // Envoyer sub_interventions comme JSON string
+      payload.append('sub_interventions', JSON.stringify(subInterventions));
+      // Ajouter les fichiers de facture
+      invoiceFiles.forEach((file) => payload.append('invoice_files', file));
+
+      await api.createMaintenance(vehicleId, payload);
       setSaved(selectedKeys.length);
       setDone(true);
       onSuccess?.();
