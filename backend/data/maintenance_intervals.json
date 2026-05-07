@@ -134,6 +134,18 @@
           "premium": { "min": 200, "max": 400 }
         }
       },
+      "brake_replacement": {
+        "name": "Remplacement freins",
+        "km_interval": null,
+        "months_interval": null,
+        "forecasted": false,
+        "note": "Regroupe plaquettes et disques de frein.",
+        "prices": {
+          "accessible": { "min": 80, "max": 300 },
+          "generalist": { "min": 120, "max": 500 },
+          "premium": { "min": 200, "max": 750 }
+        }
+      },
       "battery": {
         "name": "Remplacement batterie",
         "km_interval": null,
@@ -410,49 +422,22 @@
             "premium": { "min": 40, "max": 80 }
           }
         },
-        "tire_replacement_front": {
-          "name": "Remplacement pneu avant",
-          "note": "Prix pneu + montage/équilibrage",
+        "brake_replacement": {
+          "name": "Remplacement freins",
+          "note": "Regroupe plaquettes et disques de frein.",
           "prices": {
-            "accessible": { "min": 60, "max": 130 },
-            "generalist": { "min": 100, "max": 180 },
-            "premium": { "min": 140, "max": 250 }
-          }
-        },
-        "tire_replacement_rear": {
-          "name": "Remplacement pneu arrière",
-          "note": "Prix pneu + montage/équilibrage",
-          "prices": {
-            "accessible": { "min": 70, "max": 150 },
-            "generalist": { "min": 110, "max": 200 },
-            "premium": { "min": 150, "max": 270 }
+            "accessible": { "min": 40, "max": 260 },
+            "generalist": { "min": 60, "max": 370 },
+            "premium": { "min": 80, "max": 510 }
           }
         },
         "tire_replacement": {
-          "name": "Remplacement pneus (paire)",
-          "note": "Prix paire + montage/équilibrage",
+          "name": "Remplacement pneus",
+          "note": "Prix pneu(s) + montage/équilibrage",
           "prices": {
-            "accessible": { "min": 130, "max": 250 },
-            "generalist": { "min": 200, "max": 350 },
-            "premium": { "min": 280, "max": 480 }
-          }
-        },
-        "brake_pads": {
-          "name": "Remplacement plaquettes de frein",
-          "note": "Pièces + main d'œuvre",
-          "prices": {
-            "accessible": { "min": 40, "max": 80 },
-            "generalist": { "min": 60, "max": 120 },
-            "premium": { "min": 80, "max": 160 }
-          }
-        },
-        "brake_disc": {
-          "name": "Remplacement disques de frein",
-          "note": "Pièces + main d'œuvre",
-          "prices": {
-            "accessible": { "min": 80, "max": 180 },
-            "generalist": { "min": 120, "max": 250 },
-            "premium": { "min": 180, "max": 350 }
+            "accessible": { "min": 60, "max": 250 },
+            "generalist": { "min": 100, "max": 350 },
+            "premium": { "min": 140, "max": 480 }
           }
         },
         "chain_kit": {

@@ -36,7 +36,6 @@ INTERVENTION_TRANSLATIONS = {
     # Moteur / Engine
     "Vidange d'huile": "oil_change",
     "Vidange d'huile + filtre": "oil_change",
-    "Vidange + filtre à huile": "oil_change",  # Checklist voiture
     "Vidange d'huile (entretien 4000km)": "oil_change",
     "Vidange d'huile (entretien 6000km)": "oil_change",
     "Vidange d'huile (entretien 10000km)": "oil_change",
@@ -48,27 +47,19 @@ INTERVENTION_TRANSLATIONS = {
     "Remplacement filtre à air": "air_filter",
     "Remplacement filtre d'habitacle": "cabin_filter",
     "Remplacement filtre à carburant": "fuel_filter_diesel",
-
+    
     # Transmission / Chain
     "Remplacement kit chaîne (chaîne + pignon + couronne)": "chain_kit",
     "Vérification et ajustement tension chaîne": "chain_tension",
     "Graissage de chaîne": "chain_lubrication",
     "Nettoyage chaîne": "chain_cleaning",
     "Tension et lubrification chaîne": "chain_maintenance",
-
+    
     # Tires
     "Remplacement pneu arrière": "tire_replacement_rear",
     "Remplacement pneu avant": "tire_replacement_front",
     "Remplacement pneus": "tire_replacement",
     "Remplacement pneus (paire)": "tire_replacement",
-    # Sous-cases checklist (voiture)
-    "Pneus avant": "tire_replacement_front",
-    "Pneus arrière": "tire_replacement_rear",
-    "Les 4 pneus": "tire_replacement",
-    # Sous-cases checklist (moto)
-    "Pneu avant": "tire_replacement_front",
-    "Pneu arrière": "tire_replacement_rear",
-    "Les 2 pneus": "tire_replacement",
 
     # Braking
     "Purge de frein": "brake_fluid",
@@ -77,27 +68,23 @@ INTERVENTION_TRANSLATIONS = {
     "Remplacement plaquettes (avant ou arrière)": "brake_pads",
     "Remplacement disques de frein": "brake_disc",
     "Remplacement disques": "brake_disc",
-    # Sous-cases checklist (freins)
-    "Plaquettes avant": "brake_pads",
-    "Plaquettes arrière": "brake_pads",
-    "Disques avant": "brake_disc",
-    "Disques arrière": "brake_disc",
-
+    "Remplacement freins": "brake_replacement",
+    
     # Electrical
     "Remplacement batterie": "battery",
-
+    
     # Cooling
     "Renouvellement liquide de refroidissement": "coolant",
     "Renouvellement liquide refroidissement": "coolant",
-
+    
     # Transmission Fluid
     "Renouvellement liquide de transmission": "transmission_fluid",
     "Renouvellement huile transmission": "transmission_fluid",
-
+    
     # Suspension
     "Révision fourche (vidange + joints)": "fork_service",
     "Vidange fourche": "fork_service",
-
+    
     # Regular checks
     "Contrôle et ajustement jeu aux soupapes": "valve_clearance",
     "Contrôle jeu aux soupapes": "valve_clearance",
@@ -116,14 +103,14 @@ INTERVENTION_TRANSLATIONS = {
     "Roulements de bras oscillant": "swingarm_bearings",
     "Contrôle durites et flexibles": "hose_check",
     "Durites": "hose_check",
-
+    
     # Carburation / Injection
     "Nettoyage carburateur": "carburetor_cleaning",
     "Nettoyage carburateur(s)": "carburetor_cleaning",
     "Synchronisation injection": "injection_sync",
     "Diagnostic électronique": "electronic_diagnosis",
     "Diagnostic électronique (valise)": "electronic_diagnosis",
-
+    
     # Services réguliers et inspections
     "Révision rodage (fin de rodage)": "break_in_service",
     "Révision rodage (1000 km)": "break_in_service",
@@ -131,7 +118,7 @@ INTERVENTION_TRANSLATIONS = {
     "Révision périodique (entretien)": "periodic_service",
     "Entretien annuel": "annual_service",
     "Contrôle technique": "inspection_technical_car",
-
+    
     # Fluids (moto-specific names)
     "Purge liquide de frein et embrayage": "brake_fluid",   # ancien nom — conserver pour BDD existante
     "Remplacement liquide de frein": "brake_fluid",          # nouveau nom
@@ -139,7 +126,7 @@ INTERVENTION_TRANSLATIONS = {
     "Remplacement huile de transmission": "transmission_fluid",
     "Remplacement courroie de distribution": "timing_belt",
     "Tension et graissage chaîne": "chain_maintenance",
-
+    
     # Fuel filter (motorization-specific)
     "Remplacement filtre à gasoil": "fuel_filter_diesel",
     "Remplacement filtre à essence": "fuel_filter_gasoline",
@@ -159,6 +146,7 @@ CONSUMABLES = {
     "brake_pads",
     "brake_disc",
     "brake_disc_replacement",
+    "brake_replacement",
     "battery",
     "oil_filter",
     "fastener_tightening",

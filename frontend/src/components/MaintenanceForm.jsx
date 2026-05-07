@@ -14,6 +14,27 @@ const CHECKLIST_TRIGGERS_CAR = [
   'Entretien annuel',
 ];
 
+// Types déclenchant les sous-cases de freins/pneus (voitures et motos)
+const SUBITEM_TRIGGERS = [
+  'Remplacement freins',
+  'Remplacement pneus',
+];
+
+// Sous-items pour "Remplacement freins"
+const BRAKE_SUBITEMS = [
+  { key: 'brake_pads_front', name: 'Plaquettes avant' },
+  { key: 'brake_pads_rear', name: 'Plaquettes arrière' },
+  { key: 'brake_discs_front', name: 'Disques avant' },
+  { key: 'brake_discs_rear', name: 'Disques arrière' },
+];
+
+// Sous-items pour "Remplacement pneus"
+const TIRE_SUBITEMS = [
+  { key: 'tires_front', name: 'Pneus avant' },
+  { key: 'tires_rear', name: 'Pneus arrière' },
+  { key: 'tires_all', name: 'Les 4 pneus' },
+];
+
 const STATIC_MAINTENANCE_TYPES = {
   car: [
     'Entretien annuel',
@@ -27,7 +48,7 @@ const STATIC_MAINTENANCE_TYPES = {
     'Remplacement courroie de distribution',
     'Renouvellement liquide de refroidissement',
     'Renouvellement liquide de transmission',
-    'Remplacement plaquettes de frein',
+    'Remplacement freins',
     'Remplacement batterie',
     'Contrôle technique',
     'Remplacement pneus',
@@ -45,10 +66,8 @@ const STATIC_MAINTENANCE_TYPES = {
     'Révision fourche (vidange + joints)',
     'Remplacement kit chaîne (chaîne + pignon + couronne)',
     'Tension et lubrification chaîne',
-    'Remplacement pneu avant',
-    'Remplacement pneu arrière',
-    'Remplacement plaquettes de frein',
-    'Remplacement disques de frein',
+    'Remplacement freins',
+    'Remplacement pneus',
     'Remplacement batterie',
     'Contrôle et ajustement jeu aux soupapes',
     'Nettoyage carburateur',
@@ -84,6 +103,7 @@ export default function MaintenanceForm({
   const [availableInterventions, setAvailableInterventions] = useState([]);
   const [selectedInterventionDetails, setSelectedInterventionDetails] = useState(null);
   const [checklistData, setChecklistData] = useState(null);
+  const [subItemsChecked, setSubItemsChecked] = useState({});
 
   useEffect(() => {
     const getInterventions = async () => {
@@ -112,6 +132,8 @@ export default function MaintenanceForm({
     if (name === 'intervention_type') {
       const selected = availableInterventions.find(i => i.name === value || i.id === value);
       setSelectedInterventionDetails(selected);
+      // Réinitialiser les sous-items quand on change le type
+      setSubItemsChecked({});
     }
     setFormData((prev) => ({
       ...prev,
@@ -150,6 +172,7 @@ export default function MaintenanceForm({
 
       const isMotoChecklist = vehicleType === 'motorcycle' && CHECKLIST_TRIGGERS_MOTO.includes(formData.intervention_type);
       const isCarChecklist = vehicleType === 'car' && CHECKLIST_TRIGGERS_CAR.includes(formData.intervention_type);
+      const isSubItemTrigger = SUBITEM_TRIGGERS.includes(formData.intervention_type);
 
       if (isMotoChecklist || isCarChecklist) {
         // Pour les révisions déclenchant une checklist, on passe les données à la modale
@@ -180,6 +203,15 @@ export default function MaintenanceForm({
         if (formData.cost_paid) payload.append('cost_paid', String(parseFloat(formData.cost_paid)));
         if (formData.notes) payload.append('notes', formData.notes);
         invoiceFiles.forEach((file) => payload.append('invoice_files', file));
+
+        // Ajouter les sous-interventions pour freins/pneus
+        if (isSubItemTrigger) {
+          const subItems = formData.intervention_type === 'Remplacement freins' ? BRAKE_SUBITEMS : TIRE_SUBITEMS;
+          const selectedSubItems = subItems.filter(item => subItemsChecked[item.key]);
+          if (selectedSubItems.length > 0) {
+            payload.append('sub_interventions', JSON.stringify(selectedSubItems));
+          }
+        }
 
         await api.createMaintenance(vehicleId, payload);
         onSubmit();
@@ -313,6 +345,28 @@ export default function MaintenanceForm({
             </select>
           </div>
         </div>
+
+        {/* Sous-cases à cocher pour freins/pneus */}
+        {SUBITEM_TRIGGERS.includes(formData.intervention_type) && (
+          <div className="card p-3" style={{ background: 'var(--bg-base)', border: '1px solid var(--border)' }}>
+            <p className="text-sm font-medium mb-2" style={{ color: 'var(--text-1)' }}>
+              Détails de l'intervention :
+            </p>
+            <div className="grid grid-cols-2 gap-2">
+              {(formData.intervention_type === 'Remplacement freins' ? BRAKE_SUBITEMS : TIRE_SUBITEMS).map((item) => (
+                <label key={item.key} className="flex items-center gap-2 cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={subItemsChecked[item.key] || false}
+                    onChange={(e) => setSubItemsChecked(prev => ({ ...prev, [item.key]: e.target.checked }))}
+                    className="w-4 h-4 rounded border-gray-300"
+                  />
+                  <span className="text-sm" style={{ color: 'var(--text-2)' }}>{item.name}</span>
+                </label>
+              ))}
+            </div>
+          </div>
+        )}
 
         <div>
           <label className="block text-sm font-medium mb-1">Remarques</label>
