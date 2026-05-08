@@ -10,7 +10,7 @@ from fastapi import APIRouter, Depends, HTTPException, Request
 from fastapi.responses import FileResponse
 from sqlalchemy.orm import Session
 
-from maintenance_calculator import MaintenanceCalculator, get_intervention_key
+from maintenance_calculator import MaintenanceCalculator, get_intervention_key, build_last_maintenances_dict
 from models import User, Vehicle, Maintenance, MaintenanceInvoice, VehicleMaintenanceOverride, get_db
 from schemas import IntervalOverrideUpdate
 from security import get_current_user
@@ -35,30 +35,6 @@ def _load_overrides(vehicle_id: int, db: Session) -> dict:
         VehicleMaintenanceOverride.vehicle_id == vehicle_id
     ).all()
     return {row.intervention_key: row for row in rows}
-
-
-def _apply_overrides(intervals: dict, overrides: dict) -> dict:
-    result = {}
-    for key, info in intervals.items():
-        if not isinstance(info, dict):
-            result[key] = info
-            continue
-        override = overrides.get(key)
-        if override is None:
-            result[key] = info
-            continue
-        entry = dict(info)
-        if override.is_km_disabled:
-            entry["km_interval"] = None
-        elif override.km_interval is not None:
-            entry["km_interval"] = override.km_interval
-        if override.is_months_disabled:
-            entry["months_interval"] = None
-        elif override.months_interval is not None:
-            entry["months_interval"] = override.months_interval
-        entry["has_override"] = True
-        result[key] = entry
-    return result
 
 
 def _estimate_mileage(vehicle_id: int, target_date: datetime, vehicle: Vehicle, db: Session) -> Optional[int]:
@@ -495,25 +471,8 @@ def delete_interval_override(
 
 
 def _compute_upcoming(vehicle: Vehicle, db: Session) -> dict:
-    last_maintenances = {}
     all_maintenances = db.query(Maintenance).filter(Maintenance.vehicle_id == vehicle.id).all()
-    for maintenance in all_maintenances:
-        # Traiter l'intervention principale
-        key = get_intervention_key(maintenance.intervention_type)
-        current_last = last_maintenances.get(key)
-        if current_last is None or maintenance.execution_date > current_last[0]:
-            last_maintenances[key] = (maintenance.execution_date, maintenance.mileage_at_intervention)
-
-        # Traiter les sous-interventions (checklist révision)
-        if maintenance.sub_interventions:
-            for sub in maintenance.sub_interventions:
-                sub_name = sub.get("name") if isinstance(sub, dict) else None
-                if sub_name:
-                    sub_key = get_intervention_key(sub_name)
-                    if sub_key:
-                        current_last = last_maintenances.get(sub_key)
-                        if current_last is None or maintenance.execution_date > current_last[0]:
-                            last_maintenances[sub_key] = (maintenance.execution_date, maintenance.mileage_at_intervention)
+    last_maintenances = build_last_maintenances_dict(all_maintenances)
 
     overrides = _load_overrides(vehicle.id, db)
     upcoming = calculator.get_all_upcoming_maintenances(

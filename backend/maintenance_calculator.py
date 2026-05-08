@@ -662,3 +662,31 @@ class MaintenanceCalculator:
 
 
 calculator = MaintenanceCalculator()
+
+
+def build_last_maintenances_dict(all_maintenances: List) -> Dict[str, Tuple[Optional[datetime], Optional[int]]]:
+    """Construit un dict {intervention_key: (last_date, last_mileage)} depuis une liste de maintenances.
+
+    Cette fonction est partagée entre routes/maintenances.py et reminder_scheduler.py
+    pour éviter la duplication de logique.
+    """
+    last_maintenances = {}
+    for maintenance in all_maintenances:
+        # Traiter l'intervention principale
+        key = get_intervention_key(maintenance.intervention_type)
+        current_last = last_maintenances.get(key)
+        if current_last is None or maintenance.execution_date > current_last[0]:
+            last_maintenances[key] = (maintenance.execution_date, maintenance.mileage_at_intervention)
+
+        # Traiter les sous-interventions (checklist révision)
+        if maintenance.sub_interventions:
+            for sub in maintenance.sub_interventions:
+                sub_name = sub.get("name") if isinstance(sub, dict) else None
+                if sub_name:
+                    sub_key = get_intervention_key(sub_name)
+                    if sub_key:
+                        current_last = last_maintenances.get(sub_key)
+                        if current_last is None or maintenance.execution_date > current_last[0]:
+                            last_maintenances[sub_key] = (maintenance.execution_date, maintenance.mileage_at_intervention)
+
+    return last_maintenances

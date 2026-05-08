@@ -13,7 +13,7 @@ import logging
 from datetime import datetime, timezone
 
 from models import SessionLocal, Vehicle, Maintenance, NotificationLog, VehicleMaintenanceOverride
-from maintenance_calculator import MaintenanceCalculator, get_intervention_key
+from maintenance_calculator import MaintenanceCalculator, get_intervention_key, build_last_maintenances_dict
 from routes.webhooks import send_webhook_notification
 
 logger = logging.getLogger("ridelog.scheduler")
@@ -28,24 +28,7 @@ async def _check_vehicle_reminders(vehicle, db):
         Maintenance.vehicle_id == vehicle.id
     ).all()
 
-    last_maintenances = {}
-    for m in all_maintenances:
-        # Traiter l'intervention principale
-        key = get_intervention_key(m.intervention_type)
-        current_last = last_maintenances.get(key)
-        if current_last is None or m.execution_date > current_last[0]:
-            last_maintenances[key] = (m.execution_date, m.mileage_at_intervention)
-
-        # Traiter les sous-interventions (checklist révision)
-        if m.sub_interventions:
-            for sub in m.sub_interventions:
-                sub_name = sub.get("name") if isinstance(sub, dict) else None
-                if sub_name:
-                    sub_key = get_intervention_key(sub_name)
-                    if sub_key:
-                        current_last = last_maintenances.get(sub_key)
-                        if current_last is None or m.execution_date > current_last[0]:
-                            last_maintenances[sub_key] = (m.execution_date, m.mileage_at_intervention)
+    last_maintenances = build_last_maintenances_dict(all_maintenances)
 
     # Charger les overrides du véhicule
     override_rows = db.query(VehicleMaintenanceOverride).filter(
@@ -152,11 +135,6 @@ async def check_all_reminders():
                 logger.exception("Error checking reminders for vehicle %s", vehicle.id)
     finally:
         db.close()
-
-
-async def clear_stale_logs():
-    """Deprecated – handled by clear_notification_logs_for()."""
-    pass
 
 
 def clear_notification_logs_for(vehicle_id: int, intervention_type: str, db, sub_interventions=None):

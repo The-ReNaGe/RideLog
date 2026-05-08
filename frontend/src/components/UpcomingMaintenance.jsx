@@ -1,28 +1,6 @@
 import React, { useState, useCallback } from 'react';
 import { api } from '../lib/api';
-
-const interventionTranslations = {
-  'Oil change': 'Vidange d\'huile',
-  'Air filter replacement': 'Remplacement filtre à air',
-  'Cabin filter replacement': 'Remplacement filtre d\'habitacle',
-  'Cabin air filter replacement': 'Remplacement filtre d\'habitacle',
-  'Brake fluid flush': 'Purge de frein',
-  'Timing belt replacement': 'Remplacement courroie de distribution',
-  'Coolant replacement': 'Renouvellement liquide de refroidissement',
-  'Coolant fluid renewal': 'Renouvellement liquide de refroidissement',
-  'Transmission fluid renewal': 'Renouvellement liquide de transmission',
-  'Transmission fluid replacement': 'Renouvellement liquide de transmission',
-  'Brake pads replacement': 'Remplacement plaquettes de frein',
-  'Battery replacement': 'Remplacement batterie',
-  'MOT inspection': 'Contrôle technique',
-  'Technical inspection': 'Contrôle technique',
-  'Spark plug replacement': 'Remplacement bougie d\'allumage',
-  'Chain lubrication': 'Lubrification chaîne',
-  'Tire replacement': 'Remplacement pneus',
-  'Tire inspection': 'Inspection pneus',
-  'Chain replacement': 'Remplacement chaîne',
-  'Other': 'Autre',
-};
+import { getInterventionDisplayName } from '../lib/interventionTranslations';
 
 function getStatusLabel(status) {
   const labels = {
@@ -39,10 +17,6 @@ function formatDueDate(value) {
   const date = new Date(value);
   if (Number.isNaN(date.getTime())) return 'Sans échéance date';
   return date.toLocaleDateString('fr-FR');
-}
-
-function getInterventionDisplayName(name) {
-  return interventionTranslations[name] || name;
 }
 
 function formatDistance(km) {
