@@ -36,6 +36,7 @@ INTERVENTION_TRANSLATIONS = {
     # Moteur / Engine
     "Vidange d'huile": "oil_change",
     "Vidange d'huile + filtre": "oil_change",
+    "Vidange + filtre à huile": "oil_change",
     "Vidange d'huile (entretien 4000km)": "oil_change",
     "Vidange d'huile (entretien 6000km)": "oil_change",
     "Vidange d'huile (entretien 10000km)": "oil_change",
