@@ -1,16 +1,9 @@
 import React, { useState, useEffect } from 'react';
 import { api } from '../lib/api';
-import RevisionChecklistModal from './RevisionChecklistModal';
-import CarRevisionChecklistModal from './CarRevisionChecklistModal';
 
-// Types déclenchant la checklist sur les motos
-const CHECKLIST_TRIGGERS_MOTO = [
+// Types déclenchant la checklist de révision (voitures et motos)
+const REVISION_TRIGGERS = [
   'Révision périodique (km)',
-  'Entretien annuel',
-];
-
-// Types déclenchant la checklist sur les voitures
-const CHECKLIST_TRIGGERS_CAR = [
   'Entretien annuel',
 ];
 
@@ -32,7 +25,41 @@ const BRAKE_SUBITEMS = [
 const TIRE_SUBITEMS = [
   { key: 'tires_front', name: 'Pneus avant' },
   { key: 'tires_rear', name: 'Pneus arrière' },
-  { key: 'tires_all', name: 'Les 4 pneus' },
+];
+
+// Items de checklist de révision pour motos
+const REVISION_ITEMS_MOTO = [
+  { key: 'oil_change_moto', name: "Vidange d'huile + Remplacement filtre à huile", group: 'Moteur', emoji: '🔧' },
+  { key: 'spark_plug', name: 'Remplacement bougie d\'allumage', group: 'Moteur', emoji: '🔧' },
+  { key: 'air_filter', name: 'Remplacement filtre à air', group: 'Moteur', emoji: '🔧' },
+  { key: 'valve_clearance', name: 'Contrôle et ajustement jeu aux soupapes', group: 'Moteur', emoji: '🔧' },
+  { key: 'chain_kit', name: 'Remplacement kit chaîne (chaîne + pignon + couronne)', group: 'Transmission', emoji: '⛓️' },
+  { key: 'chain_maintenance', name: 'Tension et lubrification chaîne', group: 'Transmission', emoji: '⛓️' },
+  { key: 'brake_replacement', name: 'Remplacement freins', group: 'Freinage', emoji: '🛑' },
+  { key: 'fork_service', name: 'Révision fourche (vidange + joints)', group: 'Suspension', emoji: '🔩' },
+  { key: 'wheel_bearings', name: 'Contrôle roulements de roue', group: 'Suspension', emoji: '🔩' },
+  { key: 'steering_bearings', name: 'Contrôle roulements de direction', group: 'Suspension', emoji: '🔩' },
+  { key: 'tire_replacement', name: 'Remplacement pneus', group: 'Pneumatiques', emoji: '🏍️' },
+  { key: 'battery', name: 'Remplacement batterie', group: 'Électronique', emoji: '⚡' },
+  { key: 'carburetor_cleaning', name: 'Nettoyage carburateur', group: 'Électronique', emoji: '⚡' },
+  { key: 'injection_sync', name: 'Synchronisation injection', group: 'Électronique', emoji: '⚡' },
+  { key: 'electronic_diagnosis', name: 'Diagnostic électronique', group: 'Électronique', emoji: '⚡' },
+];
+
+// Items de checklist de révision pour voitures
+const REVISION_ITEMS_CAR = [
+  { key: 'oil_change', name: 'Vidange + filtre à huile', group: 'Moteur', emoji: '🔧' },
+  { key: 'air_filter', name: 'Remplacement filtre à air', group: 'Moteur', emoji: '🔧' },
+  { key: 'spark_plug', name: 'Remplacement bougies d\'allumage', group: 'Moteur', emoji: '🔧' },
+  { key: 'cabin_filter', name: 'Remplacement filtre d\'habitacle', group: 'Filtration', emoji: '🌬️' },
+  { key: 'fuel_filter_diesel', name: 'Remplacement filtre à gasoil', group: 'Filtration', emoji: '🌬️', motorization: 'diesel' },
+  { key: 'fuel_filter_gasoline', name: 'Remplacement filtre à essence', group: 'Filtration', emoji: '🌬️', motorization: 'essence' },
+  { key: 'brake_fluid', name: 'Purge de frein', group: 'Liquides', emoji: '💧' },
+  { key: 'coolant', name: 'Renouvellement liquide de refroidissement', group: 'Liquides', emoji: '💧' },
+  { key: 'transmission_fluid', name: 'Renouvellement liquide de transmission', group: 'Liquides', emoji: '💧' },
+  { key: 'brake_replacement', name: 'Remplacement freins', group: 'Freinage', emoji: '🛑' },
+  { key: 'tire_replacement', name: 'Remplacement pneus', group: 'Pneumatiques', emoji: '🚗' },
+  { key: 'battery', name: 'Remplacement batterie', group: 'Électrique', emoji: '⚡' },
 ];
 
 const STATIC_MAINTENANCE_TYPES = {
@@ -102,8 +129,8 @@ export default function MaintenanceForm({
   const [error, setError] = useState(null);
   const [availableInterventions, setAvailableInterventions] = useState([]);
   const [selectedInterventionDetails, setSelectedInterventionDetails] = useState(null);
-  const [checklistData, setChecklistData] = useState(null);
   const [subItemsChecked, setSubItemsChecked] = useState({});
+  const [revisionSubItemsChecked, setRevisionSubItemsChecked] = useState({});
 
   useEffect(() => {
     const getInterventions = async () => {
@@ -134,6 +161,7 @@ export default function MaintenanceForm({
       setSelectedInterventionDetails(selected);
       // Réinitialiser les sous-items quand on change le type
       setSubItemsChecked({});
+      setRevisionSubItemsChecked({});
     }
     setFormData((prev) => ({
       ...prev,
@@ -170,52 +198,51 @@ export default function MaintenanceForm({
       setLoading(true);
       setError(null);
 
-      const isMotoChecklist = vehicleType === 'motorcycle' && CHECKLIST_TRIGGERS_MOTO.includes(formData.intervention_type);
-      const isCarChecklist = vehicleType === 'car' && CHECKLIST_TRIGGERS_CAR.includes(formData.intervention_type);
       const isSubItemTrigger = SUBITEM_TRIGGERS.includes(formData.intervention_type);
+      const isRevisionTrigger = REVISION_TRIGGERS.includes(formData.intervention_type);
 
-      if (isMotoChecklist || isCarChecklist) {
-        // Pour les révisions déclenchant une checklist, on passe les données à la modale
-        // qui créera un seul enregistrement avec sub_interventions
-        setChecklistData({
-          intervention_type: formData.intervention_type,
-          date: new Date(formData.execution_date).toISOString(),
-          mileage: formData.mileage_at_intervention ? parseInt(formData.mileage_at_intervention) : 0,
-          cost: formData.cost_paid ? parseFloat(formData.cost_paid) : 0,
-          notes: formData.notes,
-          maintenance_category: formData.maintenance_category,
-          other_title: formData.other_title,
-          invoiceFiles: invoiceFiles,
-        });
-        // onSubmit sera appelé par la modale à sa fermeture
-      } else {
-        // Pour les autres interventions, on crée directement l'enregistrement
-        const payload = new FormData();
-        payload.append('intervention_type', formData.intervention_type);
-        payload.append('execution_date', new Date(formData.execution_date).toISOString());
-        if (formData.mileage_at_intervention) {
-          payload.append('mileage_at_intervention', String(parseInt(formData.mileage_at_intervention)));
-        }
-        payload.append('maintenance_category', formData.maintenance_category);
-        if (formData.other_title && formData.intervention_type === 'Autre') {
-          payload.append('other_description', formData.other_title);
-        }
-        if (formData.cost_paid) payload.append('cost_paid', String(parseFloat(formData.cost_paid)));
-        if (formData.notes) payload.append('notes', formData.notes);
-        invoiceFiles.forEach((file) => payload.append('invoice_files', file));
-
-        // Ajouter les sous-interventions pour freins/pneus
-        if (isSubItemTrigger) {
-          const subItems = formData.intervention_type === 'Remplacement freins' ? BRAKE_SUBITEMS : TIRE_SUBITEMS;
-          const selectedSubItems = subItems.filter(item => subItemsChecked[item.key]);
-          if (selectedSubItems.length > 0) {
-            payload.append('sub_interventions', JSON.stringify(selectedSubItems));
-          }
-        }
-
-        await api.createMaintenance(vehicleId, payload);
-        onSubmit();
+      // Créer l'enregistrement
+      const payload = new FormData();
+      payload.append('intervention_type', formData.intervention_type);
+      payload.append('execution_date', new Date(formData.execution_date).toISOString());
+      if (formData.mileage_at_intervention) {
+        payload.append('mileage_at_intervention', String(parseInt(formData.mileage_at_intervention)));
       }
+      payload.append('maintenance_category', formData.maintenance_category);
+      if (formData.other_title && formData.intervention_type === 'Autre') {
+        payload.append('other_description', formData.other_title);
+      }
+      if (formData.cost_paid) payload.append('cost_paid', String(parseFloat(formData.cost_paid)));
+      if (formData.notes) payload.append('notes', formData.notes);
+      invoiceFiles.forEach((file) => payload.append('invoice_files', file));
+
+      // Ajouter les sous-interventions pour freins/pneus
+      if (isSubItemTrigger) {
+        const subItems = formData.intervention_type === 'Remplacement freins' ? BRAKE_SUBITEMS : TIRE_SUBITEMS;
+        const selectedSubItems = subItems.filter(item => subItemsChecked[item.key]);
+        if (selectedSubItems.length > 0) {
+          payload.append('sub_interventions', JSON.stringify(selectedSubItems));
+        }
+      }
+
+      // Ajouter les sous-interventions pour révisions
+      if (isRevisionTrigger) {
+        const revisionItems = vehicleType === 'motorcycle' ? REVISION_ITEMS_MOTO : REVISION_ITEMS_CAR;
+        const selectedRevisionItems = revisionItems.filter(item => {
+          // Filtrer selon la motorisation pour les voitures
+          if (vehicleType === 'car' && item.motorization) {
+            if (item.motorization === 'diesel' && motorization !== 'diesel') return false;
+            if (item.motorization === 'essence' && !['essence', 'hybride'].includes(motorization)) return false;
+          }
+          return revisionSubItemsChecked[item.key];
+        });
+        if (selectedRevisionItems.length > 0) {
+          payload.append('sub_interventions', JSON.stringify(selectedRevisionItems));
+        }
+      }
+
+      await api.createMaintenance(vehicleId, payload);
+      onSubmit();
     } catch (err) {
       setError(err.response?.data?.detail || 'Impossible de créer l\'enregistrement d\'entretien');
       console.error(err);
@@ -225,8 +252,6 @@ export default function MaintenanceForm({
   };
 
   const estimatedPrice = getEstimatedPrice();
-  const willShowChecklist = (vehicleType === 'motorcycle' && CHECKLIST_TRIGGERS_MOTO.includes(formData.intervention_type)) ||
-                            (vehicleType === 'car' && CHECKLIST_TRIGGERS_CAR.includes(formData.intervention_type));
 
   return (
     <>
@@ -271,14 +296,6 @@ export default function MaintenanceForm({
                   className="w-full px-3 py-2 border border-gray-300 rounded-lg"
                 />
               </div>
-            )}
-
-            {/* Indicateur checklist */}
-            {willShowChecklist && (
-              <p className="mt-2 text-xs" style={{ color: 'var(--success, #22c55e)', display: 'flex', alignItems: 'center', gap: 5 }}>
-                <span>✅</span>
-                Une checklist des interventions s'ouvrira après l'enregistrement
-              </p>
             )}
 
             {estimatedPrice && (
@@ -368,6 +385,55 @@ export default function MaintenanceForm({
           </div>
         )}
 
+        {/* Checklist de révision */}
+        {REVISION_TRIGGERS.includes(formData.intervention_type) && (
+          <div className="card p-3" style={{ background: 'var(--bg-base)', border: '1px solid var(--border)' }}>
+            <p className="text-sm font-medium mb-2" style={{ color: 'var(--text-1)' }}>
+              Détail de la révision :
+            </p>
+            <div className="space-y-3">
+              {(vehicleType === 'motorcycle' ? REVISION_ITEMS_MOTO : REVISION_ITEMS_CAR)
+                .filter(item => {
+                  // Filtrer selon la motorisation pour les voitures
+                  if (vehicleType === 'car' && item.motorization) {
+                    if (item.motorization === 'diesel' && motorization !== 'diesel') return false;
+                    if (item.motorization === 'essence' && !['essence', 'hybride'].includes(motorization)) return false;
+                  }
+                  return true;
+                })
+                .reduce((groups, item) => {
+                  const group = groups.find(g => g.label === item.group);
+                  if (group) {
+                    group.items.push(item);
+                  } else {
+                    groups.push({ label: item.group, emoji: item.emoji, items: [item] });
+                  }
+                  return groups;
+                }, [])
+                .map(group => (
+                  <div key={group.label}>
+                    <div className="text-xs font-bold uppercase tracking-wider mb-1" style={{ color: 'var(--text-3)' }}>
+                      {group.emoji} {group.label}
+                    </div>
+                    <div className="grid grid-cols-1 gap-1">
+                      {group.items.map(item => (
+                        <label key={item.key} className="flex items-center gap-2 cursor-pointer">
+                          <input
+                            type="checkbox"
+                            checked={revisionSubItemsChecked[item.key] || false}
+                            onChange={(e) => setRevisionSubItemsChecked(prev => ({ ...prev, [item.key]: e.target.checked }))}
+                            className="w-4 h-4 rounded border-gray-300"
+                          />
+                          <span className="text-sm" style={{ color: 'var(--text-2)' }}>{item.name}</span>
+                        </label>
+                      ))}
+                    </div>
+                  </div>
+                ))}
+            </div>
+          </div>
+        )}
+
         <div>
           <label className="block text-sm font-medium mb-1">Remarques</label>
           <textarea
@@ -419,48 +485,6 @@ export default function MaintenanceForm({
           </button>
         </div>
       </form>
-
-      {/* Checklist — ouverte après submit réussi d'une révision */}
-      {checklistData && (
-        vehicleType === 'motorcycle' ? (
-          <RevisionChecklistModal
-            vehicleId={vehicleId}
-            interventionType={checklistData.intervention_type}
-            date={checklistData.date}
-            mileage={checklistData.mileage}
-            cost={checklistData.cost}
-            notes={checklistData.notes}
-            maintenanceCategory={checklistData.maintenance_category}
-            otherTitle={checklistData.other_title}
-            invoiceFiles={checklistData.invoiceFiles}
-            upcomingData={upcomingMaintenances}
-            onClose={() => {
-              setChecklistData(null);
-              onSubmit();
-            }}
-            onSuccess={() => {}}
-          />
-        ) : (
-          <CarRevisionChecklistModal
-            vehicleId={vehicleId}
-            interventionType={checklistData.intervention_type}
-            date={checklistData.date}
-            mileage={checklistData.mileage}
-            cost={checklistData.cost}
-            notes={checklistData.notes}
-            maintenanceCategory={checklistData.maintenance_category}
-            otherTitle={checklistData.other_title}
-            invoiceFiles={checklistData.invoiceFiles}
-            motorization={motorization}
-            upcomingData={upcomingMaintenances}
-            onClose={() => {
-              setChecklistData(null);
-              onSubmit();
-            }}
-            onSuccess={() => {}}
-          />
-        )
-      )}
     </>
   );
 }
