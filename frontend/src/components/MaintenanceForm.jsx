@@ -35,11 +35,19 @@ const REVISION_ITEMS_MOTO = [
   { key: 'valve_clearance', name: 'Contrôle et ajustement jeu aux soupapes', group: 'Moteur', emoji: '🔧' },
   { key: 'chain_kit', name: 'Remplacement kit chaîne (chaîne + pignon + couronne)', group: 'Transmission', emoji: '⛓️' },
   { key: 'chain_maintenance', name: 'Tension et lubrification chaîne', group: 'Transmission', emoji: '⛓️' },
-  { key: 'brake_replacement', name: 'Remplacement freins', group: 'Freinage', emoji: '🛑' },
+  { key: 'brake_replacement', name: 'Remplacement freins', group: 'Freinage', emoji: '🛑', hasSubItems: true, subItems: [
+    { key: 'brake_pads_front', name: 'Plaquettes avant' },
+    { key: 'brake_pads_rear', name: 'Plaquettes arrière' },
+    { key: 'brake_discs_front', name: 'Disques avant' },
+    { key: 'brake_discs_rear', name: 'Disques arrière' },
+  ]},
   { key: 'fork_service', name: 'Révision fourche (vidange + joints)', group: 'Suspension', emoji: '🔩' },
   { key: 'wheel_bearings', name: 'Contrôle roulements de roue', group: 'Suspension', emoji: '🔩' },
   { key: 'steering_bearings', name: 'Contrôle roulements de direction', group: 'Suspension', emoji: '🔩' },
-  { key: 'tire_replacement', name: 'Remplacement pneus', group: 'Pneumatiques', emoji: '🏍️' },
+  { key: 'tire_replacement', name: 'Remplacement pneus', group: 'Pneumatiques', emoji: '🏍️', hasSubItems: true, subItems: [
+    { key: 'tires_front', name: 'Pneus avant' },
+    { key: 'tires_rear', name: 'Pneus arrière' },
+  ]},
   { key: 'battery', name: 'Remplacement batterie', group: 'Électronique', emoji: '⚡' },
   { key: 'carburetor_cleaning', name: 'Nettoyage carburateur', group: 'Électronique', emoji: '⚡' },
   { key: 'injection_sync', name: 'Synchronisation injection', group: 'Électronique', emoji: '⚡' },
@@ -57,8 +65,16 @@ const REVISION_ITEMS_CAR = [
   { key: 'brake_fluid', name: 'Purge de frein', group: 'Liquides', emoji: '💧' },
   { key: 'coolant', name: 'Renouvellement liquide de refroidissement', group: 'Liquides', emoji: '💧' },
   { key: 'transmission_fluid', name: 'Renouvellement liquide de transmission', group: 'Liquides', emoji: '💧' },
-  { key: 'brake_replacement', name: 'Remplacement freins', group: 'Freinage', emoji: '🛑' },
-  { key: 'tire_replacement', name: 'Remplacement pneus', group: 'Pneumatiques', emoji: '🚗' },
+  { key: 'brake_replacement', name: 'Remplacement freins', group: 'Freinage', emoji: '🛑', hasSubItems: true, subItems: [
+    { key: 'brake_pads_front', name: 'Plaquettes avant' },
+    { key: 'brake_pads_rear', name: 'Plaquettes arrière' },
+    { key: 'brake_discs_front', name: 'Disques avant' },
+    { key: 'brake_discs_rear', name: 'Disques arrière' },
+  ]},
+  { key: 'tire_replacement', name: 'Remplacement pneus', group: 'Pneumatiques', emoji: '🚗', hasSubItems: true, subItems: [
+    { key: 'tires_front', name: 'Pneus avant' },
+    { key: 'tires_rear', name: 'Pneus arrière' },
+  ]},
   { key: 'battery', name: 'Remplacement batterie', group: 'Électrique', emoji: '⚡' },
 ];
 
@@ -228,14 +244,29 @@ export default function MaintenanceForm({
       // Ajouter les sous-interventions pour révisions
       if (isRevisionTrigger) {
         const revisionItems = vehicleType === 'motorcycle' ? REVISION_ITEMS_MOTO : REVISION_ITEMS_CAR;
-        const selectedRevisionItems = revisionItems.filter(item => {
+        const selectedRevisionItems = [];
+
+        revisionItems.forEach(item => {
           // Filtrer selon la motorisation pour les voitures
           if (vehicleType === 'car' && item.motorization) {
-            if (item.motorization === 'diesel' && motorization !== 'diesel') return false;
-            if (item.motorization === 'essence' && !['essence', 'hybride'].includes(motorization)) return false;
+            if (item.motorization === 'diesel' && motorization !== 'diesel') return;
+            if (item.motorization === 'essence' && !['essence', 'hybride'].includes(motorization)) return;
           }
-          return revisionSubItemsChecked[item.key];
+
+          if (revisionSubItemsChecked[item.key]) {
+            // Si l'item a des sous-items, on les ajoute à la place de l'item principal
+            if (item.hasSubItems && item.subItems) {
+              const selectedSubItems = item.subItems.filter(sub => revisionSubItemsChecked[sub.key]);
+              if (selectedSubItems.length > 0) {
+                selectedRevisionItems.push(...selectedSubItems);
+              }
+            } else {
+              // Sinon on ajoute l'item principal
+              selectedRevisionItems.push({ key: item.key, name: item.name });
+            }
+          }
         });
+
         if (selectedRevisionItems.length > 0) {
           payload.append('sub_interventions', JSON.stringify(selectedRevisionItems));
         }
@@ -417,15 +448,41 @@ export default function MaintenanceForm({
                     </div>
                     <div className="grid grid-cols-1 gap-1">
                       {group.items.map(item => (
-                        <label key={item.key} className="flex items-center gap-2 cursor-pointer">
-                          <input
-                            type="checkbox"
-                            checked={revisionSubItemsChecked[item.key] || false}
-                            onChange={(e) => setRevisionSubItemsChecked(prev => ({ ...prev, [item.key]: e.target.checked }))}
-                            className="w-4 h-4 rounded border-gray-300"
-                          />
-                          <span className="text-sm" style={{ color: 'var(--text-2)' }}>{item.name}</span>
-                        </label>
+                        <div key={item.key}>
+                          <label className="flex items-center gap-2 cursor-pointer">
+                            <input
+                              type="checkbox"
+                              checked={revisionSubItemsChecked[item.key] || false}
+                              onChange={(e) => {
+                                setRevisionSubItemsChecked(prev => ({ ...prev, [item.key]: e.target.checked }));
+                                // Réinitialiser les sous-items quand on décoche l'item principal
+                                if (!e.target.checked && item.hasSubItems) {
+                                  item.subItems.forEach(sub => {
+                                    setRevisionSubItemsChecked(prev => ({ ...prev, [sub.key]: false }));
+                                  });
+                                }
+                              }}
+                              className="w-4 h-4 rounded border-gray-300"
+                            />
+                            <span className="text-sm" style={{ color: 'var(--text-2)' }}>{item.name}</span>
+                          </label>
+                          {/* Sous-items pour freins et pneus */}
+                          {item.hasSubItems && revisionSubItemsChecked[item.key] && (
+                            <div className="ml-6 mt-1 grid grid-cols-2 gap-1">
+                              {item.subItems.map(sub => (
+                                <label key={sub.key} className="flex items-center gap-2 cursor-pointer">
+                                  <input
+                                    type="checkbox"
+                                    checked={revisionSubItemsChecked[sub.key] || false}
+                                    onChange={(e) => setRevisionSubItemsChecked(prev => ({ ...prev, [sub.key]: e.target.checked }))}
+                                    className="w-4 h-4 rounded border-gray-300"
+                                  />
+                                  <span className="text-xs" style={{ color: 'var(--text-3)' }}>{sub.name}</span>
+                                </label>
+                              ))}
+                            </div>
+                          )}
+                        </div>
                       ))}
                     </div>
                   </div>
