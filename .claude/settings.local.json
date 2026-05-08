@@ -1,0 +1,8 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(python -c \"import json; json.load\\(open\\('backend/data/maintenance_intervals.json'\\)\\)\")",
+      "Bash(node *)"
+    ]
+  }
+}

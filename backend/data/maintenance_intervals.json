@@ -181,6 +181,18 @@
           "generalist": { "min": 60, "max": 80 },
           "premium": { "min": 60, "max": 80 }
         }
+      },
+      "annual_service": {
+        "name": "Entretien annuel",
+        "km_interval": null,
+        "months_interval": 12,
+        "forecasted": true,
+        "note": "Contrôle annuel simplifié, effectué si l'intervalle kilométrique de révision n'a pas été atteint. Plus léger qu'une révision complète.",
+        "prices": {
+          "accessible": { "min": 80, "max": 130 },
+          "generalist": { "min": 100, "max": 180 },
+          "premium": { "min": 150, "max": 280 }
+        }
       }
     },
 
