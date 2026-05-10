@@ -525,7 +525,7 @@ def get_recommendations(vehicle_id: int, current_user: User = Depends(get_curren
 
     recommendations = []
     vehicle_age = datetime.now(timezone.utc).year - vehicle.year
-    if vehicle_age > 10:
+    if vehicle_age > 10 and vehicle.vehicle_type != 'motorcycle':
         timings = db.query(Maintenance).filter(Maintenance.vehicle_id == vehicle_id, Maintenance.intervention_type.ilike("%timing%")).all()
         if not timings:
             recommendations.append({"type": "warning", "message": f"Ce véhicule a {vehicle_age} ans. Aucun remplacement de courroie de distribution enregistré. C'est une intervention critique. Vérifiez l'historique d'entretien."})
