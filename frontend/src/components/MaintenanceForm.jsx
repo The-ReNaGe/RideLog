@@ -44,6 +44,8 @@ const REVISION_ITEMS_MOTO = [
   { key: 'fork_service', name: 'Révision fourche (vidange + joints)', group: 'Suspension', emoji: '🔩' },
   { key: 'wheel_bearings', name: 'Contrôle roulements de roue', group: 'Suspension', emoji: '🔩' },
   { key: 'steering_bearings', name: 'Contrôle roulements de direction', group: 'Suspension', emoji: '🔩' },
+  { key: 'brake_fluid', name: 'Remplacement liquide de frein', group: 'Liquides', emoji: '💧' },
+  { key: 'coolant', name: 'Remplacement liquide de refroidissement', group: 'Liquides', emoji: '💧' },
   { key: 'tire_replacement', name: 'Remplacement pneus', group: 'Pneumatiques', emoji: '🏍️', hasSubItems: true, subItems: [
     { key: 'tires_front', name: 'Pneus avant' },
     { key: 'tires_rear', name: 'Pneus arrière' },
