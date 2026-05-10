@@ -7,7 +7,7 @@ from sqlalchemy import func
 
 from models import Vehicle, Maintenance, FuelLog, User, VehicleMaintenanceOverride, get_db
 from security import get_current_user
-from maintenance_calculator import MaintenanceCalculator, get_intervention_key
+from maintenance_calculator import MaintenanceCalculator, get_intervention_key, build_last_maintenances_dict
 
 router = APIRouter(tags=["dashboard"])
 calculator = MaintenanceCalculator()
@@ -61,12 +61,7 @@ def get_dashboard(
 
     for v in vehicles:
         v_maintenances = [m for m in all_maintenances if m.vehicle_id == v.id]
-        last_maintenances = {}
-        for m in v_maintenances:
-            key = get_intervention_key(m.intervention_type)
-            current_last = last_maintenances.get(key)
-            if current_last is None or m.execution_date > current_last[0]:
-                last_maintenances[key] = (m.execution_date, m.mileage_at_intervention)
+        last_maintenances = build_last_maintenances_dict(v_maintenances)
 
         # Récupérer les overrides de ce véhicule
         vehicle_overrides = overrides_by_vehicle.get(v.id, {})
