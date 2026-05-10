@@ -139,10 +139,25 @@ export default function MaintenanceHistory({ vehicleId, vehicleType, motorizatio
     const newSubItemsChecked = {};
     const newRevisionSubItemsChecked = {};
 
+    // D'abord, cocher tous les sous-items trouvés dans l'historique
     subInterventions.forEach(sub => {
       const key = sub.key || sub.name;
       newSubItemsChecked[key] = true;
       newRevisionSubItemsChecked[key] = true;
+    });
+
+    // Ensuite, pour les révisions, cocher automatiquement les items parents
+    // si au moins un de leurs sous-items est coché
+    const revisionItems = vehicleType === 'motorcycle' ? REVISION_ITEMS_MOTO : REVISION_ITEMS_CAR;
+
+    revisionItems.forEach(item => {
+      if (item.hasSubItems && item.subItems) {
+        // Vérifier si au moins un des sous-items est coché
+        const hasCheckedSubItem = item.subItems.some(sub => newRevisionSubItemsChecked[sub.key]);
+        if (hasCheckedSubItem) {
+          newRevisionSubItemsChecked[item.key] = true;
+        }
+      }
     });
 
     setSubItemsChecked(newSubItemsChecked);
