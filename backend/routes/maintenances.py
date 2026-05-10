@@ -307,6 +307,12 @@ async def update_maintenance(
             "cost_paid": form.get("cost_paid"),
             "notes": form.get("notes"),
         }
+        raw_sub_interventions = form.get("sub_interventions")
+        if raw_sub_interventions:
+            try:
+                data["sub_interventions"] = json.loads(raw_sub_interventions)
+            except (json.JSONDecodeError, TypeError):
+                logger.warning("Invalid JSON in sub_interventions, ignoring")
         invoice_files = form.getlist("invoice_files")
     else:
         data = await request.json()
@@ -332,6 +338,9 @@ async def update_maintenance(
 
     if "notes" in data:
         maintenance.notes = data.get("notes")
+
+    if "sub_interventions" in data:
+        maintenance.sub_interventions = data.get("sub_interventions")
 
     if invoice_files:
         for file in invoice_files:
