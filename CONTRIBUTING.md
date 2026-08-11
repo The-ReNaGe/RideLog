@@ -16,8 +16,8 @@ Merci de ton intérêt pour RideLog ! Ce guide explique comment contribuer au pr
 ## Lancer le projet en local
 
 ```bash
-git clone https://github.com/<ton-user>/AutoLab.git
-cd AutoLab
+git clone https://github.com/<ton-user>/RideLog.git
+cd Ridelog
 docker compose up -d --build
 ```
 
@@ -47,8 +47,8 @@ docker compose up -d --build frontend   # Frontend uniquement
 
 ```bash
 # Fork le repo sur GitHub, puis :
-git clone https://github.com/<ton-user>/AutoLab.git
-cd AutoLab
+git clone https://github.com/<ton-user>/RideLog.git
+cd RideLog
 git remote add upstream https://github.com/<repo-original>/RideLog.git
 ```
 
