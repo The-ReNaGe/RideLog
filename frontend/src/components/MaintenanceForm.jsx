@@ -1,15 +1,16 @@
 import React, { useState, useEffect } from 'react';
 import { api } from '../lib/api';
 import RevisionChecklistModal from './RevisionChecklistModal';
-
-// Types déclenchant la checklist sur les motos
-const CHECKLIST_TRIGGERS = [
-  'Révision périodique (km)',
-  'Entretien annuel',
-];
+import {
+  REVISION_TRIGGERS,
+  SUBITEM_TRIGGERS,
+  getRevisionItems,
+  buildCheckedFromSubInterventions,
+} from '../lib/revisionChecklist';
 
 const STATIC_MAINTENANCE_TYPES = {
   car: [
+    'Entretien annuel',
     'Vidange d\'huile',
     'Remplacement filtre à air',
     'Remplacement filtre d\'habitacle',
@@ -20,7 +21,7 @@ const STATIC_MAINTENANCE_TYPES = {
     'Remplacement courroie de distribution',
     'Renouvellement liquide de refroidissement',
     'Renouvellement liquide de transmission',
-    'Remplacement plaquettes de frein',
+    'Remplacement freins',
     'Remplacement batterie',
     'Contrôle technique',
     'Remplacement pneus',
@@ -38,10 +39,8 @@ const STATIC_MAINTENANCE_TYPES = {
     'Révision fourche (vidange + joints)',
     'Remplacement kit chaîne (chaîne + pignon + couronne)',
     'Tension et lubrification chaîne',
-    'Remplacement pneu avant',
-    'Remplacement pneu arrière',
-    'Remplacement plaquettes de frein',
-    'Remplacement disques de frein',
+    'Remplacement freins',
+    'Remplacement pneus',
     'Remplacement batterie',
     'Contrôle et ajustement jeu aux soupapes',
     'Nettoyage carburateur',
@@ -57,6 +56,7 @@ export default function MaintenanceForm({
   vehicleType,
   displacement,
   rangeCategory,
+  motorization,
   upcomingMaintenances = [],
   onSubmit,
   onCancel,
@@ -75,7 +75,8 @@ export default function MaintenanceForm({
   const [error, setError] = useState(null);
   const [availableInterventions, setAvailableInterventions] = useState([]);
   const [selectedInterventionDetails, setSelectedInterventionDetails] = useState(null);
-  const [checklistData, setChecklistData] = useState(null);
+  const [showRevisionModal, setShowRevisionModal] = useState(false);
+  const [pendingSubInterventions, setPendingSubInterventions] = useState(null);
 
   useEffect(() => {
     const getInterventions = async () => {
@@ -104,6 +105,12 @@ export default function MaintenanceForm({
     if (name === 'intervention_type') {
       const selected = availableInterventions.find(i => i.name === value || i.id === value);
       setSelectedInterventionDetails(selected);
+      setPendingSubInterventions(null);
+      if (REVISION_TRIGGERS.includes(value) || SUBITEM_TRIGGERS.includes(value)) {
+        setShowRevisionModal(true);
+      } else {
+        setShowRevisionModal(false);
+      }
     }
     setFormData((prev) => ({
       ...prev,
@@ -134,6 +141,9 @@ export default function MaintenanceForm({
     return { min: priceData.min, max: priceData.max };
   };
 
+  const needsRevisionModal = REVISION_TRIGGERS.includes(formData.intervention_type)
+    || SUBITEM_TRIGGERS.includes(formData.intervention_type);
+
   const handleSubmit = async (e) => {
     e.preventDefault();
     try {
@@ -154,18 +164,12 @@ export default function MaintenanceForm({
       if (formData.notes) payload.append('notes', formData.notes);
       invoiceFiles.forEach((file) => payload.append('invoice_files', file));
 
-      await api.createMaintenance(vehicleId, payload);
-
-      // Ouvrir la checklist si c'est une révision moto déclenchante
-      if (vehicleType === 'motorcycle' && CHECKLIST_TRIGGERS.includes(formData.intervention_type)) {
-        setChecklistData({
-          date: new Date(formData.execution_date).toISOString(),
-          mileage: formData.mileage_at_intervention ? parseInt(formData.mileage_at_intervention) : 0,
-        });
-        // onSubmit sera appelé par la modale à sa fermeture
-      } else {
-        onSubmit();
+      if (pendingSubInterventions && pendingSubInterventions.length > 0) {
+        payload.append('sub_interventions', JSON.stringify(pendingSubInterventions));
       }
+
+      await api.createMaintenance(vehicleId, payload);
+      onSubmit();
     } catch (err) {
       setError(err.response?.data?.detail || 'Impossible de créer l\'enregistrement d\'entretien');
       console.error(err);
@@ -175,7 +179,6 @@ export default function MaintenanceForm({
   };
 
   const estimatedPrice = getEstimatedPrice();
-  const willShowChecklist = vehicleType === 'motorcycle' && CHECKLIST_TRIGGERS.includes(formData.intervention_type);
 
   return (
     <>
@@ -222,12 +225,22 @@ export default function MaintenanceForm({
               </div>
             )}
 
-            {/* Indicateur checklist */}
-            {willShowChecklist && (
-              <p className="mt-2 text-xs" style={{ color: 'var(--success, #22c55e)', display: 'flex', alignItems: 'center', gap: 5 }}>
-                <span>✅</span>
-                Une checklist des interventions s'ouvrira après l'enregistrement
-              </p>
+            {needsRevisionModal && (
+              <div className="mt-2 flex items-center justify-between gap-2 p-2 rounded text-xs" style={{ background: 'var(--bg-base)', border: '1px solid var(--border)' }}>
+                <span style={{ color: 'var(--text-3)' }}>
+                  📋 {pendingSubInterventions && pendingSubInterventions.length > 0
+                    ? `${pendingSubInterventions.length} élément(s) sélectionné(s)`
+                    : 'Aucun détail sélectionné'}
+                </span>
+                <button
+                  type="button"
+                  onClick={() => setShowRevisionModal(true)}
+                  className="btn btn-secondary"
+                  style={{ fontSize: '0.75rem', padding: '0.2rem 0.6rem' }}
+                >
+                  Modifier le détail
+                </button>
+              </div>
             )}
 
             {estimatedPrice && (
@@ -347,18 +360,22 @@ export default function MaintenanceForm({
         </div>
       </form>
 
-      {/* Checklist — ouverte après submit réussi d'une révision moto */}
-      {checklistData && (
+      {showRevisionModal && (
         <RevisionChecklistModal
-          vehicleId={vehicleId}
-          date={checklistData.date}
-          mileage={checklistData.mileage}
-          upcomingData={upcomingMaintenances}
-          onClose={() => {
-            setChecklistData(null);
-            onSubmit();
+          vehicleType={vehicleType}
+          motorization={motorization}
+          interventionType={formData.intervention_type}
+          upcomingMaintenances={upcomingMaintenances}
+          initialChecked={
+            pendingSubInterventions
+              ? buildCheckedFromSubInterventions(pendingSubInterventions, getRevisionItems(vehicleType))
+              : null
+          }
+          onClose={() => setShowRevisionModal(false)}
+          onConfirm={(subInterventions) => {
+            setPendingSubInterventions(subInterventions);
+            setShowRevisionModal(false);
           }}
-          onSuccess={() => {}}
         />
       )}
     </>

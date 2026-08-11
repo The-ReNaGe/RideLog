@@ -1,34 +1,15 @@
 import React, { useEffect, useState } from 'react';
 import { api } from '../lib/api';
+import { getInterventionDisplayName } from '../lib/interventionTranslations';
 import { formatDistanceToNow } from 'date-fns';
 import { fr } from 'date-fns/locale';
-
-const interventionTranslations = {
-  'Oil change': 'Vidange d\'huile',
-  'Air filter replacement': 'Remplacement filtre à air',
-  'Cabin filter replacement': 'Remplacement filtre d\'habitacle',
-  'Cabin air filter replacement': 'Remplacement filtre d\'habitacle',
-  'Brake fluid flush': 'Purge de frein',
-  'Timing belt replacement': 'Remplacement courroie de distribution',
-  'Coolant replacement': 'Renouvellement liquide de refroidissement',
-  'Coolant fluid renewal': 'Renouvellement liquide de refroidissement',
-  'Transmission fluid renewal': 'Renouvellement liquide de transmission',
-  'Transmission fluid replacement': 'Renouvellement liquide de transmission',
-  'Brake pads replacement': 'Remplacement plaquettes de frein',
-  'Battery replacement': 'Remplacement batterie',
-  'MOT inspection': 'Contrôle technique',
-  'Technical inspection': 'Contrôle technique',
-  'Spark plug replacement': 'Remplacement bougie d\'allumage',
-  'Chain lubrication': 'Lubrification chaîne',
-  'Tire replacement': 'Remplacement pneus',
-  'Tire inspection': 'Inspection pneus',
-  'Chain replacement': 'Remplacement chaîne',
-  'Other': 'Autre',
-};
-
-function getInterventionDisplayName(name) {
-  return interventionTranslations[name] || name;
-}
+import RevisionChecklistModal from './RevisionChecklistModal';
+import {
+  REVISION_TRIGGERS,
+  SUBITEM_TRIGGERS,
+  getRevisionItems,
+  buildCheckedFromSubInterventions,
+} from '../lib/revisionChecklist';
 
 const getCategoryDisplay = (category) => {
   const map = {
@@ -39,12 +20,14 @@ const getCategoryDisplay = (category) => {
   return map[category] || map.scheduled;
 };
 
-export default function MaintenanceHistory({ vehicleId, onDataChanged }) {
+export default function MaintenanceHistory({ vehicleId, vehicleType, motorization, onDataChanged }) {
   const [maintenances, setMaintenances] = useState([]);
   const [loading, setLoading] = useState(true);
   const [editingId, setEditingId] = useState(null);
   const [editForm, setEditForm] = useState({});
   const [newInvoiceFiles, setNewInvoiceFiles] = useState([]);
+  const [editSubInterventions, setEditSubInterventions] = useState([]);
+  const [showRevisionModal, setShowRevisionModal] = useState(false);
 
   useEffect(() => { fetchMaintenances(); }, [vehicleId]);
 
@@ -80,10 +63,16 @@ export default function MaintenanceHistory({ vehicleId, onDataChanged }) {
       notes: maintenance.notes || '',
     });
     setNewInvoiceFiles([]);
+    setEditSubInterventions(maintenance.sub_interventions || []);
   };
 
   const handleUpdate = async (maintenanceId) => {
     try {
+      const maintenance = maintenances.find(m => m.id === maintenanceId);
+      if (!maintenance) return;
+
+      const hasSubInterventions = editSubInterventions.length > 0;
+
       if (newInvoiceFiles.length > 0) {
         const fd = new FormData();
         fd.append('execution_date', editForm.execution_date);
@@ -91,23 +80,38 @@ export default function MaintenanceHistory({ vehicleId, onDataChanged }) {
         fd.append('cost_paid', editForm.cost_paid ? String(parseFloat(editForm.cost_paid)) : '');
         fd.append('notes', editForm.notes);
         newInvoiceFiles.forEach(f => fd.append('invoice_files', f));
+        if (hasSubInterventions) {
+          fd.append('sub_interventions', JSON.stringify(editSubInterventions));
+        }
         await api.updateMaintenanceWithFiles(vehicleId, maintenanceId, fd);
       } else {
-        await api.updateMaintenance(vehicleId, maintenanceId, {
+        const payload = {
           execution_date: editForm.execution_date,
           mileage_at_intervention: parseInt(editForm.mileage_at_intervention),
           cost_paid: editForm.cost_paid ? parseFloat(editForm.cost_paid) : null,
           notes: editForm.notes,
-        });
+        };
+        if (hasSubInterventions) {
+          payload.sub_interventions = editSubInterventions;
+        }
+        await api.updateMaintenance(vehicleId, maintenanceId, payload);
       }
       setEditingId(null);
+      setEditForm({});
       setNewInvoiceFiles([]);
+      setEditSubInterventions([]);
       fetchMaintenances();
       onDataChanged?.();
     } catch {
       alert('Impossible de modifier cette intervention');
     }
   };
+
+  const editingMaintenance = maintenances.find(m => m.id === editingId);
+  const editingNeedsRevisionModal = editingMaintenance && (
+    REVISION_TRIGGERS.includes(editingMaintenance.intervention_type)
+    || SUBITEM_TRIGGERS.includes(editingMaintenance.intervention_type)
+  );
 
   if (loading) return <div className="text-center py-12" style={{ color: 'var(--text-2)' }}>Chargement...</div>;
 
@@ -173,6 +177,45 @@ export default function MaintenanceHistory({ vehicleId, onDataChanged }) {
                   </div>
                 </div>
 
+                {/* Détail révision / freins / pneus via popup */}
+                {editingNeedsRevisionModal && (
+                  <div className="card p-3" style={{ background: 'var(--bg-base)', border: '1px solid var(--border)' }}>
+                    <div className="flex items-center justify-between gap-2">
+                      <div>
+                        <p className="text-sm font-medium" style={{ color: 'var(--text-1)' }}>
+                          Détail de l'intervention
+                        </p>
+                        <p className="text-xs mt-0.5" style={{ color: 'var(--text-3)' }}>
+                          {editSubInterventions.length > 0
+                            ? `${editSubInterventions.length} élément(s) sélectionné(s)`
+                            : 'Aucun élément sélectionné'}
+                        </p>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => setShowRevisionModal(true)}
+                        className="btn btn-secondary"
+                        style={{ fontSize: '0.8rem', whiteSpace: 'nowrap' }}
+                      >
+                        📋 Modifier le détail
+                      </button>
+                    </div>
+                    {editSubInterventions.length > 0 && (
+                      <div className="flex flex-wrap gap-1.5 mt-2">
+                        {editSubInterventions.map((sub, idx) => (
+                          <span
+                            key={idx}
+                            className="text-xs px-2 py-1 rounded"
+                            style={{ background: 'var(--bg-surface)', color: 'var(--text-2)', border: '1px solid var(--border)' }}
+                          >
+                            {sub.name}
+                          </span>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                )}
+
                 <div style={{ borderTop: '1px solid var(--border)', paddingTop: '0.75rem' }}>
                   <label className="block text-xs font-medium mb-2" style={{ color: 'var(--text-2)' }}>Ajouter des factures</label>
                   <input
@@ -196,7 +239,7 @@ export default function MaintenanceHistory({ vehicleId, onDataChanged }) {
 
                 <div className="flex gap-2 justify-end pt-1">
                   <button
-                    onClick={() => { setEditingId(null); setEditForm({}); setNewInvoiceFiles([]); }}
+                    onClick={() => { setEditingId(null); setEditForm({}); setNewInvoiceFiles([]); setEditSubInterventions([]); }}
                     className="px-3 py-1.5 text-sm rounded"
                     style={{ border: '1px solid var(--border)', color: 'var(--text-2)' }}
                   >
@@ -214,7 +257,6 @@ export default function MaintenanceHistory({ vehicleId, onDataChanged }) {
             ) : (
               /* ── Mode lecture ── */
               <>
-                {/* Ligne principale */}
                 <div className="flex items-start justify-between gap-2 mb-2">
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center gap-2 flex-wrap mb-1">
@@ -229,7 +271,6 @@ export default function MaintenanceHistory({ vehicleId, onDataChanged }) {
                         {catDisplay.icon} {catDisplay.label}
                       </span>
                     </div>
-                    {/* Date + il y a — sur la même ligne, bien alignés */}
                     <div className="flex flex-wrap gap-x-2 gap-y-0.5 text-xs" style={{ color: 'var(--text-3)' }}>
                       <span>
                         {new Date(maintenance.execution_date).toLocaleDateString('fr-FR', {
@@ -243,7 +284,6 @@ export default function MaintenanceHistory({ vehicleId, onDataChanged }) {
                     </div>
                   </div>
 
-                  {/* Actions */}
                   <div className="flex flex-col items-end gap-1 flex-shrink-0">
                     <button onClick={() => handleEdit(maintenance)} className="text-xs font-semibold hover:opacity-70" style={{ color: 'var(--accent)' }}>
                       ✏️ Modifier
@@ -254,7 +294,6 @@ export default function MaintenanceHistory({ vehicleId, onDataChanged }) {
                   </div>
                 </div>
 
-                {/* Stats kilométrage + coût */}
                 <div className="flex gap-4 text-sm">
                   <div>
                     <span className="text-xs" style={{ color: 'var(--text-3)' }}>Kilométrage </span>
@@ -270,14 +309,35 @@ export default function MaintenanceHistory({ vehicleId, onDataChanged }) {
                   </div>
                 </div>
 
-                {/* Notes */}
                 {maintenance.notes && (
                   <p className="text-xs mt-2 pt-2" style={{ color: 'var(--text-2)', borderTop: '1px solid var(--border)' }}>
                     {maintenance.notes}
                   </p>
                 )}
 
-                {/* Factures */}
+                {maintenance.sub_interventions && maintenance.sub_interventions.length > 0 && (
+                  <div className="mt-2 pt-2" style={{ borderTop: '1px solid var(--border)' }}>
+                    <div className="text-xs font-semibold mb-1.5" style={{ color: 'var(--text-2)' }}>
+                      🔧 Interventions effectuées ({maintenance.sub_interventions.length})
+                    </div>
+                    <div className="flex flex-wrap gap-1.5">
+                      {maintenance.sub_interventions.map((sub, idx) => (
+                        <span
+                          key={idx}
+                          className="text-xs px-2 py-1 rounded"
+                          style={{
+                            background: 'var(--bg-base)',
+                            color: 'var(--text-2)',
+                            border: '1px solid var(--border)',
+                          }}
+                        >
+                          {sub.name}
+                        </span>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
                 {maintenance.invoices?.length > 0 && (
                   <div className="mt-2 pt-2" style={{ borderTop: '1px solid var(--border)' }}>
                     <div className="text-xs font-semibold mb-1" style={{ color: 'var(--text-2)' }}>
@@ -303,6 +363,23 @@ export default function MaintenanceHistory({ vehicleId, onDataChanged }) {
           </div>
         );
       })}
+
+      {showRevisionModal && editingMaintenance && (
+        <RevisionChecklistModal
+          vehicleType={vehicleType}
+          motorization={motorization}
+          interventionType={editingMaintenance.intervention_type}
+          initialChecked={buildCheckedFromSubInterventions(
+            editSubInterventions,
+            getRevisionItems(vehicleType)
+          )}
+          onClose={() => setShowRevisionModal(false)}
+          onConfirm={(subInterventions) => {
+            setEditSubInterventions(subInterventions);
+            setShowRevisionModal(false);
+          }}
+        />
+      )}
     </div>
   );
 }

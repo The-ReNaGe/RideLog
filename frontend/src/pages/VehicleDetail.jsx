@@ -407,6 +407,7 @@ export default function VehicleDetail({ vehicleId, onBack }) {
             vehicleType={vehicle.vehicle_type}
             displacement={vehicle.displacement}
             rangeCategory={vehicle.range_category}
+            motorization={vehicle.motorization}
             upcomingMaintenances={upcoming?.upcoming || []}
             onSubmit={handleMaintenanceCreated}
             onCancel={() => setShowMaintenanceForm(false)}
@@ -452,7 +453,7 @@ export default function VehicleDetail({ vehicleId, onBack }) {
       {activeTab === 'upcoming' && upcoming && (
         <UpcomingMaintenance data={{ ...upcoming, vehicle_type: vehicle.vehicle_type }} vehicleId={vehicleId} onRefresh={fetchData} />
       )}
-      {activeTab === 'history' && <MaintenanceHistory vehicleId={vehicleId} onDataChanged={fetchData} />}
+      {activeTab === 'history' && <MaintenanceHistory vehicleId={vehicleId} vehicleType={vehicle.vehicle_type} motorization={vehicle.motorization} onDataChanged={fetchData} />}
       {activeTab === 'fuel' && <FuelTracking vehicleId={vehicleId} onFuelAdded={fetchData} />}
 
       {activeTab === 'recap' && (
@@ -560,7 +561,26 @@ export default function VehicleDetail({ vehicleId, onBack }) {
                               <td className="py-2.5 pr-4">
                                 <span style={{ display: 'inline-block', padding: '2px 8px', borderRadius: 4, fontSize: 11, fontWeight: 600, background: cat.bgLight, color: cat.bg }}>{cat.icon} {cat.label}</span>
                               </td>
-                              <td className="py-2.5 pr-4 font-medium" style={{ color: 'var(--text-1)' }}>{dt}</td>
+                              <td className="py-2.5 pr-4 font-medium" style={{ color: 'var(--text-1)' }}>
+                                {dt}
+                                {m.sub_interventions && m.sub_interventions.length > 0 && (
+                                  <div className="flex flex-wrap gap-1 mt-1">
+                                    {m.sub_interventions.map((sub, idx) => (
+                                      <span
+                                        key={idx}
+                                        className="text-xs px-1.5 py-0.5 rounded"
+                                        style={{
+                                          background: 'var(--bg-base)',
+                                          color: 'var(--text-3)',
+                                          border: '1px solid var(--border)',
+                                        }}
+                                      >
+                                        {sub.name}
+                                      </span>
+                                    ))}
+                                  </div>
+                                )}
+                              </td>
                               <td className="py-2.5 pr-4 text-right" style={{ color: 'var(--text-2)' }}>{m.mileage_at_intervention.toLocaleString('fr-FR')} km</td>
                               <td className="py-2.5 pr-4 text-right font-medium" style={{ color: 'var(--text-1)' }}>{m.cost_paid != null ? `${m.cost_paid.toFixed(2)} €` : '—'}</td>
                               <td className="py-2.5 pr-4 max-w-[200px] truncate" style={{ color: 'var(--text-3)' }}>{m.notes || '—'}</td>
@@ -603,6 +623,23 @@ export default function VehicleDetail({ vehicleId, onBack }) {
                               {cat.icon} {cat.label}
                             </span>
                           </div>
+                          {m.sub_interventions && m.sub_interventions.length > 0 && (
+                            <div className="flex flex-wrap gap-1 mt-1 mb-1">
+                              {m.sub_interventions.map((sub, idx) => (
+                                <span
+                                  key={idx}
+                                  className="text-xs px-1.5 py-0.5 rounded"
+                                  style={{
+                                    background: 'var(--bg-base)',
+                                    color: 'var(--text-3)',
+                                    border: '1px solid var(--border)',
+                                  }}
+                                >
+                                  {sub.name}
+                                </span>
+                              ))}
+                            </div>
+                          )}
                           <div className="flex flex-wrap gap-x-3 gap-y-0.5 text-xs" style={{ color: 'var(--text-3)' }}>
                             <span>📅 {new Date(m.execution_date).toLocaleDateString('fr-FR')}</span>
                             <span>🛣 {m.mileage_at_intervention.toLocaleString('fr-FR')} km</span>

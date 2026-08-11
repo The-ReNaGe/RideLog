@@ -36,6 +36,7 @@ INTERVENTION_TRANSLATIONS = {
     # Moteur / Engine
     "Vidange d'huile": "oil_change",
     "Vidange d'huile + filtre": "oil_change",
+    "Vidange + filtre à huile": "oil_change",
     "Vidange d'huile (entretien 4000km)": "oil_change",
     "Vidange d'huile (entretien 6000km)": "oil_change",
     "Vidange d'huile (entretien 10000km)": "oil_change",
@@ -60,7 +61,7 @@ INTERVENTION_TRANSLATIONS = {
     "Remplacement pneu avant": "tire_replacement_front",
     "Remplacement pneus": "tire_replacement",
     "Remplacement pneus (paire)": "tire_replacement",
-    
+
     # Braking
     "Purge de frein": "brake_fluid",
     "Purge circuit de freinage": "brake_fluid",
@@ -68,6 +69,7 @@ INTERVENTION_TRANSLATIONS = {
     "Remplacement plaquettes (avant ou arrière)": "brake_pads",
     "Remplacement disques de frein": "brake_disc",
     "Remplacement disques": "brake_disc",
+    "Remplacement freins": "brake_replacement",
     
     # Electrical
     "Remplacement batterie": "battery",
@@ -145,6 +147,7 @@ CONSUMABLES = {
     "brake_pads",
     "brake_disc",
     "brake_disc_replacement",
+    "brake_replacement",
     "battery",
     "oil_filter",
     "fastener_tightening",
@@ -659,3 +662,31 @@ class MaintenanceCalculator:
 
 
 calculator = MaintenanceCalculator()
+
+
+def build_last_maintenances_dict(all_maintenances: List) -> Dict[str, Tuple[Optional[datetime], Optional[int]]]:
+    """Construit un dict {intervention_key: (last_date, last_mileage)} depuis une liste de maintenances.
+
+    Cette fonction est partagée entre routes/maintenances.py et reminder_scheduler.py
+    pour éviter la duplication de logique.
+    """
+    last_maintenances = {}
+    for maintenance in all_maintenances:
+        # Traiter l'intervention principale
+        key = get_intervention_key(maintenance.intervention_type)
+        current_last = last_maintenances.get(key)
+        if current_last is None or maintenance.execution_date > current_last[0]:
+            last_maintenances[key] = (maintenance.execution_date, maintenance.mileage_at_intervention)
+
+        # Traiter les sous-interventions (checklist révision)
+        if maintenance.sub_interventions:
+            for sub in maintenance.sub_interventions:
+                sub_name = sub.get("name") if isinstance(sub, dict) else None
+                if sub_name:
+                    sub_key = get_intervention_key(sub_name)
+                    if sub_key:
+                        current_last = last_maintenances.get(sub_key)
+                        if current_last is None or maintenance.execution_date > current_last[0]:
+                            last_maintenances[sub_key] = (maintenance.execution_date, maintenance.mileage_at_intervention)
+
+    return last_maintenances
