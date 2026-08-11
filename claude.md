@@ -833,7 +833,9 @@ frontend/src/
 ├── index.css                   # Variables CSS, classes utilitaires, thème clair/sombre
 ├── main.jsx                    # Point d'entrée React
 ├── lib/
-│   └── api.js                  # Client Axios — toutes les méthodes API
+│   ├── api.js                       # Client Axios — toutes les méthodes API
+│   ├── interventionTranslations.js  # Traductions noms d'interventions (anglais → français)
+│   └── revisionChecklist.js         # ★ Logique partagée checklist révision (items, sous-items, helpers) ★
 ├── pages/
 │   ├── AuthPage.jsx            # Login / Register
 │   ├── VehicleList.jsx         # Liste véhicules (grille)
@@ -845,10 +847,10 @@ frontend/src/
 └── components/
     ├── VehicleCard.jsx              # Carte véhicule (React.memo)
     ├── VehicleForm.jsx              # Formulaire création/édition véhicule
-    ├── MaintenanceForm.jsx          # Formulaire enregistrement maintenance + checklist trigger
-    ├── MaintenanceHistory.jsx       # Historique maintenances (mobile + desktop)
+    ├── MaintenanceForm.jsx          # Formulaire enregistrement maintenance — ouvre RevisionChecklistModal à la sélection du type
+    ├── MaintenanceHistory.jsx       # Historique maintenances (mobile + desktop) + édition du détail de révision via modal
     ├── UpcomingMaintenance.jsx      # Maintenances "À venir" + IntervalEditModal
-    ├── RevisionChecklistModal.jsx   # ★ Checklist post-révision moto ★
+    ├── RevisionChecklistModal.jsx   # ★ Checklist de révision (voitures + motos) et sous-cases freins/pneus ★
     ├── FuelTracking.jsx             # Suivi carburant complet
     ├── FuelStations.jsx             # Recherche stations essence
     ├── APIDocumentation.jsx         # Documentation API intégrée (Swagger-like)
@@ -1023,32 +1025,55 @@ Les migrations sont gérées manuellement dans `models.py` → `init_db()` :
 
 ---
 
-## 15. Checklist de révision moto
+## 15. Checklist de révision (voitures et motos)
 
 ### Vue d'ensemble
 
-Quand un utilisateur enregistre une **"Révision périodique (km)"** ou un **"Entretien annuel"** sur une moto, une modale s'ouvre automatiquement après le submit. Elle propose une checklist des interventions pouvant être effectuées lors de cette révision. Chaque item coché est enregistré comme une maintenance indépendante en BDD, à la même date et au même kilométrage que la révision.
+Deux types d'interventions déclenchent un popup de détail au moment de la **sélection** dans le menu déroulant du formulaire (avant même de remplir le reste) :
+
+- **Révision complète** (`REVISION_TRIGGERS`) : "Révision périodique (km)" et "Entretien annuel" — ouvre la checklist groupée par catégorie (Moteur, Filtration, Liquides, Freinage, Pneumatiques, Électrique/Électronique), différente pour voiture et moto.
+- **Freins/pneus seuls** (`SUBITEM_TRIGGERS`) : "Remplacement freins" et "Remplacement pneus" — ouvre uniquement les sous-cases avant/arrière correspondantes.
+
+Contrairement à l'ancienne version (moto uniquement, un enregistrement BDD par item coché), **tous les items cochés sont regroupés en un seul enregistrement de maintenance**, stocké dans le champ `sub_interventions` (JSON) de la table `maintenances`. L'historique affiche ces sous-interventions sous forme de badges.
 
 ### Fichiers concernés
 
 | Fichier | Rôle |
 |---------|------|
-| `frontend/src/components/RevisionChecklistModal.jsx` | ★ Composant modale checklist |
-| `frontend/src/components/MaintenanceForm.jsx` | Modifié — déclenche la modale après submit |
-| `frontend/src/pages/VehicleDetail.jsx` | Modifié — passe `upcomingMaintenances` en prop |
+| `frontend/src/lib/revisionChecklist.js` | ★ Logique partagée : items de révision (voiture/moto), sous-items freins/pneus, helpers de construction/reconstruction de la sélection ★ |
+| `frontend/src/components/RevisionChecklistModal.jsx` | ★ Composant popup — affiche soit la checklist complète, soit les sous-cases freins/pneus seules ★ |
+| `frontend/src/components/MaintenanceForm.jsx` | Ouvre le modal à la sélection du type dans le menu déroulant |
+| `frontend/src/components/MaintenanceHistory.jsx` | Réouvre le modal en mode édition, pré-rempli depuis `sub_interventions` déjà enregistrées |
+| `backend/models.py` → `Maintenance.sub_interventions` | Colonne JSON stockant `[{key, name}, ...]` |
+| `backend/maintenance_calculator.py` → `build_last_maintenances_dict()` | Prend en compte les sous-interventions pour le calcul des prochaines échéances (moteur, freins, pneus comptent individuellement même groupés dans un seul enregistrement) |
+| `backend/reminder_scheduler.py` → `clear_notification_logs_for()` | Efface aussi les logs de rappel pour chaque sous-intervention |
 
-### Flux complet
+
+### Flux complet (création)
 
 ```
-1. Utilisateur sélectionne "Révision périodique (km)" ou "Entretien annuel"
-2. Il remplit date + kilométrage + coût, soumet le formulaire
-3. POST /api/vehicles/{vid}/maintenances → révision enregistrée en BDD
-4. MaintenanceForm détecte le type déclenchant → setChecklistData({ date, mileage })
-5. RevisionChecklistModal s'ouvre avec les items groupés par catégorie
-6. Item pré-coché par défaut : "Vidange d'huile + Remplacement filtre à huile"
-7. Utilisateur coche/décoche les interventions effectuées
-8. Sur "Enregistrer" : Promise.all → N × POST /api/vehicles/{vid}/maintenances
-9. État succès affiché → fermeture → onSubmit() → refresh VehicleDetail
+1. Utilisateur sélectionne "Entretien annuel" (ou "Révision périodique (km)",
+   "Remplacement freins", "Remplacement pneus") dans le menu déroulant
+2. RevisionChecklistModal s'ouvre immédiatement (avant le remplissage du reste du formulaire)
+   - Révision complète : items pré-cochés par défaut + items "en retard" (via upcomingMaintenances)
+   - Freins/pneus seuls : rien de pré-coché, l'utilisateur choisit avant/arrière
+3. Utilisateur valide → la sélection est stockée en mémoire dans le formulaire
+   (résumé affiché + bouton "Modifier le détail" pour rouvrir le popup)
+4. Utilisateur remplit date / kilométrage / coût / notes / factures normalement
+5. Clic sur "Enregistrer l'intervention" → UN SEUL POST /api/vehicles/{vid}/maintenances
+   avec sub_interventions = [{key, name}, ...] en JSON
+6. Backend stocke le tout dans un seul enregistrement Maintenance
+7. MaintenanceHistory affiche les sous-interventions sous forme de badges
+```
+
+### Flux d'édition (depuis l'historique)
+
+```
+1. Clic sur "✏️ Modifier" sur un enregistrement de type révision/freins/pneus
+2. Bouton "📋 Modifier le détail" dans le formulaire d'édition
+3. RevisionChecklistModal s'ouvre, pré-rempli via buildCheckedFromSubInterventions()
+   à partir des sub_interventions déjà enregistrées
+4. Validation → PUT /api/vehicles/{vid}/maintenances/{mid} avec les nouvelles sub_interventions
 ```
 
 ### Types déclenchants (`CHECKLIST_TRIGGERS` dans `MaintenanceForm.jsx`)
@@ -1062,27 +1087,52 @@ const CHECKLIST_TRIGGERS = [
 
 La checklist ne se déclenche que pour `vehicleType === 'motorcycle'`.
 
-### Items proposés dans la checklist
+
+### Items pré-cochés par défaut (révision complète uniquement)
+
+| Véhicule | Items par défaut |
+|----------|-------------------|
+| Voiture | Vidange + filtre à huile, Filtre à air, Filtre d'habitacle |
+| Moto | Vidange d'huile + filtre à huile |
+
+> Le filtre à gasoil/essence n'est **pas** pré-coché par défaut (changé moins fréquemment qu'à chaque révision annuelle).
+
+Les autres items sont pré-cochés automatiquement s'ils sont en retard ou urgents d'après `GET /upcoming` (statuts `overdue`/`urgent`).
+
+### Items proposés — voiture (`REVISION_ITEMS_CAR`)
 
 | Groupe | Items |
 |--------|-------|
-| 🔧 Moteur | Vidange d'huile + filtre *(pré-coché)*, Bougie, Filtre à air, Jeu aux soupapes |
+| 🔧 Moteur | Vidange + filtre à huile *(pré-coché)*, Filtre à air *(pré-coché)*, Bougies d'allumage |
+| 🌬️ Filtration | Filtre d'habitacle *(pré-coché)*, Filtre à gasoil (diesel), Filtre à essence (essence/hybride) |
+| 💧 Liquides | Purge de frein, Liquide de refroidissement, Liquide de transmission |
+| 🛑 Freinage | Remplacement freins → sous-cases : Plaquettes avant / arrière, Disques avant / arrière |
+| 🚗 Pneumatiques | Remplacement pneus → sous-cases : Pneus avant / arrière |
+| ⚡ Électrique | Batterie |
+
+### Items proposés — moto (`REVISION_ITEMS_MOTO`)
+
+| Groupe | Items |
+|--------|-------|
+| 🔧 Moteur | Vidange d'huile + filtre *(pré-coché)*, Bougie d'allumage, Filtre à air, Jeu aux soupapes |
 | ⛓️ Transmission | Kit chaîne, Tension et lubrification chaîne |
-| 🛑 Freinage | Plaquettes de frein, Disques de frein |
+| 🛑 Freinage | Remplacement freins → sous-cases : Plaquettes avant / arrière, Disques avant / arrière |
 | 🔩 Suspension | Révision fourche, Roulements de roue, Roulements de direction |
-| 🏍️ Pneumatiques | Pneu avant, Pneu arrière |
-| ⚡ Électronique | Batterie, Nettoyage carburateur, Synchro injection, Diagnostic |
+| 💧 Liquides | Liquide de frein, Liquide de refroidissement |
+| 🏍️ Pneumatiques | Remplacement pneus → sous-cases : Pneus avant / arrière |
+| ⚡ Électronique | Batterie, Nettoyage carburateur, Synchro injection, Diagnostic électronique |
 
 ### Props de `RevisionChecklistModal`
 
 | Prop | Type | Description |
-|------|------|-------------|
-| `vehicleId` | number | ID du véhicule |
-| `date` | string | Date ISO de la révision (transmise aux maintenances créées) |
-| `mileage` | number | Kilométrage de la révision (transmis aux maintenances créées) |
-| `upcomingData` | Array | Résultat de `GET /upcoming` — réservé pour usage futur |
-| `onClose` | Function | Appelé à la fermeture — doit appeler `onSubmit()` du parent |
-| `onSuccess` | Function | Appelé après enregistrement réussi (avant fermeture) |
+|------|------|--------------|
+| `vehicleType` | string | `'car'` \| `'motorcycle'` |
+| `motorization` | string | Filtre les items voiture (diesel/essence) |
+| `interventionType` | string | Type sélectionné — détermine si checklist complète ou freins/pneus seuls |
+| `upcomingMaintenances` | Array | `GET /upcoming` — pré-cochage des items en retard (création uniquement) |
+| `initialChecked` | Object\|null | État "checked" pré-rempli (mode édition ou réouverture après première validation) |
+| `onClose` | Function | Annulation |
+| `onConfirm` | Function | `(selectedSubInterventions: Array<{key,name}>) => void` |
 
 ### Intégration dans `VehicleDetail.jsx`
 
