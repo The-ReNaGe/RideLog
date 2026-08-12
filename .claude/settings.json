@@ -1,0 +1,8 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(docker compose ps*)",
+      "Bash(curl -s http://localhost:8000/health)"
+    ]
+  }
+}

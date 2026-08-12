@@ -77,3 +77,8 @@ Thumbs.db
 
 # ── Home Assistant ───────────────────────────────────────────────────────────
 ha-integration/custom_components/ridelog/__pycache__/
+
+# ── Claude Code ──────────────────────────────────────────────────────────────
+# settings.json (partagé, à commiter) définit les permissions communes au projet.
+# settings.local.json est personnel à chaque contributeur — jamais commité.
+.claude/settings.local.json
