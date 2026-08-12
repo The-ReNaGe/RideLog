@@ -223,7 +223,10 @@ Schémas Pydantic pour les entrées/sorties :
 - `backend/security.py` — JWT, bcrypt, middlewares
 - `backend/routes/auth.py` — Endpoints login/register/admin/HA
 - `frontend/src/lib/api.js` — Intercepteurs Axios (ajout token)
-- `frontend/src/pages/AuthPage.jsx` — Formulaires login/register
+- `frontend/src/lib/clipboard.js` — Copie presse-papier avec fallback (contexte HTTP non sécurisé)
+- `frontend/src/pages/AuthPage.jsx` — Formulaires login/register, extraction du token d'invitation depuis l'URL (`/invite/:token`)
+- `frontend/src/pages/Settings.jsx` — Gestion du mode d'inscription + invitations (onglet "Inscription", admin uniquement)
+- `frontend/src/pages/Admin.jsx` — Console admin : gestion utilisateurs + création manuelle de compte
 - `frontend/src/App.jsx` — Gestion de l'état `isAuthenticated`
 
 ### Flux d'authentification
@@ -248,6 +251,7 @@ Schémas Pydantic pour les entrées/sorties :
 | POST | `/api/auth/refresh-token` | Bearer header | Renouveler (utilisé par HA) |
 | POST | `/api/auth/ha-init` | `init_key` param | Créer/renouveler le compte Home Assistant |
 | GET | `/api/admin/users` | Admin | Lister tous les utilisateurs |
+| POST | `/api/admin/users` | Admin | ★ Créer un compte manuellement (mot de passe fourni ou généré automatiquement) ★ |
 | DELETE | `/api/admin/users/{id}` | Admin | Supprimer un utilisateur |
 | PUT | `/api/admin/users/{id}/promote` | Admin | Promouvoir/rétrograder (toggle) |
 | GET | `/api/admin/ha-integration-status` | Admin | État de l'intégration HA |
@@ -267,7 +271,7 @@ Schémas Pydantic pour les entrées/sorties :
 |------|-------------|
 | `open` | Tout le monde peut s'inscrire |
 | `invite` | Inscription uniquement avec un token d'invitation valide |
-| `closed` | Aucune inscription possible |
+| `closed` | Aucune inscription possible — seul un admin peut créer des comptes via `POST /admin/users` |
 
 ### Invitations
 
@@ -275,6 +279,15 @@ Schémas Pydantic pour les entrées/sorties :
 - Token unique, durée configurable (1-720 heures)
 - Consommée à l'inscription (marquée `used_by` + `used_at`)
 - Stockées dans la table `invitations`
+- Lien généré côté frontend : `{origin}/invite/{token}` — `AuthPage.jsx` extrait le token depuis `window.location.pathname` au montage et valide via `GET /auth/check-invite/{token}`
+- Copie du lien : passe par `lib/clipboard.js` (fallback `document.execCommand('copy')` requis car `navigator.clipboard` est indisponible en HTTP non sécurisé — cas fréquent en accès LAN self-hosted)
+
+### Création manuelle de compte par l'admin
+
+- `POST /api/admin/users` — nécessaire en mode `closed` où l'auto-inscription est impossible, ou pour créer un compte sans passer par le flux d'invitation
+- Mot de passe optionnel dans la requête : si absent, généré côté serveur (`secrets.token_urlsafe(12)`) et renvoyé **une seule fois** dans la réponse (`generated_password`), jamais journalisé ni réexposé ensuite
+- Même politique de hachage que `/auth/register` (bcrypt coût 12 via `hash_password()`)
+- UI : section "➕ Créer un compte" dans `Admin.jsx`, affiche le mot de passe généré dans un encart à copier manuellement (l'admin doit le transmettre par un canal sécurisé)
 
 ### Compte Home Assistant — gestion activate/disable
 
@@ -315,6 +328,7 @@ _ha_integration_enabled: bool = True  # défaut au démarrage
 - **Changer le coût bcrypt** : `security.py` → `bcrypt.hashpw(... rounds=12)`
 - **Ajouter un nouveau mode d'inscription** : `routes/auth.py` → endpoint `register`
 - **Modifier le rate limiting** : `security.py` → `LoginRateLimiter` → `LOCKOUT_THRESHOLDS`
+- **Modifier la génération du mot de passe admin-créé** : `routes/auth.py` → endpoint `admin_create_user` → `secrets.token_urlsafe(12)`
 
 ---
 
