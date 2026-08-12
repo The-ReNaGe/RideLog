@@ -1,6 +1,37 @@
 import React, { useState, useEffect } from 'react';
 import { api } from '../lib/api';
 
+function ToggleSwitch({ checked, onChange, disabled, title }) {
+  return (
+    <button
+      type="button"
+      role="switch"
+      aria-checked={checked}
+      onClick={onChange}
+      disabled={disabled}
+      title={title}
+      className="relative inline-flex items-center rounded-full transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+      style={{
+        width: '48px',
+        height: '26px',
+        background: checked ? 'var(--success)' : 'var(--danger)',
+        cursor: disabled ? 'not-allowed' : 'pointer',
+        flexShrink: 0,
+      }}
+    >
+      <span
+        className="inline-block rounded-full bg-white shadow transition-transform"
+        style={{
+          width: '20px',
+          height: '20px',
+          transform: checked ? 'translateX(25px)' : 'translateX(3px)',
+          transition: 'transform 150ms ease',
+        }}
+      />
+    </button>
+  );
+}
+
 export default function Admin({ currentUser }) {
   const [users, setUsers] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -22,9 +53,17 @@ export default function Admin({ currentUser }) {
   const [createError, setCreateError] = useState(null);
   const [createdResult, setCreatedResult] = useState(null); // { username, generated_password }
 
+  // ── Réinitialisation de mot de passe par l'admin ──
+  const [resetting, setResetting] = useState(null);
+  const [resetError, setResetError] = useState(null);
+  const [resetResult, setResetResult] = useState(null); // { username, generated_password }
+  const [passwordResetEnabled, setPasswordResetEnabled] = useState(true);
+  const [togglingReset, setTogglingReset] = useState(false);
+
   useEffect(() => {
     loadUsers();
     loadRegistrationMode();
+    loadPasswordResetStatus();
   }, []);
 
   const loadUsers = async () => {
@@ -47,6 +86,34 @@ export default function Admin({ currentUser }) {
       setRegistrationMode(res.data.mode);
     } catch (err) {
       console.error('Failed to load registration mode', err);
+    }
+  };
+
+  const loadPasswordResetStatus = async () => {
+    try {
+      const res = await api.getPasswordResetStatus();
+      setPasswordResetEnabled(res.data.enabled);
+    } catch (err) {
+      console.error('Failed to load password reset status', err);
+    }
+  };
+
+  const handleTogglePasswordReset = async () => {
+    const next = !passwordResetEnabled;
+    const msg = next
+      ? 'Réactiver la réinitialisation de mot de passe par les admins ?'
+      : 'Désactiver la réinitialisation de mot de passe ?\n\nAucun admin (y compris vous) ne pourra plus réinitialiser un mot de passe tant que ce n\'est pas réactivé ici.';
+    if (!window.confirm(msg)) return;
+
+    setTogglingReset(true);
+    try {
+      const res = await api.setPasswordResetStatus(next);
+      setPasswordResetEnabled(res.data.enabled);
+    } catch (err) {
+      setResetError(err.response?.data?.detail || 'Erreur lors du changement de statut');
+      console.error(err);
+    } finally {
+      setTogglingReset(false);
     }
   };
 
@@ -83,6 +150,31 @@ export default function Admin({ currentUser }) {
       console.error(err);
     } finally {
       setDeleting(null);
+    }
+  };
+
+  const handleResetPassword = async (userId, username) => {
+    if (!window.confirm(
+      `Réinitialiser le mot de passe de "${username}" ?\n\nUn nouveau mot de passe aléatoire sera généré et affiché une seule fois. Toutes ses sessions en cours seront invalidées — l'utilisateur devra se reconnecter avec le nouveau mot de passe.`
+    )) {
+      return;
+    }
+
+    setResetting(userId);
+    setResetError(null);
+    setResetResult(null);
+    try {
+      const response = await api.adminResetPassword(userId);
+      setResetResult({
+        username: response.data.username,
+        generated_password: response.data.generated_password,
+      });
+      loadUsers(); // rafraîchit le badge "demande de reset" / statut mdp temporaire
+    } catch (err) {
+      setResetError(err.response?.data?.detail || 'Erreur lors de la réinitialisation du mot de passe');
+      console.error(err);
+    } finally {
+      setResetting(null);
     }
   };
 
@@ -268,6 +360,59 @@ export default function Admin({ currentUser }) {
         </div>
       )}
 
+      <div className="card p-4 mb-6 flex items-center justify-between gap-3 flex-wrap">
+        <div>
+          <h3 className="text-sm font-semibold" style={{ color: 'var(--text-1)' }}>
+            🔑 Réinitialisation de mot de passe
+          </h3>
+          <p className="text-xs mt-1" style={{ color: 'var(--text-3)' }}>
+            {passwordResetEnabled
+              ? 'Les admins peuvent réinitialiser le mot de passe d\'un utilisateur (pas de SMTP/lien par email disponible).'
+              : 'Désactivée : aucun admin ne peut réinitialiser un mot de passe actuellement.'}
+          </p>
+        </div>
+        <div className="flex items-center gap-2">
+          <span
+            className="text-xs font-semibold whitespace-nowrap"
+            style={{ color: passwordResetEnabled ? 'var(--success)' : 'var(--danger)' }}
+          >
+            {togglingReset ? '⏳...' : passwordResetEnabled ? 'Activé' : 'Désactivé'}
+          </span>
+          <ToggleSwitch
+            checked={passwordResetEnabled}
+            onChange={handleTogglePasswordReset}
+            disabled={togglingReset}
+            title={passwordResetEnabled ? 'Cliquer pour désactiver' : 'Cliquer pour activer'}
+          />
+        </div>
+      </div>
+
+      {resetError && (
+        <div
+          className="mb-4 p-3 rounded text-sm"
+          style={{ background: 'var(--danger-light)', border: '1px solid var(--danger)', color: 'var(--danger)' }}
+        >
+          ⚠️ {resetError}
+        </div>
+      )}
+
+      {resetResult && (
+        <div className="card p-4 mb-6 text-sm" style={{ background: 'var(--success-light)', border: '1px solid var(--success)' }}>
+          <p style={{ color: 'var(--text-1)' }}>
+            ✅ Mot de passe de <strong>@{resetResult.username}</strong> réinitialisé.
+          </p>
+          <p className="text-xs mt-2" style={{ color: 'var(--text-2)' }}>
+            Copiez-le maintenant et transmettez-le à l'utilisateur par un canal sécurisé (il ne sera plus jamais affiché) :
+          </p>
+          <code
+            className="block mt-1 px-2 py-1.5 rounded text-sm select-all"
+            style={{ background: 'var(--bg-base)', border: '1px solid var(--border)', color: 'var(--text-1)' }}
+          >
+            {resetResult.generated_password}
+          </code>
+        </div>
+      )}
+
       <div className="card p-6 gap-section">
         <h3 className="text-lg font-semibold" style={{ color: 'var(--text-1)' }}>
           Gestion des utilisateurs
@@ -304,6 +449,20 @@ export default function Admin({ currentUser }) {
                       )}
                       {isServiceAccount && (
                         <span className="text-xs ml-2" style={{ color: '#9333ea' }}>🤖 Service</span>
+                      )}
+                      {user.password_reset_requested_at && (
+                        <span
+                          className="text-xs ml-2 px-1.5 py-0.5 rounded font-semibold"
+                          style={{ background: 'var(--warning-light)', color: 'var(--warning)' }}
+                          title={`Demande de réinitialisation le ${new Date(user.password_reset_requested_at).toLocaleString('fr-FR')}`}
+                        >
+                          🔔 Demande de reset
+                        </span>
+                      )}
+                      {user.must_change_password && (
+                        <span className="text-xs ml-2" style={{ color: 'var(--text-3)' }} title="Doit encore choisir son propre mot de passe">
+                          ⏳ mdp temporaire
+                        </span>
                       )}
                     </td>
                     <td className="py-3 px-3" style={{ color: 'var(--text-2)' }}>
@@ -359,6 +518,16 @@ export default function Admin({ currentUser }) {
                             ⛔ Compte protégé
                           </span>
                         )}
+                        {!isServiceAccount && passwordResetEnabled && user.id !== currentUser.id && (
+                          <button
+                            onClick={() => handleResetPassword(user.id, user.username)}
+                            disabled={resetting === user.id}
+                            className={`btn text-xs ${user.password_reset_requested_at ? 'btn-primary' : 'btn-secondary'}`}
+                            title="Réinitialiser le mot de passe (utile en l'absence d'email, ex: mot de passe oublié)"
+                          >
+                            {resetting === user.id ? '...' : '🔑 Réinitialiser MDP'}
+                          </button>
+                        )}
                         <button
                           onClick={() => handleDeleteUser(user.id, user.username)}
                           disabled={user.id === currentUser.id || deleting === user.id || user.is_admin || isServiceAccount}
@@ -389,6 +558,11 @@ export default function Admin({ currentUser }) {
           <li>✅ Seul un admin peut accéder à cette console</li>
           <li>✅ Un admin peut promouvoir/rétrograder d'autres utilisateurs</li>
           <li>✅ Un admin peut créer un compte directement en mode "Privé" ou "Ouvert"</li>
+          <li>✅ Un admin peut réinitialiser le mot de passe d'un utilisateur (pas d'email/SMTP disponible en self-hosted) — ça déconnecte immédiatement toutes ses sessions en cours</li>
+          <li>🔑 Un mot de passe créé ou réinitialisé par un admin est temporaire : l'utilisateur est forcé d'en choisir un nouveau à sa prochaine connexion</li>
+          <li>🔔 Un utilisateur peut signaler un mot de passe oublié depuis l'écran de connexion — ça fait apparaître un badge ici, à traiter avec "Réinitialiser MDP"</li>
+          <li>🔒 Un admin ne peut pas réinitialiser son propre mot de passe ici (risque de se déconnecter sans pouvoir revenir) — utilisez Paramètres → Compte</li>
+          <li>⚙️ La réinitialisation de mot de passe peut être désactivée globalement (bouton ci-dessus)</li>
           <li>🔒 En mode "Sur invitation", passez par les liens d'invitation (Paramètres → Inscription)</li>
           <li>🔒 Un admin ne peut pas modifier son propre statut</li>
           <li>🔒 <strong>Les administrateurs ne peuvent PAS être supprimés</strong> (rétrogradez-le d'abord)</li>

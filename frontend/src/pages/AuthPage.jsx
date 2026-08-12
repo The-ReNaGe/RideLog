@@ -19,6 +19,12 @@ export default function AuthPage({ onLoginSuccess }) {
   const [loginUsername, setLoginUsername] = useState('');
   const [loginPassword, setLoginPassword] = useState('');
 
+  // Mot de passe oublié
+  const [showForgotPassword, setShowForgotPassword] = useState(false);
+  const [forgotUsername, setForgotUsername] = useState('');
+  const [forgotSubmitting, setForgotSubmitting] = useState(false);
+  const [forgotMessage, setForgotMessage] = useState(null);
+
   // Form state - Register
   const [regUsername, setRegUsername] = useState('');
   const [regDisplayName, setRegDisplayName] = useState('');
@@ -101,6 +107,23 @@ export default function AuthPage({ onLoginSuccess }) {
       }
     } finally {
       setLoading(false);
+    }
+  };
+
+  const handleForgotPassword = async (e) => {
+    e.preventDefault();
+    setForgotSubmitting(true);
+    setForgotMessage(null);
+    try {
+      const res = await api.requestPasswordReset(forgotUsername);
+      setForgotMessage(res.data.message);
+      setForgotUsername('');
+    } catch (err) {
+      // Réponse générique même en cas d'erreur réseau/serveur — on ne veut
+      // pas laisser deviner si un identifiant existe ou non.
+      setForgotMessage("Si ce compte existe, un administrateur a été notifié de votre demande.");
+    } finally {
+      setForgotSubmitting(false);
     }
   };
 
@@ -274,12 +297,57 @@ export default function AuthPage({ onLoginSuccess }) {
               >
                 {lockoutSeconds > 0 ? `Bloqué (${lockoutSeconds}s)` : loading ? 'Chargement...' : 'Valider'}
               </button>
+            </form>
+          ) : null}
+
+          {/* Hors du <form> de login : un <form> imbriqué dans un autre est invalide en HTML
+              (le navigateur ferme le form parent, ce qui empêche la soumission de partir). */}
+          {!isRegister && (
+            <>
+              <button
+                type="button"
+                onClick={() => { setShowForgotPassword(!showForgotPassword); setForgotMessage(null); }}
+                className="text-xs w-full text-center mt-2 underline"
+                style={{ color: 'var(--text-3)' }}
+              >
+                Mot de passe oublié ?
+              </button>
+
+              {showForgotPassword && (
+                <div className="mt-3 p-3 rounded" style={{ background: 'var(--bg-base)', border: '1px solid var(--border)' }}>
+                  {forgotMessage ? (
+                    <p className="text-xs" style={{ color: 'var(--text-2)' }}>✅ {forgotMessage}</p>
+                  ) : (
+                    <>
+                      <p className="text-xs mb-2" style={{ color: 'var(--text-3)' }}>
+                        Pas d'email de reset ici (application self-hosted) — votre identifiant sera signalé aux administrateurs, qui pourront réinitialiser votre mot de passe depuis la console admin.
+                      </p>
+                      <form onSubmit={handleForgotPassword} className="flex gap-2">
+                        <input
+                          type="text"
+                          value={forgotUsername}
+                          onChange={(e) => setForgotUsername(e.target.value)}
+                          placeholder="Votre identifiant"
+                          className="input flex-1 text-sm"
+                          required
+                          disabled={forgotSubmitting}
+                        />
+                        <button type="submit" className="btn btn-secondary text-xs whitespace-nowrap" disabled={forgotSubmitting}>
+                          {forgotSubmitting ? '...' : 'Envoyer'}
+                        </button>
+                      </form>
+                    </>
+                  )}
+                </div>
+              )}
 
               <p className="text-xs text-center mt-4" style={{ color: 'var(--text-3)' }}>
                 🔒 Votre mot de passe est haché avec bcrypt (sécurisé)
               </p>
-            </form>
-          ) : (
+            </>
+          )}
+
+          {isRegister && (
             /* Register Form */
             <form onSubmit={handleRegister} className="space-y-4">
               <div>

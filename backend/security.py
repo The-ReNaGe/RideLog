@@ -34,7 +34,7 @@ import os
 import bcrypt
 import jwt
 from pydantic import BaseModel
-from fastapi import HTTPException, Header, Depends, status
+from fastapi import HTTPException, Header, Depends, status, Request
 from sqlalchemy.orm import Session
 
 if TYPE_CHECKING:
@@ -138,7 +138,7 @@ def create_access_token(
         password_changed_at: Horodatage du dernier changement de mot de passe
             de l'utilisateur — embarqué dans le token (pwd_ts) et comparé à
             chaque requête (get_current_user) pour invalider tout token émis
-            AVANT un changement de mot de passe.
+            AVANT un reset/changement de mot de passe.
     """
     if expire_days is None:
         expire_days = JWT_EXPIRE_DAYS
@@ -204,6 +204,15 @@ def decode_token_unsafe(token: str) -> Optional[dict]:
 # Dépendances FastAPI pour l'authentification
 # ═══════════════════════════════════════════════════════════════════════════
 
+# Routes accessibles même quand must_change_password=True — l'utilisateur doit
+# pouvoir consulter son profil et changer son mot de passe, rien d'autre.
+_ALLOWED_PATHS_WHEN_MUST_CHANGE_PASSWORD = {
+    "/api/auth/me",
+    "/api/auth/me/password",
+    "/api/auth/logout",
+}
+
+
 def _get_current_user_from_token(authorization: str = Header(None)) -> TokenData:
     """Valide le JWT et retourne juste les données du token (pas l'utilisateur)."""
     if not authorization:
@@ -236,6 +245,7 @@ def _get_current_user_from_token(authorization: str = Header(None)) -> TokenData
 
 
 async def get_current_user(
+    request: Request,
     token_data: TokenData = Depends(_get_current_user_from_token),
 ) -> "User":
     """
@@ -266,7 +276,7 @@ async def get_current_user(
                 detail="Utilisateur non trouvé",
             )
 
-        # Invalide les tokens émis AVANT un changement de mot de passe
+        # Invalide les tokens émis AVANT un changement/reset de mot de passe
         # (protège un compte compromis : le vieux token cesse de fonctionner
         # dès que le mot de passe est changé, sans attendre son expiration).
         if user.password_changed_at is not None:
@@ -276,6 +286,15 @@ async def get_current_user(
                     status_code=status.HTTP_401_UNAUTHORIZED,
                     detail="Session invalidée suite à un changement de mot de passe. Reconnectez-vous.",
                 )
+
+        # Mot de passe temporaire (créé/reset par un admin) : bloque tout sauf
+        # consulter son profil et le changer, tant qu'il n'a pas été remplacé
+        # par un mot de passe choisi par l'utilisateur (voir change_own_password).
+        if user.must_change_password and request.url.path not in _ALLOWED_PATHS_WHEN_MUST_CHANGE_PASSWORD:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Vous devez changer votre mot de passe temporaire avant de continuer.",
+            )
 
         return user
     finally:

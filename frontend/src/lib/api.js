@@ -63,18 +63,30 @@ export const api = {
   changeMyPassword: (currentPassword, newPassword) =>
     client.put('/auth/me/password', { current_password: currentPassword, new_password: newPassword }),
 
+  requestPasswordReset: (username) =>
+    client.post('/auth/request-password-reset', { username }),
+
   // Admin
   getAllUsers: () =>
     client.get('/admin/users'),
-  
+
   deleteUser: (userId) =>
     client.delete(`/admin/users/${userId}`),
-  
+
   promoteUser: (userId) =>
     client.put(`/admin/users/${userId}/promote`),
 
   adminCreateUser: (data) =>
     client.post('/admin/users', data),
+
+  adminResetPassword: (userId, password) =>
+    client.post(`/admin/users/${userId}/reset-password`, password ? { password } : {}),
+
+  getPasswordResetStatus: () =>
+    client.get('/admin/password-reset-status'),
+
+  setPasswordResetStatus: (enabled) =>
+    client.put('/admin/password-reset-status', { enabled }),
 
   // Invitations
   getInvitations: () =>

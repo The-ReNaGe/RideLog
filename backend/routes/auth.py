@@ -49,6 +49,16 @@ router = APIRouter(tags=["Authentication"])
 # ─────────────────────────────────────────────────────────────────────────────
 _ha_integration_enabled: bool = True
 
+# ─────────────────────────────────────────────────────────────────────────────
+# Flag en mémoire pour activer/désactiver la réinitialisation de mot de passe
+# par un admin (POST /admin/users/{id}/reset-password).
+# - True  (défaut) : les admins peuvent réinitialiser un mot de passe
+# - False           : l'endpoint retourne 403, même pour un admin
+# Persiste en mémoire jusqu'au redémarrage du backend (même pattern que
+# _ha_integration_enabled ci-dessus).
+# ─────────────────────────────────────────────────────────────────────────────
+_password_reset_enabled: bool = True
+
 
 # ═══════════════════════════════════════════════════════════════════════════
 # Schémas Pydantic
@@ -73,6 +83,8 @@ class UserResponse(BaseModel):
     display_name: str
     is_admin: bool
     created_at: str
+    must_change_password: bool = False
+    password_reset_requested_at: str | None = None
 
 
 class AdminCreateUserRequest(BaseModel):
@@ -92,6 +104,17 @@ class AdminCreateUserResponse(UserResponse):
 class ChangePasswordRequest(BaseModel):
     current_password: str = Field(...)
     new_password: str = Field(..., min_length=6, max_length=200)
+
+
+class AdminResetPasswordRequest(BaseModel):
+    password: str | None = Field(None, min_length=6, max_length=200)
+
+
+class AdminResetPasswordResponse(BaseModel):
+    username: str
+    # Mot de passe généré automatiquement si l'admin n'en a pas fourni un —
+    # même politique que AdminCreateUserResponse : affiché une seule fois.
+    generated_password: str | None = None
 
 
 # ═══════════════════════════════════════════════════════════════════════════
@@ -182,6 +205,52 @@ async def login(data: LoginRequest, request: Request, db: Session = Depends(get_
     return token
 
 
+class RequestPasswordResetRequest(BaseModel):
+    username: str = Field(...)
+
+
+@router.post("/auth/request-password-reset")
+async def request_password_reset(
+    data: RequestPasswordResetRequest,
+    request: Request,
+    db: Session = Depends(get_db),
+):
+    """
+    Signale à l'administrateur qu'un utilisateur a oublié son mot de passe.
+
+    RideLog tourne offline (pas de SMTP) : il n'y a pas de lien de reset par
+    email. Cet endpoint remplace ça par une simple notification visible dans
+    la console admin (badge sur l'utilisateur concerné) — c'est ensuite à un
+    admin de réinitialiser le mot de passe via /admin/users/{id}/reset-password.
+
+    Sécurité :
+    - Toujours une réponse générique identique, que le compte existe ou non
+      (anti énumération de comptes)
+    - Rate-limité par IP (même limiteur que /auth/login) contre le spam
+    - Aucune authentification requise (c'est justement pour un utilisateur
+      qui n'arrive plus à se connecter)
+    """
+    client_ip = request.headers.get("x-forwarded-for", "").split(",")[0].strip() or request.client.host
+
+    wait = login_limiter.check(client_ip)
+    if wait > 0:
+        raise HTTPException(
+            status_code=429,
+            detail=f"Trop de tentatives. Réessayez dans {wait} secondes.",
+            headers={"Retry-After": str(wait)},
+        )
+    login_limiter.record_failure(client_ip)
+
+    from datetime import datetime, timezone
+    user = db.query(User).filter(User.username == data.username.lower()).first()
+    if user and user.username != "homeassistant":
+        user.password_reset_requested_at = datetime.now(timezone.utc)
+        db.commit()
+        logger.info("Demande de réinitialisation de mot de passe pour: %s", user.username)
+
+    return {"message": "Si ce compte existe, une demande a été envoyée aux administrateurs."}
+
+
 @router.get("/auth/me", response_model=UserResponse)
 async def get_current_user_info(current_user: User = Depends(get_current_user)):
     return current_user.to_dict()
@@ -240,10 +309,11 @@ async def change_own_password(
 
     # current_user vient de la session (séparée, déjà fermée) de get_current_user —
     # on re-requête via la session locale avant toute mutation, comme pour les
-    # autres routes admin (delete_user, promote_user).
+    # autres routes admin (delete_user, promote_user, admin_reset_password).
     user = db.query(User).filter(User.id == current_user.id).first()
     user.password_hash = hash_password(data.new_password)
     user.password_changed_at = datetime.now(timezone.utc)
+    user.must_change_password = False
     db.commit()
     db.refresh(user)
 
@@ -421,6 +491,10 @@ async def admin_create_user(
             display_name=data.display_name,
             password_hash=password_hash,
             is_admin=data.is_admin,
+            # Mot de passe connu de l'admin (généré ou saisi par lui) → temporaire,
+            # l'utilisateur doit le remplacer par un mot de passe à lui dès sa
+            # première connexion (voir get_current_user / change_own_password).
+            must_change_password=True,
         )
         db.add(user)
         db.commit()
@@ -441,6 +515,130 @@ async def admin_create_user(
         db.rollback()
         logger.error("Erreur création utilisateur par admin: %s", e)
         raise HTTPException(status_code=500, detail="Erreur lors de la création du compte")
+
+
+@router.post("/admin/users/{user_id}/reset-password", response_model=AdminResetPasswordResponse)
+async def admin_reset_password(
+    user_id: int,
+    data: AdminResetPasswordRequest,
+    current_admin: User = Depends(get_current_admin),
+    db: Session = Depends(get_db),
+):
+    """
+    Réinitialise le mot de passe d'un utilisateur.
+
+    RideLog tourne offline (pas de SMTP) : il n'y a pas de flux "mot de passe
+    oublié" par email. Cet endpoint est la voie de récupération — un admin
+    déjà connecté réinitialise le mot de passe d'un utilisateur qui a oublié
+    le sien, depuis la console admin.
+
+    Sécurité :
+    - Réservé aux admins (get_current_admin)
+    - Même politique de hachage que /auth/register (bcrypt coût 12)
+    - Mot de passe généré cryptographiquement (secrets.token_urlsafe) si
+      l'admin n'en fournit pas — jamais de mot de passe faible par défaut
+    - Le mot de passe généré n'est renvoyé qu'une seule fois dans la réponse ;
+      jamais journalisé en clair, jamais renvoyé par un autre endpoint
+    - Invalide immédiatement tous les tokens déjà émis pour ce compte
+      (password_changed_at, voir get_current_user) : si le compte était
+      compromis, l'ancien token cesse de fonctionner dès la réinitialisation
+    - Le compte homeassistant est exclu : son mot de passe est aléatoire et
+      n'est jamais utilisé pour se connecter (voir ha-init)
+    - Peut être désactivé globalement par un admin (voir
+      /admin/password-reset-status) — retourne alors 403 même pour un admin
+    - Le mot de passe posé ici est temporaire (must_change_password=True) :
+      l'utilisateur est forcé de le remplacer par son propre mot de passe dès
+      sa prochaine connexion — l'admin ne connaît donc son mot de passe que
+      le temps de le transmettre
+    - Un admin ne peut PAS réinitialiser son propre mot de passe ici : ça
+      invaliderait immédiatement sa propre session (password_changed_at) et
+      peut le déconnecter avant qu'il ait pu noter le mot de passe généré,
+      sans autre moyen de rentrer si c'est le seul admin. Utiliser
+      Paramètres → Compte à la place (réémet un token, pas de déconnexion).
+    """
+    global _password_reset_enabled
+    if not _password_reset_enabled:
+        raise HTTPException(
+            status_code=403,
+            detail="La réinitialisation de mot de passe est désactivée par l'administrateur.",
+        )
+
+    if user_id == current_admin.id:
+        raise HTTPException(
+            status_code=400,
+            detail="Vous ne pouvez pas réinitialiser votre propre mot de passe ici — utilisez Paramètres → Compte (vous resterez connecté).",
+        )
+
+    user = db.query(User).filter(User.id == user_id).first()
+    if not user:
+        raise HTTPException(status_code=404, detail="Utilisateur non trouvé")
+
+    if user.username == "homeassistant":
+        raise HTTPException(status_code=400, detail="Le mot de passe du compte Home Assistant ne peut pas être réinitialisé ici")
+
+    generated_password = None
+    password = data.password
+    if not password:
+        generated_password = secrets.token_urlsafe(12)
+        password = generated_password
+
+    from datetime import datetime, timezone
+
+    try:
+        user.password_hash = hash_password(password)
+        user.password_changed_at = datetime.now(timezone.utc)
+        user.must_change_password = True
+        user.password_reset_requested_at = None  # la demande éventuelle est traitée
+        db.commit()
+
+        logger.info(
+            "Mot de passe réinitialisé par l'admin %s pour l'utilisateur %s%s",
+            current_admin.username,
+            user.username,
+            " (mot de passe généré)" if generated_password else "",
+        )
+
+        return {"username": user.username, "generated_password": generated_password}
+
+    except Exception as e:
+        db.rollback()
+        logger.error("Erreur réinitialisation mot de passe: %s", e)
+        raise HTTPException(status_code=500, detail="Erreur lors de la réinitialisation du mot de passe")
+
+
+@router.get("/admin/password-reset-status")
+async def get_password_reset_status(
+    current_admin: User = Depends(get_current_admin),
+):
+    """Retourne si la réinitialisation de mot de passe par un admin est activée."""
+    global _password_reset_enabled
+    return {"enabled": _password_reset_enabled}
+
+
+class PasswordResetStatusRequest(BaseModel):
+    enabled: bool
+
+
+@router.put("/admin/password-reset-status")
+async def set_password_reset_status(
+    data: PasswordResetStatusRequest,
+    current_admin: User = Depends(get_current_admin),
+):
+    """
+    Active/désactive globalement la possibilité pour un admin de réinitialiser
+    le mot de passe d'un utilisateur (POST /admin/users/{id}/reset-password).
+
+    Utile pour restreindre cette capacité (ex: contexte multi-admin où l'on
+    veut limiter qui peut y toucher, ou désactivation temporaire volontaire).
+    """
+    global _password_reset_enabled
+    _password_reset_enabled = data.enabled
+    logger.info(
+        "Réinitialisation de mot de passe %s par %s",
+        "activée" if data.enabled else "désactivée",
+        current_admin.username,
+    )
+    return {"enabled": _password_reset_enabled}
 
 
 @router.delete("/admin/users/{user_id}")
