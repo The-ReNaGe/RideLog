@@ -1,0 +1,40 @@
+{
+  "$schema": "https://raw.githubusercontent.com/googleapis/release-please/main/schemas/config.json",
+  "release-type": "simple",
+  "packages": {
+    ".": {
+      "release-type": "simple",
+      "version-file": "VERSION",
+      "changelog-path": "CHANGELOG.md",
+      "extra-files": [
+        {
+          "type": "generic",
+          "path": "frontend/src/version.js"
+        },
+        {
+          "type": "generic",
+          "path": "backend/main.py"
+        },
+        {
+          "type": "generic",
+          "path": "README.md"
+        },
+        {
+          "type": "json",
+          "path": "frontend/package.json",
+          "jsonpath": "$.version"
+        },
+        {
+          "type": "json",
+          "path": "ha-integration/hacs.json",
+          "jsonpath": "$.version"
+        },
+        {
+          "type": "json",
+          "path": "ha-integration/custom_components/ridelog/manifest.json",
+          "jsonpath": "$.version"
+        }
+      ]
+    }
+  }
+}
