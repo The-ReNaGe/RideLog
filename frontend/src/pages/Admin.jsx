@@ -7,8 +7,24 @@ export default function Admin({ currentUser }) {
   const [error, setError] = useState(null);
   const [deleting, setDeleting] = useState(null);
 
+  // ── Mode d'inscription (contrôle l'affichage de la création de compte) ──
+  const [registrationMode, setRegistrationMode] = useState(null);
+
+  // ── Création de compte par l'admin ──
+  const [showCreateForm, setShowCreateForm] = useState(false);
+  const [createForm, setCreateForm] = useState({
+    username: '',
+    display_name: '',
+    password: '',
+    is_admin: false,
+  });
+  const [creating, setCreating] = useState(false);
+  const [createError, setCreateError] = useState(null);
+  const [createdResult, setCreatedResult] = useState(null); // { username, generated_password }
+
   useEffect(() => {
     loadUsers();
+    loadRegistrationMode();
   }, []);
 
   const loadUsers = async () => {
@@ -22,6 +38,15 @@ export default function Admin({ currentUser }) {
       console.error(err);
     } finally {
       setLoading(false);
+    }
+  };
+
+  const loadRegistrationMode = async () => {
+    try {
+      const res = await api.getRegistrationMode();
+      setRegistrationMode(res.data.mode);
+    } catch (err) {
+      console.error('Failed to load registration mode', err);
     }
   };
 
@@ -61,6 +86,37 @@ export default function Admin({ currentUser }) {
     }
   };
 
+  const handleCreateUser = async (e) => {
+    e.preventDefault();
+    setCreating(true);
+    setCreateError(null);
+    setCreatedResult(null);
+    try {
+      const payload = {
+        username: createForm.username,
+        display_name: createForm.display_name,
+        is_admin: createForm.is_admin,
+      };
+      // On n'envoie le mot de passe que si l'admin en a saisi un —
+      // sinon le backend en génère un fort automatiquement.
+      if (createForm.password) {
+        payload.password = createForm.password;
+      }
+      const response = await api.adminCreateUser(payload);
+      setCreatedResult({
+        username: response.data.username,
+        generated_password: response.data.generated_password || null,
+      });
+      setCreateForm({ username: '', display_name: '', password: '', is_admin: false });
+      loadUsers();
+    } catch (err) {
+      setCreateError(err.response?.data?.detail || 'Erreur lors de la création du compte');
+      console.error(err);
+    } finally {
+      setCreating(false);
+    }
+  };
+
   if (!currentUser?.is_admin) {
     return (
       <div className="card p-8 text-center max-w-md mx-auto mt-8">
@@ -69,6 +125,10 @@ export default function Admin({ currentUser }) {
       </div>
     );
   }
+
+  // Création manuelle uniquement pertinente en mode "closed" (Privé) ou "open" (Ouvert).
+  // En mode "invite", tous les comptes doivent passer par le flux d'invitation.
+  const canCreateManually = registrationMode === 'closed' || registrationMode === 'open';
 
   return (
     <div>
@@ -86,6 +146,125 @@ export default function Admin({ currentUser }) {
           }}
         >
           ⚠️ {error}
+        </div>
+      )}
+
+      {/* ── Création de compte (Privé ou Ouvert uniquement) ── */}
+      {registrationMode !== null && (
+        <div className="card p-6 gap-section mb-6">
+          <div className="flex items-center justify-between">
+            <h3 className="text-lg font-semibold" style={{ color: 'var(--text-1)' }}>
+              ➕ Créer un compte
+            </h3>
+            {canCreateManually && (
+              <button
+                onClick={() => { setShowCreateForm(!showCreateForm); setCreatedResult(null); setCreateError(null); }}
+                className="btn btn-secondary text-xs"
+              >
+                {showCreateForm ? 'Fermer' : 'Nouveau compte'}
+              </button>
+            )}
+          </div>
+
+          {!canCreateManually && (
+            <p className="text-xs mt-2" style={{ color: 'var(--text-3)' }}>
+              🔒 Le mode d'inscription actuel est <strong>"Sur invitation"</strong>. Pour créer un compte,
+              générez un lien d'invitation depuis Paramètres → Inscription, ou changez le mode d'inscription.
+            </p>
+          )}
+
+          {canCreateManually && showCreateForm && (
+            <form onSubmit={handleCreateUser} className="mt-4 space-y-3">
+              {createError && (
+                <div className="p-2 rounded text-xs" style={{ background: 'var(--danger-light)', border: '1px solid var(--danger)', color: 'var(--danger)' }}>
+                  ⚠️ {createError}
+                </div>
+              )}
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-xs font-medium mb-1" style={{ color: 'var(--text-2)' }}>Identifiant*</label>
+                  <input
+                    type="text"
+                    required
+                    minLength={3}
+                    maxLength={50}
+                    value={createForm.username}
+                    onChange={e => setCreateForm({ ...createForm, username: e.target.value })}
+                    className="w-full px-2 py-1.5 text-sm rounded input-field"
+                    placeholder="ex: jdupont"
+                    autoComplete="off"
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs font-medium mb-1" style={{ color: 'var(--text-2)' }}>Nom affiché*</label>
+                  <input
+                    type="text"
+                    required
+                    maxLength={100}
+                    value={createForm.display_name}
+                    onChange={e => setCreateForm({ ...createForm, display_name: e.target.value })}
+                    className="w-full px-2 py-1.5 text-sm rounded input-field"
+                    placeholder="ex: Jean Dupont"
+                  />
+                </div>
+                <div className="sm:col-span-2">
+                  <label className="block text-xs font-medium mb-1" style={{ color: 'var(--text-2)' }}>
+                    Mot de passe
+                    <span className="ml-1 font-normal" style={{ color: 'var(--text-3)' }}>
+                      (optionnel — généré automatiquement si laissé vide, affiché une seule fois pour que vous le transmettiez)
+                    </span>
+                  </label>
+                  <input
+                    type="password"
+                    minLength={6}
+                    value={createForm.password}
+                    onChange={e => setCreateForm({ ...createForm, password: e.target.value })}
+                    className="w-full px-2 py-1.5 text-sm rounded input-field"
+                    placeholder="Laisser vide pour génération automatique"
+                    autoComplete="new-password"
+                  />
+                </div>
+                <div className="sm:col-span-2 flex items-center gap-2">
+                  <input
+                    type="checkbox"
+                    id="create-is-admin"
+                    checked={createForm.is_admin}
+                    onChange={e => setCreateForm({ ...createForm, is_admin: e.target.checked })}
+                    className="w-4 h-4"
+                  />
+                  <label htmlFor="create-is-admin" className="text-xs" style={{ color: 'var(--text-2)' }}>
+                    Créer en tant qu'administrateur
+                  </label>
+                </div>
+              </div>
+
+              <button type="submit" disabled={creating} className="btn btn-primary text-sm">
+                {creating ? 'Création...' : 'Créer le compte'}
+              </button>
+            </form>
+          )}
+
+          {createdResult && (
+            <div className="mt-4 p-3 rounded text-sm" style={{ background: 'var(--success-light)', border: '1px solid var(--success)' }}>
+              <p style={{ color: 'var(--text-1)' }}>
+                ✅ Compte <strong>@{createdResult.username}</strong> créé avec succès.
+              </p>
+              {createdResult.generated_password && (
+                <div className="mt-2">
+                  <p className="text-xs" style={{ color: 'var(--text-2)' }}>
+                    Mot de passe généré — copiez-le maintenant et transmettez-le à l'utilisateur par un canal sécurisé (il ne sera plus jamais affiché) :
+                  </p>
+                  <code
+                    className="block mt-1 px-2 py-1.5 rounded text-sm select-all"
+                    style={{ background: 'var(--bg-base)', border: '1px solid var(--border)', color: 'var(--text-1)' }}
+                  >
+                    {createdResult.generated_password}
+                  </code>
+                </div>
+              )}
+            </div>
+          )}
         </div>
       )}
 
@@ -209,6 +388,8 @@ export default function Admin({ currentUser }) {
           <li>✅ Le premier utilisateur créé est automatiquement administrateur</li>
           <li>✅ Seul un admin peut accéder à cette console</li>
           <li>✅ Un admin peut promouvoir/rétrograder d'autres utilisateurs</li>
+          <li>✅ Un admin peut créer un compte directement en mode "Privé" ou "Ouvert"</li>
+          <li>🔒 En mode "Sur invitation", passez par les liens d'invitation (Paramètres → Inscription)</li>
           <li>🔒 Un admin ne peut pas modifier son propre statut</li>
           <li>🔒 <strong>Les administrateurs ne peuvent PAS être supprimés</strong> (rétrogradez-le d'abord)</li>
           <li>⚠️ Supprimer un utilisateur supprime aussi tous ses véhicules</li>

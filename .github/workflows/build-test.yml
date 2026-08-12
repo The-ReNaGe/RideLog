@@ -1,0 +1,80 @@
+name: Build & Compose Test
+
+on:
+  push:
+    branches: [main, master]
+  pull_request:
+    branches: [main, master]
+
+jobs:
+  build-and-run:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Créer le fichier de configuration (.env)
+        run: |
+          cp .env.example .env
+
+          # JWT_SECRET — obligatoire au démarrage
+          if grep -q "^JWT_SECRET=" .env; then
+            sed -i "s|^JWT_SECRET=.*|JWT_SECRET=$(openssl rand -hex 32)|" .env
+          else
+            echo "JWT_SECRET=$(openssl rand -hex 32)" >> .env
+          fi
+
+          # HA_INIT_KEY — obligatoire au démarrage (fonctionnalité HA non testée ici)
+          if grep -q "^HA_INIT_KEY=" .env; then
+            sed -i "s|^HA_INIT_KEY=.*|HA_INIT_KEY=$(openssl rand -hex 16)|" .env
+          else
+            echo "HA_INIT_KEY=$(openssl rand -hex 16)" >> .env
+          fi
+
+      - name: Valider la config docker-compose
+        run: docker compose config --quiet
+
+      - name: Build & démarrage des containers
+        run: docker compose up -d --build
+
+      - name: Attendre que le backend soit prêt (/health)
+        run: |
+          for i in $(seq 1 60); do
+            if curl -sf http://localhost:8000/health > /dev/null; then
+              echo "✅ Backend prêt après ${i}x2s"
+              exit 0
+            fi
+            sleep 2
+          done
+          echo "❌ Backend jamais devenu healthy (timeout 120s)"
+          exit 1
+
+      - name: Vérifier que le frontend répond (http://localhost:3100)
+        run: |
+          for i in $(seq 1 30); do
+            if curl -sf http://localhost:3100 > /dev/null; then
+              echo "✅ Frontend prêt après ${i}x2s"
+              exit 0
+            fi
+            sleep 2
+          done
+          echo "❌ Frontend jamais accessible (timeout 60s)"
+          exit 1
+
+      - name: État des containers
+        if: always()
+        run: docker compose ps
+
+      - name: Logs backend (en cas d'échec)
+        if: failure()
+        run: docker logs ridelog-backend --tail 150
+
+      - name: Logs frontend (en cas d'échec)
+        if: failure()
+        run: docker logs ridelog-frontend --tail 150
+
+      - name: Nettoyage
+        if: always()
+        run: docker compose down -v

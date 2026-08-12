@@ -70,6 +70,9 @@ export const api = {
   promoteUser: (userId) =>
     client.put(`/admin/users/${userId}/promote`),
 
+  adminCreateUser: (data) =>
+    client.post('/admin/users', data),
+
   // Invitations
   getInvitations: () =>
     client.get('/admin/invitations'),

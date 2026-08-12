@@ -196,7 +196,7 @@ Pour la documentation technique complète (logique de calcul, mapping des interv
 ## Besoin d'aide ?
 
 - Ouvre une **issue** pour signaler un bug ou proposer une feature
-- Consulte [claude.md](claude.md) pour la documentation technique détaillée
+- Consulte [claude.md](CLAUDE.md) pour la documentation technique détaillée
 - Consulte la doc Swagger sur http://localhost:8000/docs pour explorer l'API
 
 ---

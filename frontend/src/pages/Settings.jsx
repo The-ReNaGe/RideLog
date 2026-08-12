@@ -3,6 +3,7 @@ import { api } from '../lib/api';
 import DiscordIntegration from '../components/integrations/DiscordIntegration';
 import HomeAssistantIntegration from '../components/integrations/HomeAssistantIntegration';
 import APIDocumentation from '../components/APIDocumentation';
+import { copyToClipboard } from '../lib/clipboard';
 
 export default function Settings({ currentUser }) {
   const [activeTab, setActiveTab] = useState('discord');
@@ -214,6 +215,7 @@ function InscriptionSettings() {
   const [invCreating, setInvCreating] = useState(false);
   const [expiresHours, setExpiresHours] = useState(48);
   const [copiedId, setCopiedId] = useState(null);
+  const [copyError, setCopyError] = useState(null);
 
   useEffect(() => {
     loadMode();
@@ -278,11 +280,16 @@ function InscriptionSettings() {
     }
   };
 
-  const copyInviteLink = (token) => {
+  const copyInviteLink = async (token) => {
+    setCopyError(null);
     const link = `${window.location.origin}/invite/${token}`;
-    navigator.clipboard.writeText(link);
-    setCopiedId(token);
-    setTimeout(() => setCopiedId(null), 2000);
+    const success = await copyToClipboard(link);
+    if (success) {
+      setCopiedId(token);
+      setTimeout(() => setCopiedId(null), 2000);
+    } else {
+      setCopyError('Impossible de copier automatiquement. Copiez le lien manuellement : ' + link);
+    }
   };
 
   if (loading) {
@@ -362,6 +369,12 @@ function InscriptionSettings() {
           <p className="text-xs mb-4" style={{ color: 'var(--text-3)' }}>
             Créez des liens à usage unique pour permettre à de nouvelles personnes de s'inscrire.
           </p>
+
+          {copyError && (
+            <div className="mb-3 p-2 rounded text-xs" style={{ background: 'var(--warning-light)', border: '1px solid var(--warning)', color: 'var(--warning)' }}>
+              ⚠️ {copyError}
+            </div>
+          )}
 
           <div className="flex items-end gap-3 mb-4">
             <div>

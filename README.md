@@ -296,4 +296,4 @@ Ce projet est sous licence [AGPL-3.0](LICENSE).
 
 ---
 
-<p align="right">RideLog v1.5.0</p>
+<p align="right">RideLog v1.5.3</p>
