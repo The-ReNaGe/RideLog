@@ -203,17 +203,13 @@ Pour la documentation technique complète (logique de calcul, mapping des interv
 
 # Procédure de changement de version
 
-Pour changer la version du projet (backend, frontend, intégration HA, README) :
+La version est gérée automatiquement par [release-please](https://github.com/googleapis/release-please) — **il n'y a plus rien à faire manuellement**.
 
-1. Modifie le fichier `VERSION` à la racine du projet.
-2. Exécute la commande suivante à la racine :
-   ```bash
-   node update-version.js
-   ```
-   Toutes les versions dans le code et la documentation seront mises à jour automatiquement (backend, frontend, Home Assistant, etc.).
-3. Rebuild le frontend (`npm run build` ou via Docker) et redémarre les conteneurs si besoin.
+1. Merge tes PR sur `main` avec des messages [Conventional Commits](https://www.conventionalcommits.org/) (`feat:`, `fix:`, ...).
+2. Le workflow `.github/workflows/release-please.yml` maintient automatiquement une "Release PR" qui accumule les changements depuis la dernière version, en déduit le prochain numéro de version (`fix` → patch, `feat` → minor, `BREAKING CHANGE` → major), et met à jour tous les fichiers concernés (`VERSION`, `frontend/src/version.js`, `backend/main.py`, `frontend/package.json`, `ha-integration/hacs.json`, `ha-integration/custom_components/ridelog/manifest.json`, `README.md`).
+3. Merger cette Release PR crée automatiquement le tag Git et la GitHub Release avec un changelog généré à partir des commits.
+4. Optionnel : une fois la release publiée, tu peux éditer sa description sur GitHub pour y ajouter des captures d'écran des nouvelles fonctionnalités.
 
-**Notes :**
-- Le frontend lit la version depuis `src/version.js`, généré automatiquement.
-- Le script n'est pas lancé automatiquement par Docker : exécute-le avant chaque build.
-- Une vérification automatique est faite par CI : si des fichiers ne sont pas synchronisés avec `VERSION`, le workflow échouera.
+**Notes :**
+- Les fichiers listés ci-dessus (dont `frontend/src/version.js`, lu par l'UI) sont mis à jour uniquement par la Release PR — ne les modifie jamais à la main.
+- La config se trouve dans `release-please-config.json` (fichiers à mettre à jour) et `.release-please-manifest.json` (version actuellement publiée).
