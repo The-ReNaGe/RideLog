@@ -77,6 +77,14 @@ docker compose up -d --build
 # Teste tes modifications sur http://localhost:3100
 ```
 
+Si tu touches à `backend/maintenance_calculator.py`, `backend/security.py` ou aux routes `auth`/`admin`, lance aussi la suite de tests (CI obligatoire sur toute PR, voir `CLAUDE.md` section 19) :
+
+```bash
+cd backend
+pip install -r requirements-dev.txt
+python -m pytest tests/ -v
+```
+
 ### 4. Commit
 
 On utilise les [Conventional Commits](https://www.conventionalcommits.org/) :
@@ -134,10 +142,10 @@ RideLog/
 │   ├── custom_components/ridelog/  # Composant HA complet
 │   └── templates/                  # Templates cartes Lovelace
 ├── docker-compose.yml              # Orchestration des services
-└── claude.md                       # Documentation technique détaillée
+└── CLAUDE.md                       # Documentation technique détaillée
 ```
 
-Pour la documentation technique complète (logique de calcul, mapping des interventions, guides de modification), voir [claude.md](claude.md).
+Pour la documentation technique complète (logique de calcul, mapping des interventions, guides de modification), voir [CLAUDE.md](CLAUDE.md).
 
 ---
 
