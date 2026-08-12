@@ -1,5 +1,15 @@
 # Changelog
 
+## [1.7.0](https://github.com/The-ReNaGe/RideLog/compare/v1.6.0...v1.7.0) (2026-08-12)
+
+
+### Features
+
+* changement de mot de passe en libre-service ([#3](https://github.com/The-ReNaGe/RideLog/issues/3)) ([ecfe1ae](https://github.com/The-ReNaGe/RideLog/commit/ecfe1ae8bff004f8510feda49b402d831f9d90c0))
+* invalide les JWT après un changement de mot de passe ([e622210](https://github.com/The-ReNaGe/RideLog/commit/e6222103a5c0f63abe10852d7f978bd2a262fc35))
+* réinitialisation de mot de passe par un admin, sans SMTP (closes [#3](https://github.com/The-ReNaGe/RideLog/issues/3)) ([0725fac](https://github.com/The-ReNaGe/RideLog/commit/0725fac78b7a0e6be7b3395ea32dd1cc660d1bad))
+* réinitialisation de mot de passe sans SMTP ([#3](https://github.com/The-ReNaGe/RideLog/issues/3)) ([b9f2114](https://github.com/The-ReNaGe/RideLog/commit/b9f2114ef17b0332efc749aa0b27be1a80c58af8))
+
 ## [1.6.0](https://github.com/The-ReNaGe/RideLog/compare/v1.5.3...v1.6.0) (2026-08-12)
 
 
