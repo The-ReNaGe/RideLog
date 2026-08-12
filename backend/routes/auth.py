@@ -75,6 +75,20 @@ class UserResponse(BaseModel):
     created_at: str
 
 
+class AdminCreateUserRequest(BaseModel):
+    username: str = Field(..., min_length=3, max_length=50)
+    display_name: str = Field(..., min_length=1, max_length=100)
+    password: str | None = Field(None, min_length=6, max_length=200)
+    is_admin: bool = False
+
+
+class AdminCreateUserResponse(UserResponse):
+    # Mot de passe généré automatiquement si l'admin n'en a pas fourni un.
+    # N'est renvoyé qu'une seule fois, à la création — jamais stocké en clair,
+    # jamais renvoyé par un autre endpoint (get_all_users ne l'inclut pas).
+    generated_password: str | None = None
+
+
 # ═══════════════════════════════════════════════════════════════════════════
 # Routes d'authentification
 # ═══════════════════════════════════════════════════════════════════════════
@@ -293,6 +307,84 @@ async def get_all_users(
 ):
     users = db.query(User).all()
     return [u.to_dict() for u in users]
+
+
+@router.post("/admin/users", response_model=AdminCreateUserResponse, status_code=status.HTTP_201_CREATED)
+async def admin_create_user(
+    data: AdminCreateUserRequest,
+    current_admin: User = Depends(get_current_admin),
+    db: Session = Depends(get_db),
+):
+    """
+    Crée un compte utilisateur directement, sans passer par /auth/register.
+
+    Nécessaire en mode d'inscription 'closed' ("Privé") : dans ce mode,
+    /auth/register refuse toute inscription (sauf le tout premier compte),
+    donc seul un admin peut créer de nouveaux comptes via cet endpoint.
+
+    Sécurité :
+    - Réservé aux admins (get_current_admin)
+    - Même politique de hachage que le reste de l'app (bcrypt coût 12,
+      via hash_password() — aucune différence de traitement avec /register)
+    - Mot de passe généré cryptographiquement (secrets.token_urlsafe) si
+      l'admin n'en fournit pas — jamais de mot de passe faible par défaut
+    - Le mot de passe généré n'est renvoyé qu'une seule fois dans la réponse
+      de création ; il n'est jamais journalisé ni renvoyé par un autre endpoint
+    - Vérifie l'unicité du username comme /auth/register
+    - Le nom "homeassistant" est réservé et ne peut pas être créé ici
+    - Bloqué si REGISTRATION_MODE == 'invite' : dans ce mode, tous les comptes
+      doivent passer par le flux d'invitation pour garder une trace cohérente
+      (qui a invité qui). Utilisable uniquement en mode 'closed' ou 'open'.
+    """
+    if app_config.REGISTRATION_MODE == "invite":
+        raise HTTPException(
+            status_code=403,
+            detail="Création manuelle désactivée en mode 'Sur invitation'. Utilisez les invitations.",
+        )
+
+    username_normalized = data.username.lower()
+
+    if db.query(User).filter(User.username == username_normalized).first():
+        raise HTTPException(status_code=409, detail="Cet identifiant est déjà utilisé")
+
+    if username_normalized == "homeassistant":
+        raise HTTPException(status_code=400, detail="Ce nom d'utilisateur est réservé")
+
+    generated_password = None
+    password = data.password
+    if not password:
+        # Mot de passe aléatoire fort — l'admin doit le communiquer à
+        # l'utilisateur par un canal sécurisé (pas email en clair, etc.)
+        generated_password = secrets.token_urlsafe(12)
+        password = generated_password
+
+    try:
+        password_hash = hash_password(password)
+        user = User(
+            username=username_normalized,
+            display_name=data.display_name,
+            password_hash=password_hash,
+            is_admin=data.is_admin,
+        )
+        db.add(user)
+        db.commit()
+        db.refresh(user)
+
+        logger.info(
+            "Utilisateur créé manuellement par admin %s: %s%s",
+            current_admin.username,
+            user.username,
+            " (mot de passe généré)" if generated_password else "",
+        )
+
+        result = user.to_dict()
+        result["generated_password"] = generated_password
+        return result
+
+    except Exception as e:
+        db.rollback()
+        logger.error("Erreur création utilisateur par admin: %s", e)
+        raise HTTPException(status_code=500, detail="Erreur lors de la création du compte")
 
 
 @router.delete("/admin/users/{user_id}")
