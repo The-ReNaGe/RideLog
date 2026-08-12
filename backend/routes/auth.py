@@ -89,6 +89,11 @@ class AdminCreateUserResponse(UserResponse):
     generated_password: str | None = None
 
 
+class ChangePasswordRequest(BaseModel):
+    current_password: str = Field(...)
+    new_password: str = Field(..., min_length=6, max_length=200)
+
+
 # ═══════════════════════════════════════════════════════════════════════════
 # Routes d'authentification
 # ═══════════════════════════════════════════════════════════════════════════
@@ -193,6 +198,57 @@ async def refresh_token(current_user: User = Depends(get_current_user)):
     new_token = create_access_token(current_user.id, current_user.username, password_changed_at=current_user.password_changed_at)
     logger.info("Token renouvelé pour: %s", current_user.username)
     return new_token
+
+
+@router.put("/auth/me/password", response_model=TokenResponse)
+async def change_own_password(
+    data: ChangePasswordRequest,
+    request: Request,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """
+    Permet à l'utilisateur connecté de changer son propre mot de passe.
+
+    Sécurité :
+    - Nécessite le mot de passe actuel (un token seul, même volé, ne suffit pas)
+    - Rate-limité par IP comme /auth/login (anti brute-force sur current_password)
+    - Invalide tous les tokens émis avant ce changement (password_changed_at,
+      voir get_current_user) — sauf celui renvoyé ici, réémis immédiatement
+      pour ne pas déconnecter l'utilisateur qui vient de faire l'opération
+    """
+    from datetime import datetime, timezone
+
+    client_ip = request.headers.get("x-forwarded-for", "").split(",")[0].strip() or request.client.host
+
+    wait = login_limiter.check(client_ip)
+    if wait > 0:
+        raise HTTPException(
+            status_code=429,
+            detail=f"Trop de tentatives. Réessayez dans {wait} secondes.",
+            headers={"Retry-After": str(wait)},
+        )
+
+    if not verify_password(data.current_password, current_user.password_hash):
+        login_limiter.record_failure(client_ip)
+        # 400 et non 401 : l'utilisateur EST authentifié (token valide), c'est
+        # juste une erreur de saisie. Un 401 ici déclencherait l'intercepteur
+        # axios global (gestion "token expiré") et le déconnecterait à tort.
+        raise HTTPException(status_code=400, detail="Mot de passe actuel incorrect")
+
+    login_limiter.record_success(client_ip)
+
+    # current_user vient de la session (séparée, déjà fermée) de get_current_user —
+    # on re-requête via la session locale avant toute mutation, comme pour les
+    # autres routes admin (delete_user, promote_user).
+    user = db.query(User).filter(User.id == current_user.id).first()
+    user.password_hash = hash_password(data.new_password)
+    user.password_changed_at = datetime.now(timezone.utc)
+    db.commit()
+    db.refresh(user)
+
+    logger.info("Mot de passe changé par l'utilisateur: %s", user.username)
+    return create_access_token(user.id, user.username, password_changed_at=user.password_changed_at)
 
 
 @router.post("/auth/ha-init", response_model=TokenResponse)

@@ -60,6 +60,9 @@ export const api = {
   initHomeAssistant: () =>
     client.post('/auth/ha-init'),
 
+  changeMyPassword: (currentPassword, newPassword) =>
+    client.put('/auth/me/password', { current_password: currentPassword, new_password: newPassword }),
+
   // Admin
   getAllUsers: () =>
     client.get('/admin/users'),

@@ -44,6 +44,16 @@ export default function Settings({ currentUser }) {
         >
           🔔 Rappels
         </button>
+        <button
+          onClick={() => setActiveTab('compte')}
+          className="px-4 py-3 font-medium transition-colors border-b-2 whitespace-nowrap"
+          style={{
+            borderColor: activeTab === 'compte' ? 'var(--accent)' : 'transparent',
+            color: activeTab === 'compte' ? 'var(--accent)' : 'var(--text-2)',
+          }}
+        >
+          🔑 Compte
+        </button>
         {currentUser?.is_admin && (
           <button
             onClick={() => setActiveTab('inscription')}
@@ -76,6 +86,9 @@ export default function Settings({ currentUser }) {
 
       {/* REMINDERS TAB */}
       {activeTab === 'reminders' && <ReminderSettings />}
+
+      {/* COMPTE TAB */}
+      {activeTab === 'compte' && <AccountSettings />}
 
       {/* INSCRIPTION TAB */}
       {activeTab === 'inscription' && currentUser?.is_admin && (
@@ -168,6 +181,118 @@ function ReminderSettings() {
           </p>
         </div>
       )}
+    </div>
+  );
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// COMPTE — changement de mot de passe (libre-service, tous utilisateurs)
+// ═══════════════════════════════════════════════════════════════════════════
+
+function AccountSettings() {
+  const [currentPassword, setCurrentPassword] = useState('');
+  const [newPassword, setNewPassword] = useState('');
+  const [newPasswordConfirm, setNewPasswordConfirm] = useState('');
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState(null);
+  const [success, setSuccess] = useState(false);
+
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    setError(null);
+    setSuccess(false);
+
+    if (newPassword !== newPasswordConfirm) {
+      setError('Les nouveaux mots de passe ne correspondent pas');
+      return;
+    }
+    if (newPassword.length < 6) {
+      setError('Le nouveau mot de passe doit faire au moins 6 caractères');
+      return;
+    }
+
+    setSaving(true);
+    try {
+      const response = await api.changeMyPassword(currentPassword, newPassword);
+      // Le backend invalide les anciens tokens et en renvoie un nouveau —
+      // on le stocke immédiatement pour rester connecté sur cet appareil.
+      localStorage.setItem('access_token', response.data.access_token);
+      setCurrentPassword('');
+      setNewPassword('');
+      setNewPasswordConfirm('');
+      setSuccess(true);
+    } catch (err) {
+      setError(err.response?.data?.detail || 'Erreur lors du changement de mot de passe');
+      console.error(err);
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  return (
+    <div>
+      <div className="card p-4 text-sm mb-6" style={{ background: 'var(--accent-light)', border: '1px solid var(--accent)', color: 'var(--text-1)' }}>
+        <p className="font-bold mb-1">🔑 Sécurité du compte</p>
+        <p style={{ color: 'var(--text-2)' }}>
+          Changez votre mot de passe quand vous le souhaitez, sans passer par un administrateur.
+          Ça déconnecte automatiquement vos autres sessions actives (autres appareils/navigateurs) — celle-ci reste connectée.
+        </p>
+      </div>
+
+      <div className="card p-6 gap-section max-w-lg">
+        <h3 className="text-lg font-semibold mb-4" style={{ color: 'var(--text-1)' }}>Changer mon mot de passe</h3>
+
+        {error && (
+          <div className="mb-4 p-3 rounded text-sm" style={{ background: 'var(--danger-light)', border: '1px solid var(--danger)', color: 'var(--danger)' }}>
+            ⚠️ {error}
+          </div>
+        )}
+        {success && (
+          <div className="mb-4 p-3 rounded text-sm" style={{ background: 'var(--success-light)', border: '1px solid var(--success)', color: 'var(--text-1)' }}>
+            ✅ Mot de passe changé avec succès.
+          </div>
+        )}
+
+        <form onSubmit={handleSubmit} className="space-y-4">
+          <div>
+            <label className="block text-sm font-medium mb-1.5" style={{ color: 'var(--text-2)' }}>Mot de passe actuel</label>
+            <input
+              type="password"
+              required
+              value={currentPassword}
+              onChange={e => setCurrentPassword(e.target.value)}
+              autoComplete="current-password"
+            />
+          </div>
+          <div>
+            <label className="block text-sm font-medium mb-1.5" style={{ color: 'var(--text-2)' }}>Nouveau mot de passe</label>
+            <input
+              type="password"
+              required
+              minLength={6}
+              value={newPassword}
+              onChange={e => setNewPassword(e.target.value)}
+              autoComplete="new-password"
+            />
+            <p className="text-xs mt-1" style={{ color: 'var(--text-3)' }}>Minimum 6 caractères</p>
+          </div>
+          <div>
+            <label className="block text-sm font-medium mb-1.5" style={{ color: 'var(--text-2)' }}>Confirmer le nouveau mot de passe</label>
+            <input
+              type="password"
+              required
+              minLength={6}
+              value={newPasswordConfirm}
+              onChange={e => setNewPasswordConfirm(e.target.value)}
+              autoComplete="new-password"
+            />
+          </div>
+
+          <button type="submit" disabled={saving} className="btn btn-primary w-full mt-2">
+            {saving ? 'Changement...' : 'Changer le mot de passe'}
+          </button>
+        </form>
+      </div>
     </div>
   );
 }
