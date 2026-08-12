@@ -8,6 +8,7 @@ import AuthPage from './pages/AuthPage';
 import Planning from './pages/Planning';
 import Dashboard from './pages/Dashboard';
 import version from './version';
+import { api } from './lib/api';
 
 class ErrorBoundary extends React.Component {
   constructor(props) {
@@ -249,6 +250,80 @@ function AppContent({ isAuthenticated, currentUser, onLogout }) {
   );
 }
 
+function ForcePasswordChange({ currentUser, onDone, onLogout }) {
+  const [currentPassword, setCurrentPassword] = useState('');
+  const [newPassword, setNewPassword] = useState('');
+  const [newPasswordConfirm, setNewPasswordConfirm] = useState('');
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState(null);
+
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    setError(null);
+
+    if (newPassword !== newPasswordConfirm) {
+      setError('Les mots de passe ne correspondent pas');
+      return;
+    }
+    if (newPassword.length < 6) {
+      setError('Le mot de passe doit faire au moins 6 caractères');
+      return;
+    }
+
+    setSaving(true);
+    try {
+      const response = await api.changeMyPassword(currentPassword, newPassword);
+      localStorage.setItem('access_token', response.data.access_token);
+      const updatedUser = { ...currentUser, must_change_password: false };
+      localStorage.setItem('user', JSON.stringify(updatedUser));
+      onDone(updatedUser);
+    } catch (err) {
+      setError(err.response?.data?.detail || 'Erreur lors du changement de mot de passe');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  return (
+    <div className="min-h-screen flex items-center justify-center p-4" style={{ background: 'var(--bg-base)' }}>
+      <div className="w-full max-w-md card p-8 gap-section">
+        <h2 className="text-xl font-bold" style={{ color: 'var(--text-1)' }}>🔑 Mot de passe temporaire</h2>
+        <p className="text-sm" style={{ color: 'var(--text-2)' }}>
+          Un administrateur vous a attribué un mot de passe temporaire. Choisissez votre propre mot de passe pour continuer — l'administrateur ne le connaîtra pas.
+        </p>
+
+        {error && (
+          <div className="p-2 rounded text-xs" style={{ background: 'var(--danger-light)', border: '1px solid var(--danger)', color: 'var(--danger)' }}>
+            ⚠️ {error}
+          </div>
+        )}
+
+        <form onSubmit={handleSubmit} className="space-y-3 mt-3">
+          <div>
+            <label className="block text-xs font-medium mb-1" style={{ color: 'var(--text-2)' }}>Mot de passe temporaire (reçu de l'admin)</label>
+            <input type="password" required value={currentPassword} onChange={e => setCurrentPassword(e.target.value)} className="input w-full" autoComplete="current-password" />
+          </div>
+          <div>
+            <label className="block text-xs font-medium mb-1" style={{ color: 'var(--text-2)' }}>Nouveau mot de passe</label>
+            <input type="password" required minLength={6} value={newPassword} onChange={e => setNewPassword(e.target.value)} className="input w-full" autoComplete="new-password" />
+          </div>
+          <div>
+            <label className="block text-xs font-medium mb-1" style={{ color: 'var(--text-2)' }}>Confirmer le nouveau mot de passe</label>
+            <input type="password" required minLength={6} value={newPasswordConfirm} onChange={e => setNewPasswordConfirm(e.target.value)} className="input w-full" autoComplete="new-password" />
+          </div>
+          <button type="submit" disabled={saving} className="btn btn-primary w-full mt-4">
+            {saving ? 'Enregistrement...' : 'Définir mon mot de passe'}
+          </button>
+        </form>
+
+        <button onClick={onLogout} className="text-xs w-full text-center mt-4 underline" style={{ color: 'var(--text-3)' }}>
+          Se déconnecter
+        </button>
+      </div>
+    </div>
+  );
+}
+
 export default function App() {
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [currentUser, setCurrentUser] = useState(null);
@@ -298,6 +373,14 @@ export default function App() {
   }
 
   if (!isAuthenticated) return <ErrorBoundary><AuthPage onLoginSuccess={handleLoginSuccess} /></ErrorBoundary>;
+
+  if (currentUser?.must_change_password) {
+    return (
+      <ErrorBoundary>
+        <ForcePasswordChange currentUser={currentUser} onDone={setCurrentUser} onLogout={handleLogout} />
+      </ErrorBoundary>
+    );
+  }
 
   return (
     <ErrorBoundary>

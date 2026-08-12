@@ -34,7 +34,7 @@ import os
 import bcrypt
 import jwt
 from pydantic import BaseModel
-from fastapi import HTTPException, Header, Depends, status
+from fastapi import HTTPException, Header, Depends, status, Request
 from sqlalchemy.orm import Session
 
 if TYPE_CHECKING:
@@ -66,6 +66,7 @@ class TokenData(BaseModel):
     user_id: int
     username: str
     exp: int
+    pwd_ts: int = 0  # Timestamp de password_changed_at au moment de l'émission (voir get_current_user)
 
 
 class TokenResponse(BaseModel):
@@ -112,37 +113,47 @@ def verify_password(password: str, password_hash: str) -> bool:
 # Fonctions JWT
 # ═══════════════════════════════════════════════════════════════════════════
 
-def create_access_token(user_id: int, username: str, expire_days: Optional[int] = None) -> TokenResponse:
+def create_access_token(
+    user_id: int,
+    username: str,
+    expire_days: Optional[int] = None,
+    password_changed_at: Optional[datetime] = None,
+) -> TokenResponse:
     """
     Crée un JWT token d'accès.
-    
+
     Sécurité du token:
     - Algorithme: HS256 (HMAC-SHA256)
     - Secret: Défini dans JWT_SECRET
     - Expiration: Configurable (par défaut 7 jours)
-    - Payload: user_id, username, exp
-    
+    - Payload: user_id, username, exp, pwd_ts
+
     Le token contient tout ce qui est nécessaire pour identifier l'utilisateur
     (pas de stockage de session côté serveur).
-    
+
     Args:
         user_id: ID de l'utilisateur
         username: Nom d'utilisateur
         expire_days: Jours de validité (défaut: JWT_EXPIRE_DAYS = 7)
+        password_changed_at: Horodatage du dernier changement de mot de passe
+            de l'utilisateur — embarqué dans le token (pwd_ts) et comparé à
+            chaque requête (get_current_user) pour invalider tout token émis
+            AVANT un reset/changement de mot de passe.
     """
     if expire_days is None:
         expire_days = JWT_EXPIRE_DAYS
-    
+
     now = datetime.now(timezone.utc)
     expire = now + timedelta(days=expire_days)
-    
+
     payload = {
         "user_id": user_id,
         "username": username,
         "exp": int(expire.timestamp()),  # Unix timestamp
         "iat": int(now.timestamp()),
+        "pwd_ts": int(password_changed_at.timestamp()) if password_changed_at else 0,
     }
-    
+
     token = jwt.encode(payload, JWT_SECRET, algorithm=JWT_ALGORITHM)
     
     return TokenResponse(
@@ -169,7 +180,8 @@ def verify_token(token: str) -> Optional[TokenData]:
         return TokenData(
             user_id=payload.get("user_id"),
             username=payload.get("username"),
-            exp=exp
+            exp=exp,
+            pwd_ts=payload.get("pwd_ts", 0),
         )
     except (jwt.InvalidTokenError, jwt.ExpiredSignatureError, jwt.DecodeError):
         return None
@@ -191,6 +203,15 @@ def decode_token_unsafe(token: str) -> Optional[dict]:
 # ═══════════════════════════════════════════════════════════════════════════
 # Dépendances FastAPI pour l'authentification
 # ═══════════════════════════════════════════════════════════════════════════
+
+# Routes accessibles même quand must_change_password=True — l'utilisateur doit
+# pouvoir consulter son profil et changer son mot de passe, rien d'autre.
+_ALLOWED_PATHS_WHEN_MUST_CHANGE_PASSWORD = {
+    "/api/auth/me",
+    "/api/auth/me/password",
+    "/api/auth/logout",
+}
+
 
 def _get_current_user_from_token(authorization: str = Header(None)) -> TokenData:
     """Valide le JWT et retourne juste les données du token (pas l'utilisateur)."""
@@ -224,6 +245,7 @@ def _get_current_user_from_token(authorization: str = Header(None)) -> TokenData
 
 
 async def get_current_user(
+    request: Request,
     token_data: TokenData = Depends(_get_current_user_from_token),
 ) -> "User":
     """
@@ -253,6 +275,27 @@ async def get_current_user(
                 status_code=status.HTTP_401_UNAUTHORIZED,
                 detail="Utilisateur non trouvé",
             )
+
+        # Invalide les tokens émis AVANT un changement/reset de mot de passe
+        # (protège un compte compromis : le vieux token cesse de fonctionner
+        # dès que le mot de passe est changé, sans attendre son expiration).
+        if user.password_changed_at is not None:
+            changed_ts = int(user.password_changed_at.timestamp())
+            if token_data.pwd_ts < changed_ts:
+                raise HTTPException(
+                    status_code=status.HTTP_401_UNAUTHORIZED,
+                    detail="Session invalidée suite à un changement de mot de passe. Reconnectez-vous.",
+                )
+
+        # Mot de passe temporaire (créé/reset par un admin) : bloque tout sauf
+        # consulter son profil et le changer, tant qu'il n'a pas été remplacé
+        # par un mot de passe choisi par l'utilisateur (voir change_own_password).
+        if user.must_change_password and request.url.path not in _ALLOWED_PATHS_WHEN_MUST_CHANGE_PASSWORD:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Vous devez changer votre mot de passe temporaire avant de continuer.",
+            )
+
         return user
     finally:
         db.close()

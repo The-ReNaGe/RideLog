@@ -25,6 +25,9 @@ class User(Base):
     is_admin = Column(Boolean, default=False)  # Premier user = admin
     is_integration_account = Column(Boolean, default=False)  # Compte spécial (homeassistant) - accès à tous les véhicules
     created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
+    password_changed_at = Column(DateTime, nullable=True)  # Invalide les JWT émis avant ce changement (voir security.py)
+    must_change_password = Column(Boolean, default=False)  # True après un mot de passe créé/reset par un admin
+    password_reset_requested_at = Column(DateTime, nullable=True)  # Demande de reset initiée par l'utilisateur (login)
 
     # Relation: Un utilisateur peut avoir plusieurs véhicules
     vehicles = relationship("Vehicle", back_populates="owner", cascade="all, delete-orphan")
@@ -39,6 +42,8 @@ class User(Base):
             "is_admin": self.is_admin,
             "is_integration_account": self.is_integration_account,
             "created_at": self.created_at.isoformat(),
+            "must_change_password": bool(self.must_change_password),
+            "password_reset_requested_at": self.password_reset_requested_at.isoformat() if self.password_reset_requested_at else None,
         }
         if include_password:
             data["password_hash"] = self.password_hash
@@ -373,6 +378,16 @@ def init_db():
                 conn.execute(text("ALTER TABLE vehicles ADD COLUMN service_interval_km INTEGER"))
             if "service_interval_months" not in columns:
                 conn.execute(text("ALTER TABLE vehicles ADD COLUMN service_interval_months INTEGER"))
+
+    if "users" in inspector.get_table_names():
+        columns = {column["name"] for column in inspector.get_columns("users")}
+        with engine.begin() as conn:
+            if "password_changed_at" not in columns:
+                conn.execute(text("ALTER TABLE users ADD COLUMN password_changed_at DATETIME"))
+            if "must_change_password" not in columns:
+                conn.execute(text("ALTER TABLE users ADD COLUMN must_change_password BOOLEAN DEFAULT 0"))
+            if "password_reset_requested_at" not in columns:
+                conn.execute(text("ALTER TABLE users ADD COLUMN password_reset_requested_at DATETIME"))
 
     if "fuel_logs" not in inspector.get_table_names():
         FuelLog.__table__.create(bind=engine)
