@@ -172,7 +172,7 @@ async def login(data: LoginRequest, request: Request, db: Session = Depends(get_
         raise HTTPException(status_code=401, detail="Identifiant ou mot de passe incorrect")
 
     login_limiter.record_success(client_ip)
-    token = create_access_token(user.id, user.username)
+    token = create_access_token(user.id, user.username, password_changed_at=user.password_changed_at)
     logger.info("Login réussi pour: %s", user.username)
     return token
 
@@ -190,7 +190,7 @@ async def logout(current_user: User = Depends(get_current_user)):
 
 @router.post("/auth/refresh", response_model=TokenResponse)
 async def refresh_token(current_user: User = Depends(get_current_user)):
-    new_token = create_access_token(current_user.id, current_user.username)
+    new_token = create_access_token(current_user.id, current_user.username, password_changed_at=current_user.password_changed_at)
     logger.info("Token renouvelé pour: %s", current_user.username)
     return new_token
 
@@ -239,7 +239,7 @@ async def init_home_assistant(
         if ha_user:
             # Compte existant — renouveler le token uniquement (comportement normal au redémarrage HA)
             logger.info("Compte homeassistant existant — renouvellement du token")
-            return create_access_token(ha_user.id, "homeassistant", expire_days=30)
+            return create_access_token(ha_user.id, "homeassistant", expire_days=30, password_changed_at=ha_user.password_changed_at)
 
         # Créer le compte avec un mot de passe aléatoire (jamais utilisé pour se connecter)
         ha_password_hash = hash_password(secrets.token_urlsafe(32))
@@ -291,7 +291,7 @@ async def refresh_token_legacy(
         raise HTTPException(status_code=404, detail="Utilisateur non trouvé")
 
     expire_days = 30 if user.is_integration_account else 7
-    new_token = create_access_token(user.id, user.username, expire_days=expire_days)
+    new_token = create_access_token(user.id, user.username, expire_days=expire_days, password_changed_at=user.password_changed_at)
     logger.info("Token rafraîchi pour %s (%dj)", user.username, expire_days)
     return new_token
 

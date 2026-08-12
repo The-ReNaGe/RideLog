@@ -25,6 +25,7 @@ class User(Base):
     is_admin = Column(Boolean, default=False)  # Premier user = admin
     is_integration_account = Column(Boolean, default=False)  # Compte spécial (homeassistant) - accès à tous les véhicules
     created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
+    password_changed_at = Column(DateTime, nullable=True)  # Invalide les JWT émis avant ce changement (voir security.py)
 
     # Relation: Un utilisateur peut avoir plusieurs véhicules
     vehicles = relationship("Vehicle", back_populates="owner", cascade="all, delete-orphan")
@@ -373,6 +374,12 @@ def init_db():
                 conn.execute(text("ALTER TABLE vehicles ADD COLUMN service_interval_km INTEGER"))
             if "service_interval_months" not in columns:
                 conn.execute(text("ALTER TABLE vehicles ADD COLUMN service_interval_months INTEGER"))
+
+    if "users" in inspector.get_table_names():
+        columns = {column["name"] for column in inspector.get_columns("users")}
+        with engine.begin() as conn:
+            if "password_changed_at" not in columns:
+                conn.execute(text("ALTER TABLE users ADD COLUMN password_changed_at DATETIME"))
 
     if "fuel_logs" not in inspector.get_table_names():
         FuelLog.__table__.create(bind=engine)
