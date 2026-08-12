@@ -257,7 +257,7 @@ class MaintenanceCalculator:
                     entry["prices"] = annual_prices
                 elif key == "valve_clearance":
                     entry["km_interval"] = effective_km * 2
-                elif key == "oil_change":
+                elif key == "oil_change_moto":
                     entry["km_interval"] = effective_km
                     # months_interval = 12 déjà dans le JSON
 
@@ -334,7 +334,15 @@ class MaintenanceCalculator:
         next_due_date = None
 
         if km_interval is not None and last_maintenance_mileage is not None:
-            next_due_mileage = last_maintenance_mileage + km_interval
+            # Anti-drift : on arrondit au multiple de km_interval le plus proche
+            # plutôt que de simplement additionner. Sans ça, un entretien fait
+            # systématiquement un peu en retard décale l'échéance suivante d'autant,
+            # et ce décalage se cumule cycle après cycle (10 500 → 20 500 → 30 500...).
+            # En arrondissant, l'échéance suivante se recale toujours sur un multiple
+            # propre (10 500 + 10 000 → 20 000, pas 20 500), quel que soit le moment
+            # exact où l'entretien précédent a été fait.
+            naive_next_due = last_maintenance_mileage + km_interval
+            next_due_mileage = round(naive_next_due / km_interval) * km_interval
             km_remaining = next_due_mileage - current_mileage
         else:
             km_remaining = float('inf')
@@ -612,6 +620,11 @@ class MaintenanceCalculator:
             months_interval = interval_info.get("months_interval")
             condition_based = bool(interval_info.get("condition_based", False))
 
+            # Capturé AVANT la réécriture de last_mileage ci-dessous — sinon
+            # never_recorded (plus bas) ne voit jamais last_mileage=None pour
+            # les entretiens avec km_interval, et reste toujours à False.
+            never_recorded = last_date is None and last_mileage is None
+
             if km_interval is not None and last_mileage is None:
                 last_mileage = 0
 
@@ -646,7 +659,7 @@ class MaintenanceCalculator:
                 "km_interval": km_interval,
                 "months_interval": months_interval,
                 "condition_based": condition_based,
-                "never_recorded": last_date is None and last_mileage is None,
+                "never_recorded": never_recorded,
                 "has_override": interval_info.get("has_override", False),
             })
 

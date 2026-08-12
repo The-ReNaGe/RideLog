@@ -25,6 +25,7 @@
 16. [Surcharges d'intervalles par véhicule](#16-surcharges-dintervales-par-véhicule)
 17. [KPI cards VehicleDetail](#17-kpi-cards-vehicledetail)
 18. [Kilométrage moyen annuel](#18-kilométrage-moyen-annuel)
+19. [Tests backend](#19-tests-backend)
 
 ---
 
@@ -137,12 +138,18 @@ backend/
 ├── reminder_scheduler.py      # Scheduler background (rappels webhook)
 ├── Dockerfile
 ├── requirements.txt
+├── requirements-dev.txt       # + pytest, pytest-cov (tests uniquement, jamais dans l'image de prod)
+├── pytest.ini
 ├── data/
 │   ├── maintenance_intervals.json      # ★ INTERVALLES ET PRIX D'ENTRETIEN ★
-│   ├── maintenance_intervals.json.bak  # Backup du JSON principal (non chargé par l'app)
 │   ├── brands.json                     # Catégorisation marques (accessible/generalist/premium)
 │   ├── vehicle_models.json             # Liste marques/modèles pour autocomplétion
 │   └── communes.csv                    # 39 202 communes françaises (géolocalisation)
+├── tests/                     # pytest — voir section 19
+│   ├── conftest.py
+│   ├── test_maintenance_calculator.py
+│   ├── test_login_rate_limiter.py
+│   └── test_auth_integration.py
 └── routes/
     ├── __init__.py        # secure_delete() — suppression sécurisée de fichiers
     ├── auth.py            # Login, register, invitations, admin users, gestion HA
@@ -158,7 +165,6 @@ backend/
 ### Vérification de l'utilisation des fichiers
 
 Tous les fichiers sont actifs :
-- `maintenance_intervals.json.bak` : backup manuel, **non chargé** par l'application (le seul fichier non actif)
 - `routes/__init__.py` : exporte `secure_delete()`, importé dans `auth.py` et `vehicles.py`
 - Tous les autres fichiers Python sont importés directement dans `main.py` ou dans d'autres modules
 
@@ -1399,5 +1405,47 @@ if (loading || !vehicle) { return <LoadingView />; }
 Si cette règle est violée, React lève l'erreur `Minified React error #310` en production.
 
 ---
+
+## 19. Tests backend
+
+### Vue d'ensemble
+
+Suite `pytest` dans `backend/tests/`, ajoutée pour couvrir la logique la plus critique et la plus exposée aux régressions silencieuses. Tourne uniquement en CI (`.github/workflows/pytest.yml`) et en local à la demande — jamais sur l'instance d'un utilisateur self-hosted, et `requirements-dev.txt` n'est jamais installé dans l'image Docker de production.
+
+### Lancer les tests
+
+```bash
+cd backend
+pip install -r requirements-dev.txt
+python -m pytest tests/ -v
+```
+
+### Fichiers
+
+| Fichier | Couvre |
+|---|---|
+| `test_maintenance_calculator.py` | `maintenance_calculator.py` — intervalles dynamiques moto, anti-drift, statuts, contrôle technique, filtrage motorisation, overrides. Aucune dépendance DB/HTTP. |
+| `test_login_rate_limiter.py` | `LoginRateLimiter` (`security.py`) — paliers 3/6/9/12+, reset après succès, isolation par IP. Aucune dépendance DB/HTTP. |
+| `test_auth_integration.py` | Routes `/auth/*` et `/admin/users/*` via `TestClient` sur une DB SQLite temporaire — register/login, changement de mot de passe, reset admin, mot de passe temporaire (`must_change_password`), demande de reset anti-énumération. |
+
+### `conftest.py` — points importants
+
+- **`DATABASE_URL` est fixé sur un fichier SQLite temporaire AVANT tout import du code applicatif** (en tête de fichier, avant même `import pytest`). `models.py` crée son moteur SQLAlchemy au moment de son propre import, sur la valeur de `DATABASE_URL` à cet instant précis — le fixer plus tard ne servirait à rien.
+- **Base vierge à chaque test** (`clean_db`, autouse) — `drop_all()` + `create_all()` avant chaque test, isolation totale.
+- **États globaux module-level à réinitialiser explicitement** — `login_limiter` (`security.py`) et `_ha_integration_enabled` / `_password_reset_enabled` (`routes/auth.py`) sont des singletons créés une fois à l'import du module. `clean_db` ne les touche pas (ce ne sont pas des colonnes DB) : sans fixtures dédiées (`clean_login_limiter`, `reset_module_level_flags`) pour les remettre à leur valeur par défaut avant/après chaque test, un test qui déclenche un verrouillage ou désactive une fonctionnalité pollue silencieusement tous les tests suivants de la session. C'est une source réelle de faux échecs rencontrée en écrivant cette suite — à garder en tête pour tout futur état global ajouté au projet.
+
+### Bugs trouvés en écrivant cette suite (corrigés dans la foulée)
+
+Ces trois bugs préexistaient dans le code, indépendamment des tests — ils ont juste été révélés en écrivant une couverture sérieuse de `maintenance_calculator.py` :
+
+1. **`oil_change_moto` jamais suivi au kilométrage** — `get_intervals_for_vehicle()` comparait `key == "oil_change"` au lieu de `key == "oil_change_moto"` (la vraie clé JSON). La vidange moto n'était donc suivie qu'au temps (12 mois), jamais au km.
+2. **Pas d'anti-drift sur `next_due_mileage`** — `calculate_maintenance_status()` faisait une simple addition (`last_mileage + km_interval`) sans arrondir au multiple le plus proche, contrairement à ce que documentait déjà cette section. Un entretien fait systématiquement en retard décalait l'échéance suivante d'autant, et ce décalage se cumulait cycle après cycle. Corrigé par un arrondi (`round(naive / km_interval) * km_interval`) qui recale toujours l'échéance sur un multiple propre.
+3. **`never_recorded` toujours `False` pour les entretiens kilométriques** — dans `get_all_upcoming_maintenances()`, `last_mileage` était réécrit à `0` (nécessaire pour calculer une échéance sans historique) *avant* que le flag `never_recorded` soit calculé à partir de cette même variable — donc jamais `None` au moment du test, et le badge "Jamais enregistré" ne s'affichait quasiment jamais côté UI pour ce type d'entretien.
+
+### Pour ajouter un test
+
+- Logique pure (calculs, pas de DB/HTTP) → `test_maintenance_calculator.py` ou nouveau fichier du même style, utiliser directement `from maintenance_calculator import calculator`.
+- Route API → `test_auth_integration.py` (ou nouveau fichier), utiliser la fixture `client` (déclenche le lifespan FastAPI sur la DB de test) et les helpers `register()` / `login()` / `auth_headers()` déjà définis en tête du fichier.
+- Nouvel état global module-level (nouveau flag `_xxx_enabled` façon `_ha_integration_enabled`) → penser à l'ajouter à la fixture `reset_module_level_flags` dans `conftest.py`, sinon il fuira silencieusement entre tests comme documenté ci-dessus.
 
 > **Dernière mise à jour** : Mars 2026
