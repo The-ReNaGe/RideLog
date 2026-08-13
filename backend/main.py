@@ -12,6 +12,7 @@ from sqlalchemy import text
 from models import init_db, SessionLocal
 from routes import vehicles, maintenances, exports, webhooks, fuels, fuel_stations, auth, dashboard
 from reminder_scheduler import scheduler_loop
+from security import validate_jwt_secret
 
 # ---------------------------------------------------------------------------
 # Logging
@@ -30,6 +31,10 @@ logger = logging.getLogger("ridelog")
 # ---------------------------------------------------------------------------
 @asynccontextmanager
 async def lifespan(app: FastAPI):
+    # Avant toute chose : refuser de démarrer sur un JWT_SECRET par défaut,
+    # qui laisserait n'importe qui forger un token admin (voir security.py).
+    validate_jwt_secret()
+
     logger.info("RideLog starting – initialising database …")
     init_db()
     logger.info("Database ready.")

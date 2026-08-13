@@ -29,6 +29,8 @@ Flow:
 
 from datetime import datetime, timedelta, timezone
 from typing import Optional, TYPE_CHECKING
+import ipaddress
+import logging
 import os
 
 import bcrypt
@@ -40,6 +42,8 @@ from sqlalchemy.orm import Session
 if TYPE_CHECKING:
     from models import User
 
+logger = logging.getLogger("ridelog.security")
+
 
 # ═══════════════════════════════════════════════════════════════════════════
 # Configuration - VARIABLES D'ENVIRONNEMENT
@@ -48,7 +52,51 @@ if TYPE_CHECKING:
 # JWT_SECRET: Clé pour signer les tokens (HMAC-SHA256)
 # - Définie dans .env et passée par docker-compose.yml
 # - Ne JAMAIS hardcoder en production
-JWT_SECRET = os.getenv("JWT_SECRET", "dev-secret-change-in-production-🔐")
+DEFAULT_JWT_SECRET = "dev-secret-change-in-production-🔐"
+JWT_SECRET = os.getenv("JWT_SECRET", DEFAULT_JWT_SECRET)
+
+# Valeurs refusées au démarrage : toutes lisibles dans le dépôt public, donc
+# équivalentes à une absence de secret. Le placeholder de .env.example en fait
+# partie — c'est la valeur qu'obtient quiconque copie le fichier sans le remplir.
+KNOWN_PUBLIC_JWT_SECRETS = {
+    DEFAULT_JWT_SECRET,
+    "changez-moi-en-production",
+    "change-me-in-production",
+}
+
+# Longueur en dessous de laquelle on avertit (sans bloquer) : un secret court
+# reste bruteforçable hors ligne à partir d'un seul token intercepté.
+MIN_JWT_SECRET_LENGTH = 32
+
+
+def validate_jwt_secret() -> None:
+    """
+    Refuse de démarrer si JWT_SECRET est resté sur une valeur publique.
+
+    Ces valeurs sont lisibles dans le dépôt : une instance qui démarre avec
+    l'une d'elles signe ses tokens avec un secret connu de tous. N'importe qui
+    peut alors forger un JWT ``{"user_id": 1, ...}`` et obtenir un accès admin
+    sans jamais toucher au mot de passe — le rate limiting du login n'y peut
+    rien, puisqu'il n'y a pas de login.
+
+    Appelée au démarrage (main.py, lifespan) pour transformer une compromission
+    silencieuse en erreur explicite au premier ``docker compose up``.
+    """
+    if not JWT_SECRET or JWT_SECRET in KNOWN_PUBLIC_JWT_SECRETS:
+        raise RuntimeError(
+            "JWT_SECRET n'est pas configuré (valeur publique détectée).\n"
+            "Cette valeur est publique : démarrer avec elle permettrait à "
+            "n'importe qui de forger un token administrateur.\n"
+            "Générez-en un puis placez-le dans votre fichier .env :\n"
+            "  python -c \"import secrets; print(secrets.token_urlsafe(32))\""
+        )
+
+    if len(JWT_SECRET) < MIN_JWT_SECRET_LENGTH:
+        logger.warning(
+            "JWT_SECRET fait %d caractères (minimum recommandé : %d). "
+            "Un secret court est bruteforçable hors ligne à partir d'un seul token.",
+            len(JWT_SECRET), MIN_JWT_SECRET_LENGTH,
+        )
 
 # JWT_ALGORITHM: Algorithme de signature (HMAC avec SHA-256)
 JWT_ALGORITHM = "HS256"
@@ -317,6 +365,58 @@ async def get_current_admin(current_user: "User" = Depends(get_current_user)) ->
 
 import time
 import threading
+
+
+def _is_trusted_peer(host: str) -> bool:
+    """Vrai si le pair TCP direct est privé/loopback — donc potentiellement notre reverse proxy."""
+    try:
+        addr = ipaddress.ip_address(host)
+    except ValueError:
+        return False
+    return addr.is_private or addr.is_loopback
+
+
+def get_client_ip(request: Request) -> str:
+    """
+    IP du client, non falsifiable par un appelant qui passe par le reverse proxy.
+
+    ⚠️ Ne JAMAIS lire ``X-Forwarded-For[0]`` pour le rate limiting.
+    nginx construit cet en-tête avec ``$proxy_add_x_forwarded_for``, qui *ajoute*
+    l'IP réelle **derrière** la valeur envoyée par le client. Son premier élément
+    est donc entièrement contrôlé par l'appelant : il suffisait d'envoyer un
+    ``X-Forwarded-For`` différent à chaque requête pour repartir d'un compteur
+    vierge et bruteforcer les mots de passe sans jamais déclencher de 429.
+
+    Ordre de confiance retenu :
+      1. Si le pair direct n'est pas privé/loopback, on n'est derrière aucun
+         proxy connu → seul ``request.client.host`` fait foi, aucun en-tête n'est lu.
+      2. ``X-Real-IP``, que nginx écrase systématiquement (``proxy_set_header
+         X-Real-IP $remote_addr``) : le client ne peut pas l'influencer.
+      3. Dernier élément de ``X-Forwarded-For`` — celui ajouté par le proxy,
+         pas ceux fournis par le client.
+      4. À défaut, le pair direct.
+
+    Limite connue : le port 8000 du backend étant publié directement
+    (docker-compose.yml, nécessaire à l'intégration Home Assistant), un client
+    du réseau local peut joindre l'API sans passer par nginx et usurper
+    ``X-Real-IP``. Fermer complètement ce trou suppose de ne plus exposer 8000
+    et de router Home Assistant via nginx.
+    """
+    peer = request.client.host if request.client else ""
+
+    if not peer or not _is_trusted_peer(peer):
+        return peer or "unknown"
+
+    real_ip = request.headers.get("x-real-ip", "").strip()
+    if real_ip:
+        return real_ip
+
+    forwarded = request.headers.get("x-forwarded-for", "")
+    hops = [part.strip() for part in forwarded.split(",") if part.strip()]
+    if hops:
+        return hops[-1]
+
+    return peer
 
 
 class LoginRateLimiter:

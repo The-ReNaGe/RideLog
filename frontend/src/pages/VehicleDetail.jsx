@@ -4,6 +4,7 @@ import UpcomingMaintenance from '../components/UpcomingMaintenance';
 import MaintenanceForm from '../components/MaintenanceForm';
 import MaintenanceHistory from '../components/MaintenanceHistory';
 import FuelTracking from '../components/FuelTracking';
+import VehiclePhoto from '../components/VehiclePhoto';
 
 const motorLabels = {
   essence: 'Essence', diesel: 'Diesel', hybrid: 'Hybride',
@@ -261,7 +262,7 @@ export default function VehicleDetail({ vehicleId, onBack }) {
       <div className="card overflow-hidden mb-6">
         {vehicle.photo_url && (
           <div className="photo-container mb-4">
-            <img src={vehicle.photo_url} alt={`${vehicle.brand} ${vehicle.model}`} />
+            <VehiclePhoto vehicleId={vehicle.id} version={vehicle.updated_at} alt={`${vehicle.brand} ${vehicle.model}`} />
             <button onClick={handlePhotoDelete} className="absolute top-2 right-2 rounded-full w-8 h-8 flex items-center justify-center text-sm hover:opacity-80 font-bold" style={{ background: 'var(--danger)', color: 'white' }}>✕</button>
           </div>
         )}

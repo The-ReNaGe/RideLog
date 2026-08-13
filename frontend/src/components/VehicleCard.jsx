@@ -1,4 +1,5 @@
 import React from 'react';
+import VehiclePhoto from './VehiclePhoto';
 
 const motorLabels = {
   essence: 'Essence',
@@ -22,8 +23,9 @@ export default React.memo(function VehicleCard({ vehicle, onSelect, onDelete }) 
     <div className="card cursor-pointer transition-all" onClick={onSelect}>
       {vehicle.photo_url && (
         <div className="photo-container mb-4">
-          <img
-            src={vehicle.photo_url}
+          <VehiclePhoto
+            vehicleId={vehicle.id}
+            version={vehicle.updated_at}
             alt={`${vehicle.brand} ${vehicle.model}`}
           />
         </div>

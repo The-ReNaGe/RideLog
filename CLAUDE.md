@@ -97,7 +97,7 @@ Les variables d'environnement sont gérées via un fichier `.env` à la racine d
 
 | Variable | Défaut | Description |
 |----------|--------|-------------|
-| `JWT_SECRET` | (dev value) | **Obligatoire en prod** — secret JWT HS256 |
+| `JWT_SECRET` | — | **Obligatoire** — secret JWT HS256. Le backend **refuse de démarrer** si la variable est absente (voir §4) |
 | `DATABASE_URL` | `sqlite:////data/ridelog.db` | Chemin SQLite |
 | `HA_INIT_KEY` | — | Clé pour initialiser le compte Home Assistant |
 | `REGISTRATION_MODE` | `invite` | `invite` / `open` / `closed` |
@@ -199,6 +199,8 @@ Schémas Pydantic pour les entrées/sorties :
 
 - **Hachage** : bcrypt avec coût 12
 - **JWT** : algorithme HS256, expiration 7 jours (30 jours pour le compte HA)
+- **Démarrage** : `validate_jwt_secret()` est appelé dans le lifespan (`main.py`) et **lève une `RuntimeError` si `JWT_SECRET` vaut sa valeur par défaut**. Cette valeur est lisible dans le dépôt public : démarrer avec elle permettrait de forger un JWT `{"user_id": 1}` et d'obtenir un accès admin sans mot de passe. Un secret de moins de 32 caractères démarre mais journalise un avertissement.
+- **IP client** : toujours passer par `get_client_ip(request)` (`security.py`), **jamais** lire `X-Forwarded-For[0]`. nginx construit cet en-tête avec `$proxy_add_x_forwarded_for`, qui *ajoute* l'IP réelle **derrière** la valeur envoyée par le client — son premier élément est donc contrôlé par l'appelant. C'était une faille réelle : un `X-Forwarded-For` différent à chaque requête remettait le compteur à zéro et rendait le bruteforce illimité. `get_client_ip()` n'accorde de confiance aux en-têtes que si le pair TCP est privé/loopback, puis lit `X-Real-IP` (que nginx écrase systématiquement), sinon le *dernier* élément de `X-Forwarded-For`.
 - **Rate limiting** : `LoginRateLimiter` — verrouillage progressif par IP :
   - 3 échecs → 30s, 6 → 5min, 9 → 15min, 12+ → 1h
 - **Middlewares** :
@@ -363,6 +365,7 @@ _ha_integration_enabled: bool = True  # défaut au démarrage
 | GET | `/api/vehicles/brand-service-defaults` | Intervalles par défaut (marque + cylindrée) |
 | GET | `/api/vehicles/planning` | Planning global de tous les véhicules |
 | POST | `/api/vehicles/{id}/photo` | Upload photo |
+| GET | `/api/vehicles/{id}/photo` | Récupérer la photo — **authentifié, réservé au propriétaire** |
 | DELETE | `/api/vehicles/{id}/photo` | Supprimer photo |
 | GET | `/api/vehicles/{id}/estimate` | Estimation de valeur résiduelle |
 | GET | `/api/vehicles/{id}/ha-dashboard-card` | YAML carte Lovelace HA |
@@ -866,6 +869,7 @@ frontend/src/
 │   └── Admin.jsx               # Administration (users, invitations)
 └── components/
     ├── VehicleCard.jsx              # Carte véhicule (React.memo)
+    ├── VehiclePhoto.jsx             # ★ Photo véhicule — charge le binaire via Axios (JWT) et l'affiche en object URL ★
     ├── VehicleForm.jsx              # Formulaire création/édition véhicule
     ├── MaintenanceForm.jsx          # Formulaire enregistrement maintenance — ouvre RevisionChecklistModal à la sélection du type
     ├── MaintenanceHistory.jsx       # Historique maintenances (mobile + desktop) + édition du détail de révision via modal
@@ -1426,6 +1430,7 @@ python -m pytest tests/ -v
 |---|---|
 | `test_maintenance_calculator.py` | `maintenance_calculator.py` — intervalles dynamiques moto, anti-drift, statuts, contrôle technique, filtrage motorisation, overrides. Aucune dépendance DB/HTTP. |
 | `test_login_rate_limiter.py` | `LoginRateLimiter` (`security.py`) — paliers 3/6/9/12+, reset après succès, isolation par IP. Aucune dépendance DB/HTTP. |
+| `test_client_ip.py` | `get_client_ip()` et `validate_jwt_secret()` (`security.py`) — verrouille la correction du contournement du rate limiter par `X-Forwarded-For` (voir §4) et le refus de démarrer sur un `JWT_SECRET` par défaut. |
 | `test_auth_integration.py` | Routes `/auth/*` et `/admin/users/*` via `TestClient` sur une DB SQLite temporaire — register/login, changement de mot de passe, reset admin, mot de passe temporaire (`must_change_password`), demande de reset anti-énumération. |
 
 ### `conftest.py` — points importants
