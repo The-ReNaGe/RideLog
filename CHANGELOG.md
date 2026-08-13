@@ -1,5 +1,13 @@
 # Changelog
 
+## [1.7.4](https://github.com/The-ReNaGe/RideLog/compare/v1.7.3...v1.7.4) (2026-08-13)
+
+
+### Bug Fixes
+
+* exige une authentification sur les stations essence et met en cache /search ([821a351](https://github.com/The-ReNaGe/RideLog/commit/821a3511ee4c9f2f0ecec4654bab75c9afed26d4))
+* n'expose plus l'existence d'un compte à l'inscription ([e430b6d](https://github.com/The-ReNaGe/RideLog/commit/e430b6df7eda0ba4da020ae668a34f93a9616150))
+
 ## [1.7.3](https://github.com/The-ReNaGe/RideLog/compare/v1.7.2...v1.7.3) (2026-08-13)
 
 
