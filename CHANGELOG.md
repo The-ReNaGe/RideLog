@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.7.1](https://github.com/The-ReNaGe/RideLog/compare/v1.7.0...v1.7.1) (2026-08-12)
+
+
+### Bug Fixes
+
+* corrige 3 bugs dans le calcul des échéances d'entretien ([24ecb20](https://github.com/The-ReNaGe/RideLog/commit/24ecb20b19ca43580917a95881852c02941a4250))
+
 ## [1.7.0](https://github.com/The-ReNaGe/RideLog/compare/v1.6.0...v1.7.0) (2026-08-12)
 
 
