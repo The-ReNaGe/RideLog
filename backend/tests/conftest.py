@@ -59,16 +59,24 @@ def clean_login_limiter():
 
 @pytest.fixture(autouse=True)
 def reset_module_level_flags():
-    """_ha_integration_enabled et _password_reset_enabled (routes/auth.py)
-    sont des booléens module-level, pas des colonnes DB — clean_db ne les
-    touche pas. Sans ce reset, un test qui désactive un flag le laisse
-    désactivé pour tous les tests suivants de la session."""
+    """_ha_integration_enabled et _password_reset_enabled (routes/auth.py) et
+    REGISTRATION_MODE (config.py) sont des valeurs module-level, pas des
+    colonnes DB — clean_db ne les touche pas. Sans ce reset, un test qui
+    désactive un flag ou ouvre les inscriptions le laisse ainsi pour tous les
+    tests suivants de la session."""
     from routes import auth as auth_routes
-    auth_routes._ha_integration_enabled = True
-    auth_routes._password_reset_enabled = True
+    import config as app_config
+
+    default_mode = os.getenv("REGISTRATION_MODE", "invite")
+
+    def _restore():
+        auth_routes._ha_integration_enabled = True
+        auth_routes._password_reset_enabled = True
+        app_config.REGISTRATION_MODE = default_mode
+
+    _restore()
     yield
-    auth_routes._ha_integration_enabled = True
-    auth_routes._password_reset_enabled = True
+    _restore()
 
 
 @pytest.fixture()

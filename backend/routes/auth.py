@@ -130,12 +130,14 @@ async def register(data: RegisterRequest, db: Session = Depends(get_db)):
     if data.password != data.password_confirm:
         raise HTTPException(status_code=400, detail="Les mots de passe ne correspondent pas")
 
-    if db.query(User).filter(User.username == username_normalized).first():
-        raise HTTPException(status_code=409, detail="Cet identifiant est déjà utilisé")
-
     user_count = db.query(User).count()
     is_first_user = user_count == 0
 
+    # Le droit de s'inscrire est vérifié AVANT l'unicité de l'identifiant.
+    # Dans l'ordre inverse, un appelant non authentifié distinguait un compte
+    # existant (409) d'un compte inconnu (403) et pouvait donc énumérer les
+    # utilisateurs de l'instance — de quoi cibler ensuite le bruteforce, et
+    # déclencher le verrouillage par compte sur des identifiants valides.
     invitation = None
     if not is_first_user:
         reg_mode = app_config.REGISTRATION_MODE
@@ -154,6 +156,12 @@ async def register(data: RegisterRequest, db: Session = Depends(get_db)):
             expires = invitation.expires_at if invitation.expires_at.tzinfo is None else invitation.expires_at.replace(tzinfo=None)
             if now_utc > expires:
                 raise HTTPException(status_code=403, detail="Ce lien d'invitation a expiré")
+
+    # À ce stade l'appelant a prouvé son droit de créer un compte : lui dire que
+    # l'identifiant est pris ne renseigne plus un inconnu, et reste nécessaire
+    # pour qu'il en choisisse un autre.
+    if db.query(User).filter(User.username == username_normalized).first():
+        raise HTTPException(status_code=409, detail="Cet identifiant est déjà utilisé")
 
     try:
         password_hash = hash_password(data.password)
