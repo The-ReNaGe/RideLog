@@ -313,3 +313,70 @@ def test_admin_reset_clears_pending_request_flag(client):
     db = SessionLocal()
     assert db.query(User).filter(User.id == bob_id).first().password_reset_requested_at is None
     db.close()
+
+
+# ═══════════════════════════════════════════════════════════════════════════
+# Énumération de comptes à l'inscription
+# ═══════════════════════════════════════════════════════════════════════════
+
+def test_register_does_not_reveal_existing_usernames(client):
+    """Faille réelle : le contrôle d'unicité passait avant celui du mode
+    d'inscription. Un appelant non authentifié distinguait donc un compte
+    existant (409) d'un compte inconnu (403) et pouvait énumérer les
+    utilisateurs de l'instance, invitation ou pas."""
+    register(client, "alice")  # premier compte → admin, mode ignoré
+
+    import config as app_config
+    app_config.REGISTRATION_MODE = "invite"
+
+    existing = register(client, "alice")
+    unknown = register(client, "personne-de-ce-nom")
+
+    assert existing.status_code == unknown.status_code
+    assert existing.json()["detail"] == unknown.json()["detail"]
+    assert existing.status_code == 403
+
+
+def test_register_closed_mode_does_not_reveal_existing_usernames(client):
+    register(client, "alice")
+
+    import config as app_config
+    app_config.REGISTRATION_MODE = "closed"
+
+    existing = register(client, "alice")
+    unknown = register(client, "personne-de-ce-nom")
+
+    assert existing.status_code == unknown.status_code == 403
+    assert existing.json()["detail"] == unknown.json()["detail"]
+
+
+def test_register_still_reports_taken_username_to_a_legitimate_caller(client):
+    """Une fois le droit de s'inscrire prouvé, le 409 reste nécessaire :
+    l'invité doit savoir que l'identifiant est pris pour en choisir un autre."""
+    register(client, "alice")
+
+    import config as app_config
+    app_config.REGISTRATION_MODE = "open"
+
+    assert register(client, "alice").status_code == 409
+    assert register(client, "bob").status_code == 201
+
+
+def test_register_with_invitation_reports_taken_username(client):
+    """Même chose en mode invitation, avec un lien valide."""
+    register(client, "alice")
+    token = login(client, "alice").json()["access_token"]
+
+    import config as app_config
+    app_config.REGISTRATION_MODE = "invite"
+
+    invite = client.post(
+        "/api/admin/invitations",
+        json={"expires_in_hours": 24},
+        headers=auth_headers(token),
+    )
+    assert invite.status_code in (200, 201)
+    invite_token = invite.json()["token"]
+
+    res = register(client, "alice", invite_token=invite_token)
+    assert res.status_code == 409

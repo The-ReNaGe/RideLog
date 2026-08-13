@@ -10,10 +10,24 @@ import unicodedata
 from difflib import SequenceMatcher
 from typing import Optional
 import httpx
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Query
+
+from security import get_current_user
 
 logger = logging.getLogger("ridelog.fuel_stations")
-router = APIRouter(prefix="/fuel-stations", tags=["fuel-stations"])
+
+# Authentification exigée sur tout le routeur. Ces endpoints n'exposent rien de
+# confidentiel, mais /search déclenche des appels sortants vers Nominatim,
+# Overpass et prix-carburants : ouverts, ils faisaient de l'instance un relais
+# gratuit vers ces services, sous SON adresse IP. Un inconnu bouclant dessus
+# faisait donc bannir l'instance — et la fonctionnalité cessait de marcher pour
+# les utilisateurs légitimes. Le front envoie déjà le token sur ces routes
+# (api.request passe par le client Axios), l'interface n'est pas impactée.
+router = APIRouter(
+    prefix="/fuel-stations",
+    tags=["fuel-stations"],
+    dependencies=[Depends(get_current_user)],
+)
 
 def _remove_accents(text: str) -> str:
     """Remove accents and normalize separators (é -> e, ç -> c, - -> space, etc)."""
@@ -33,6 +47,15 @@ PRIX_CARBURANTS_URL = "https://api.prix-carburants.2aaz.fr"
 _last_nominatim_request_time = 0.0
 _nominatim_request_lock = asyncio.Lock()
 _city_coordinates_cache = {}  # Cache for city coordinates
+
+# Cache des résultats de /search. Les prix carburant bougent au plus quelques
+# fois par jour : ressortir sur le réseau à chaque requête ne sert à rien, et
+# consomme le quota Nominatim/Overpass de l'instance. 15 minutes suffisent à
+# absorber les rechargements de page et les recherches répétées sur une même
+# ville, sans donner l'impression de données figées.
+_SEARCH_CACHE_TTL = 900
+_search_cache: dict[tuple, tuple[float, dict]] = {}
+_SEARCH_CACHE_MAX_ENTRIES = 200
 
 # Load communes database from CSV (39k+ French communes)
 _communes_db = {}  # {'nom_commune': (lat, lon), ...}
@@ -535,12 +558,39 @@ async def get_fuel_stations_from_osm(lat: float, lon: float, radius: float = 200
             return []
 
 
+def _search_cache_get(key: tuple) -> Optional[dict]:
+    entry = _search_cache.get(key)
+    if not entry:
+        return None
+    stored_at, payload = entry
+    if time.time() - stored_at > _SEARCH_CACHE_TTL:
+        _search_cache.pop(key, None)
+        return None
+    return payload
+
+
+def _search_cache_put(key: tuple, payload: dict) -> None:
+    # Purge des entrées expirées, puis plafond dur : le cache est indexé par
+    # ville, et un utilisateur authentifié pourrait sinon le faire grossir sans
+    # limite dans un conteneur limité à 256 Mo.
+    now = time.time()
+    for stale in [k for k, (t, _) in _search_cache.items() if now - t > _SEARCH_CACHE_TTL]:
+        _search_cache.pop(stale, None)
+    if len(_search_cache) >= _SEARCH_CACHE_MAX_ENTRIES:
+        oldest = min(_search_cache, key=lambda k: _search_cache[k][0])
+        _search_cache.pop(oldest, None)
+    _search_cache[key] = (now, payload)
+
+
 @router.get("/search")
 async def search_fuel_stations(
-    city: str,
-    fuel_type: Optional[str] = None,
-    max_distance: float = 20.0,
-    limit: int = 20,
+    city: str = Query(..., min_length=2, max_length=100),
+    fuel_type: Optional[str] = Query(None, max_length=20),
+    # Bornes : max_distance alimente le rayon des requêtes Overpass, dont le
+    # coût de calcul croît avec le carré du rayon. Une valeur libre laissait
+    # demander un rayon continental à chaque appel.
+    max_distance: float = Query(20.0, gt=0, le=100),
+    limit: int = Query(20, gt=0, le=100),
 ):
     """
     Search for fuel stations near a city.
@@ -554,6 +604,12 @@ async def search_fuel_stations(
         max_distance: Maximum distance in km (default 20)
         limit: Maximum number of results (default 20)
     """
+    cache_key = (_remove_accents(city.strip().lower()), fuel_type, max_distance, limit)
+    cached = _search_cache_get(cache_key)
+    if cached is not None:
+        logger.info(f"Cache hit for fuel station search near {city}")
+        return cached
+
     try:
         # Geocode city name
         lat, lon = await get_city_coordinates(city)
@@ -568,7 +624,7 @@ async def search_fuel_stations(
             all_stations = await get_fuel_stations_from_osm(lat, lon, radius=max_distance * 1000)
         
         if not all_stations:
-            return {
+            empty = {
                 "city": city,
                 "coordinates": {"latitude": lat, "longitude": lon},
                 "fuel_type": fuel_type,
@@ -577,6 +633,11 @@ async def search_fuel_stations(
                 "message": "Aucune station essence trouvée. Les données proviennent d'OpenStreetMap et de prix-carburants.",
                 "stations": [],
             }
+            # Un résultat vide a coûté le même aller-retour réseau qu'un plein :
+            # on le met en cache aussi, sinon une ville sans station rejoue
+            # l'appel sortant à chaque essai.
+            _search_cache_put(cache_key, empty)
+            return empty
         
         # Filter and sort
         nearby_stations = []
@@ -686,7 +747,7 @@ async def search_fuel_stations(
         
         logger.info(f"Returning {len(result_stations)} stations out of {len(nearby_stations)} found (source: {source})")
         
-        return {
+        payload = {
             "city": city,
             "coordinates": {"latitude": lat, "longitude": lon},
             "fuel_type": fuel_type,
@@ -696,15 +757,19 @@ async def search_fuel_stations(
             "message": message,
             "stations": result_stations,
         }
+        _search_cache_put(cache_key, payload)
+        return payload
     except HTTPException:
         raise
     except Exception as e:
+        # Détail journalisé, jamais renvoyé : ces exceptions viennent d'appels
+        # sortants et portent des URL internes et des extraits de réponse tierce.
         logger.error(f"Error searching stations: {e}")
-        raise HTTPException(status_code=500, detail=f"Erreur recherche: {str(e)}")
+        raise HTTPException(status_code=502, detail="Erreur lors de la recherche de stations.")
 
 
 @router.get("/city-suggestions")
-async def get_city_suggestions(q: str):
+async def get_city_suggestions(q: str = Query(..., max_length=100)):
     """
     Get city suggestions using ultra-fast fuzzy matching on CSV database (39k+ communes).
     

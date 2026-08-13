@@ -284,6 +284,8 @@ Schémas Pydantic pour les entrées/sorties :
 | `invite` | Inscription uniquement avec un token d'invitation valide |
 | `closed` | Aucune inscription possible — seul un admin peut créer des comptes via `POST /admin/users` |
 
+> **Ordre des contrôles dans `register()`** : le droit de s'inscrire (mode + validité de l'invitation) est vérifié **avant** l'unicité de l'identifiant, jamais l'inverse. Dans l'ordre inverse, un appelant non authentifié distinguait un compte existant (`409`) d'un compte inconnu (`403`) et pouvait énumérer les utilisateurs de l'instance — de quoi cibler ensuite le bruteforce, et déclencher le verrouillage par compte sur des identifiants valides. Le `409` reste renvoyé une fois le droit prouvé : l'invité doit pouvoir choisir un autre identifiant. Verrouillé par `test_register_does_not_reveal_existing_usernames` (voir §19).
+
 ### Invitations
 
 - Créées par un admin via `POST /api/admin/invitations`
@@ -711,10 +713,23 @@ Ainsi "pont-péan", "pont pean" et "pont péan" trouvent tous "Pont-Péan" dans 
 | GET | `/api/fuel-stations/city-suggestions?q=...` | Autocomplétion ville (max 3 résultats) |
 | GET | `/api/fuel-stations/fuel-types` | Types de carburant disponibles |
 
+**Les trois routes exigent un JWT** — la dépendance est posée sur le routeur entier (`APIRouter(..., dependencies=[Depends(get_current_user)])`), pas endpoint par endpoint, pour qu'un ajout futur soit protégé par défaut.
+
+> **Pourquoi** : ces endpoints n'exposent aucune donnée confidentielle, mais `/search` déclenche des appels sortants vers Nominatim, Overpass et prix-carburants. Ouverts, ils faisaient de l'instance un **relais gratuit vers ces services, sous son adresse IP** : n'importe qui pouvait boucler dessus jusqu'à faire bannir l'instance, et la fonctionnalité cessait alors de marcher pour les utilisateurs légitimes — sans que rien dans les logs ne ressemble à une attaque. S'y ajoutait un déni de service bon marché : chaque appel mobilise jusqu'à 30 s de connexions sortantes sur un conteneur limité à 256 Mo. L'interface n'a pas été touchée : `FuelStations.jsx` appelle déjà `api.request()`, donc le client Axios qui porte le token.
+
+### Cache et bornes de `/search`
+
+- **Cache mémoire** (`_search_cache`, TTL 900 s, 200 entrées max, éviction de la plus ancienne). Clé : `(ville normalisée, fuel_type, max_distance, limit)` — la normalisation passe par `_remove_accents()`, donc « Pont-Péan » et « pont pean » partagent la même entrée. Les résultats **vides sont mis en cache aussi** : ils ont coûté le même aller-retour réseau. Mesuré sur l'instance : 912 ms sans cache, 19 ms avec.
+- **Bornes** : `max_distance` ∈ ]0, 100] km et `limit` ∈ ]0, 100]. Le rayon dimensionne la requête Overpass, dont le coût de calcul croît avec son carré — libre, il permettait de demander un rayon continental à chaque appel. Hors bornes → `422`.
+- **Erreurs** : les exceptions d'appel sortant sont journalisées mais jamais renvoyées (elles portent des URL internes et des extraits de réponse tierce) — le client reçoit un `502` générique.
+
+> C'est un cache **par processus**, perdu au redémarrage et non partagé : correct tant que le backend tourne avec un seul worker uvicorn (cf. §13).
+
 ### Pour modifier
 
 - **Ajouter un type de carburant** : `fuel_stations.py` + `FuelStations.jsx`
-- **Modifier le rayon de recherche** : paramètre `max_distance` de l'endpoint
+- **Modifier le rayon de recherche** : paramètre `max_distance` de l'endpoint (plafond dans le `Query(...)`)
+- **Modifier la durée du cache** : `fuel_stations.py` → `_SEARCH_CACHE_TTL`
 - **Ajouter une source de prix** : `fuel_stations.py` → fonction de recherche
 
 ---
@@ -1434,13 +1449,14 @@ python -m pytest tests/ -v
 | `test_maintenance_calculator.py` | `maintenance_calculator.py` — intervalles dynamiques moto, anti-drift, statuts, contrôle technique, filtrage motorisation, overrides. Aucune dépendance DB/HTTP. |
 | `test_login_rate_limiter.py` | `LoginRateLimiter` (`security.py`) — paliers 3/6/9/12+, reset après succès, isolation par IP. Aucune dépendance DB/HTTP. |
 | `test_client_ip.py` | `get_client_ip()`, les deux limiteurs et `validate_jwt_secret()` (`security.py`) — verrouille les deux contournements corrigés du rate limiter (`X-Forwarded-For` falsifié, et passerelle Docker prise pour un proxy de confiance sur le port 8000 — voir §4), le verrouillage par compte, et le refus de démarrer sur un `JWT_SECRET` public. |
-| `test_auth_integration.py` | Routes `/auth/*` et `/admin/users/*` via `TestClient` sur une DB SQLite temporaire — register/login, changement de mot de passe, reset admin, mot de passe temporaire (`must_change_password`), demande de reset anti-énumération. |
+| `test_fuel_stations.py` | Routes `/fuel-stations/*` — authentification exigée sur les trois endpoints, bornes de `max_distance`/`limit`, cache (clé insensible aux accents, plafond, expiration). Les appels sortants sont monkeypatchés : aucun test ne sort sur le réseau. |
+| `test_auth_integration.py` | Routes `/auth/*` et `/admin/users/*` via `TestClient` sur une DB SQLite temporaire — register/login, changement de mot de passe, reset admin, mot de passe temporaire (`must_change_password`), demande de reset anti-énumération, et non-énumération des identifiants à l'inscription (voir §4). |
 
 ### `conftest.py` — points importants
 
 - **`DATABASE_URL` est fixé sur un fichier SQLite temporaire AVANT tout import du code applicatif** (en tête de fichier, avant même `import pytest`). `models.py` crée son moteur SQLAlchemy au moment de son propre import, sur la valeur de `DATABASE_URL` à cet instant précis — le fixer plus tard ne servirait à rien.
 - **Base vierge à chaque test** (`clean_db`, autouse) — `drop_all()` + `create_all()` avant chaque test, isolation totale.
-- **États globaux module-level à réinitialiser explicitement** — `login_limiter` (`security.py`) et `_ha_integration_enabled` / `_password_reset_enabled` (`routes/auth.py`) sont des singletons créés une fois à l'import du module. `clean_db` ne les touche pas (ce ne sont pas des colonnes DB) : sans fixtures dédiées (`clean_login_limiter`, `reset_module_level_flags`) pour les remettre à leur valeur par défaut avant/après chaque test, un test qui déclenche un verrouillage ou désactive une fonctionnalité pollue silencieusement tous les tests suivants de la session. C'est une source réelle de faux échecs rencontrée en écrivant cette suite — à garder en tête pour tout futur état global ajouté au projet.
+- **États globaux module-level à réinitialiser explicitement** — `login_limiter` / `account_limiter` (`security.py`), `_ha_integration_enabled` / `_password_reset_enabled` (`routes/auth.py`) et `REGISTRATION_MODE` (`config.py`) sont des valeurs module-level fixées une fois à l'import. `clean_db` ne les touche pas (ce ne sont pas des colonnes DB) : sans fixtures dédiées (`clean_login_limiter`, `reset_module_level_flags`) pour les remettre à leur valeur par défaut avant/après chaque test, un test qui déclenche un verrouillage ou désactive une fonctionnalité pollue silencieusement tous les tests suivants de la session. C'est une source réelle de faux échecs rencontrée en écrivant cette suite — à garder en tête pour tout futur état global ajouté au projet.
 
 ### Bugs trouvés en écrivant cette suite (corrigés dans la foulée)
 
