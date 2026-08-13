@@ -367,54 +367,118 @@ import time
 import threading
 
 
-def _is_trusted_peer(host: str) -> bool:
-    """Vrai si le pair TCP direct est privé/loopback — donc potentiellement notre reverse proxy."""
+# ─────────────────────────────────────────────────────────────────────────────
+# Identification du client derrière un (ou plusieurs) reverse proxy
+# ─────────────────────────────────────────────────────────────────────────────
+#
+# TRUSTED_PROXIES : liste (séparée par des virgules) d'adresses IP, de blocs
+# CIDR ou de noms d'hôte dont on accepte les en-têtes de transfert.
+#
+# ⚠️ Ne PAS se contenter de « toute adresse privée est un proxy de confiance ».
+# Docker fait du SNAT sur les ports publiés : une requête venue d'Internet vers
+# le port 8000 arrive au backend depuis la passerelle (172.18.0.1), une adresse
+# privée. L'heuristique « privée = proxy » rendait donc X-Real-IP usurpable par
+# n'importe qui dès lors que le port 8000 était exposé — vérifié : 15 tentatives
+# de login sans un seul 429. Seul nginx, qui arrive depuis sa propre IP de
+# conteneur (172.18.0.3), doit être approuvé.
+#
+# Défaut (docker-compose.yml) : "frontend", le nom de service du nginx fourni.
+# Vide = aucune confiance, seul le pair TCP fait foi (sûr même exposé nu).
+_TRUSTED_PROXIES_RAW = os.getenv("TRUSTED_PROXIES", "").strip()
+_TRUSTED_NETWORKS: list = []
+_TRUSTED_HOSTNAMES: list = []
+
+for _entry in (part.strip() for part in _TRUSTED_PROXIES_RAW.split(",") if part.strip()):
+    try:
+        _TRUSTED_NETWORKS.append(ipaddress.ip_network(_entry, strict=False))
+    except ValueError:
+        # Pas une IP ni un CIDR → nom d'hôte, résolu à la demande (l'IP du
+        # conteneur nginx change à chaque recréation).
+        _TRUSTED_HOSTNAMES.append(_entry)
+
+_DNS_CACHE_TTL = 60  # secondes
+_dns_cache: dict[str, tuple[float, frozenset]] = {}
+_dns_lock = threading.Lock()
+
+
+def _resolve_hostname(name: str) -> frozenset:
+    """Résout un nom d'hôte en IP, avec un cache court (les IP de conteneur bougent)."""
+    import socket
+    import time as _time
+
+    now = _time.monotonic()
+    with _dns_lock:
+        cached = _dns_cache.get(name)
+        if cached and cached[0] > now:
+            return cached[1]
+
+    try:
+        infos = socket.getaddrinfo(name, None)
+        addresses = frozenset(info[4][0] for info in infos)
+    except OSError:
+        addresses = frozenset()
+
+    with _dns_lock:
+        _dns_cache[name] = (now + _DNS_CACHE_TTL, addresses)
+    return addresses
+
+
+def _is_trusted_proxy(host: str) -> bool:
+    """Vrai si `host` figure dans TRUSTED_PROXIES (IP, CIDR ou nom d'hôte)."""
     try:
         addr = ipaddress.ip_address(host)
     except ValueError:
         return False
-    return addr.is_private or addr.is_loopback
+
+    if any(addr in network for network in _TRUSTED_NETWORKS):
+        return True
+
+    return any(host in _resolve_hostname(name) for name in _TRUSTED_HOSTNAMES)
 
 
 def get_client_ip(request: Request) -> str:
     """
-    IP du client, non falsifiable par un appelant qui passe par le reverse proxy.
+    IP réelle du client, non falsifiable par l'appelant.
 
-    ⚠️ Ne JAMAIS lire ``X-Forwarded-For[0]`` pour le rate limiting.
-    nginx construit cet en-tête avec ``$proxy_add_x_forwarded_for``, qui *ajoute*
-    l'IP réelle **derrière** la valeur envoyée par le client. Son premier élément
-    est donc entièrement contrôlé par l'appelant : il suffisait d'envoyer un
-    ``X-Forwarded-For`` différent à chaque requête pour repartir d'un compteur
-    vierge et bruteforcer les mots de passe sans jamais déclencher de 429.
+    ⚠️ Ne JAMAIS lire ``X-Forwarded-For[0]``. nginx construit cet en-tête avec
+    ``$proxy_add_x_forwarded_for``, qui *ajoute* l'IP réelle **derrière** la
+    valeur envoyée par le client : son premier élément est entièrement contrôlé
+    par l'appelant. Un ``X-Forwarded-For`` différent à chaque requête suffisait
+    à repartir d'un compteur vierge et à bruteforcer sans jamais déclencher 429.
 
-    Ordre de confiance retenu :
-      1. Si le pair direct n'est pas privé/loopback, on n'est derrière aucun
-         proxy connu → seul ``request.client.host`` fait foi, aucun en-tête n'est lu.
-      2. ``X-Real-IP``, que nginx écrase systématiquement (``proxy_set_header
-         X-Real-IP $remote_addr``) : le client ne peut pas l'influencer.
-      3. Dernier élément de ``X-Forwarded-For`` — celui ajouté par le proxy,
-         pas ceux fournis par le client.
-      4. À défaut, le pair direct.
+    Algorithme (celui des frameworks qui gèrent correctement les proxys) :
+      1. Si le pair TCP n'est pas dans TRUSTED_PROXIES, aucun en-tête n'est lu :
+         seul ``request.client.host`` fait foi. C'est le cas d'une exposition
+         directe du port 8000 — l'usurpation devient sans effet.
+      2. Sinon on parcourt ``X-Forwarded-For`` **de droite à gauche** et on
+         retourne la première adresse qui n'est pas un proxy de confiance :
+         c'est le client réel. Tout ce que l'appelant a pu injecter se trouve
+         plus à gauche et n'est jamais atteint.
+      3. À défaut de ``X-Forwarded-For``, ``X-Real-IP`` puis le pair TCP.
 
-    Limite connue : le port 8000 du backend étant publié directement
-    (docker-compose.yml, nécessaire à l'intégration Home Assistant), un client
-    du réseau local peut joindre l'API sans passer par nginx et usurper
-    ``X-Real-IP``. Fermer complètement ce trou suppose de ne plus exposer 8000
-    et de router Home Assistant via nginx.
+    Chaînes à plusieurs proxys (reverse proxy personnel devant le nginx fourni) :
+    ajouter l'IP du proxy amont à TRUSTED_PROXIES, sinon tous les visiteurs sont
+    comptabilisés sous la seule IP de ce proxy — sûr, mais un seul attaquant
+    verrouillerait alors tout le monde.
     """
     peer = request.client.host if request.client else ""
 
-    if not peer or not _is_trusted_peer(peer):
+    if not peer or not _is_trusted_proxy(peer):
         return peer or "unknown"
-
-    real_ip = request.headers.get("x-real-ip", "").strip()
-    if real_ip:
-        return real_ip
 
     forwarded = request.headers.get("x-forwarded-for", "")
     hops = [part.strip() for part in forwarded.split(",") if part.strip()]
     if hops:
-        return hops[-1]
+        for candidate in reversed(hops):
+            if not _is_trusted_proxy(candidate):
+                return candidate
+        # Toute la chaîne est constituée de proxys de confiance : on retient le
+        # plus en amont, faute de mieux.
+        return hops[0]
+
+    real_ip = request.headers.get("x-real-ip", "").strip()
+    if real_ip:
+        return real_ip
 
     return peer
 
@@ -441,8 +505,11 @@ class LoginRateLimiter:
     ]
     ENTRY_TTL = 7200   # purge après 2 h d'inactivité
 
-    def __init__(self):
-        # {ip: {"failures": int, "locked_until": float, "last_attempt": float}}
+    def __init__(self, thresholds: Optional[list] = None):
+        # {clé: {"failures": int, "locked_until": float, "last_attempt": float}}
+        # La clé est une IP pour login_limiter, un nom d'utilisateur pour
+        # account_limiter — la mécanique est identique.
+        self.thresholds = thresholds or self.THRESHOLDS
         self._store: dict[str, dict] = {}
         self._lock = threading.Lock()
 
@@ -456,12 +523,13 @@ class LoginRateLimiter:
     def _lockout_seconds(self, failures: int) -> int:
         """Retourne la durée de blocage pour le nombre d'échecs donné.
         
-        Se déclenche uniquement aux paliers (3, 6, 9) et en continu à 12+.
-        Entre les paliers, l'utilisateur peut réessayer librement.
+        Se déclenche uniquement aux paliers (3, 6, 9) et en continu au dernier
+        palier (12+). Entre les paliers, l'utilisateur peut réessayer librement.
         """
-        if failures >= 12:
-            return 3600
-        for threshold, seconds in self.THRESHOLDS:
+        last_threshold, last_seconds = self.thresholds[-1]
+        if failures >= last_threshold:
+            return last_seconds
+        for threshold, seconds in self.thresholds:
             if failures == threshold:
                 return seconds
         return 0
@@ -504,5 +572,22 @@ class LoginRateLimiter:
             self._store.clear()
 
 
-# Instance globale unique
+# Instance globale unique — verrouillage par IP
 login_limiter = LoginRateLimiter()
+
+# Verrouillage par compte, indépendant de l'IP.
+#
+# Le comptage par IP ne protège plus rien dès que l'IP n'est pas fiable
+# (port 8000 exposé en direct, en-têtes usurpables) ou qu'elle est partagée
+# par tous les visiteurs (reverse proxy amont non déclaré, NAT). Un attaquant
+# distribué contourne aussi trivialement une limite par IP.
+#
+# Paliers volontairement plus courts que ceux par IP : ce compteur est
+# déclenchable par un tiers contre un compte légitime, on veut donc ralentir
+# fortement le bruteforce sans jamais bloquer un utilisateur très longtemps.
+ACCOUNT_THRESHOLDS = [
+    (5, 30),     # 5  échecs → 30 s
+    (10, 120),   # 10 échecs → 2 min
+    (15, 300),   # 15+ échecs → 5 min (plafond)
+]
+account_limiter = LoginRateLimiter(thresholds=ACCOUNT_THRESHOLDS)

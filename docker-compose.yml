@@ -40,6 +40,16 @@ services:
       - INVOICE_STORAGE_DIR=/data/invoices
       - PHOTO_STORAGE_DIR=/data/photos
 
+      # PROXY DE CONFIANCE
+      # Seul le nginx fourni (service "frontend") est autorisé à déclarer
+      # l'IP réelle du visiteur via X-Forwarded-For / X-Real-IP.
+      # ⚠️ Ne PAS mettre un bloc CIDR large type 172.16.0.0/12 : Docker fait du
+      # SNAT sur les ports publiés, une requête venue d'Internet vers le port
+      # 8000 arriverait depuis la passerelle du réseau (172.18.0.1) et pourrait
+      # alors usurper son IP pour contourner le rate limiting du login.
+      # Reverse proxy personnel devant RideLog : voir TRUSTED_PROXIES dans .env
+      - TRUSTED_PROXIES=frontend
+
       # PYTHON
       - PYTHONUNBUFFERED=1
     networks:

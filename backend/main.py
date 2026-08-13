@@ -58,17 +58,66 @@ app = FastAPI(
 )
 
 # ---------------------------------------------------------------------------
-# CORS – restrict in production via CORS_ORIGINS env var
+# CORS
 # ---------------------------------------------------------------------------
-CORS_ORIGINS = os.getenv("CORS_ORIGINS", "*").split(",")
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=CORS_ORIGINS,
-    allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
-    expose_headers=["Retry-After"],
-)
+# Défaut volontairement vide : le SPA est servi par nginx sur la même origine
+# que l'API (/api), il n'a donc besoin d'aucun en-tête CORS. L'ancien défaut
+# "*" autorisait n'importe quel site à appeler les endpoints publics et à lire
+# les réponses. Home Assistant n'est pas concerné : ses appels sont serveur à
+# serveur, le CORS ne s'applique qu'aux navigateurs.
+# À renseigner uniquement pour un front servi depuis une autre origine
+# (ex. serveur de dev Vite) : CORS_ORIGINS=http://localhost:5173
+CORS_ORIGINS = [origin.strip() for origin in os.getenv("CORS_ORIGINS", "").split(",") if origin.strip()]
+if CORS_ORIGINS:
+    if "*" in CORS_ORIGINS:
+        # Cas des instances installées avant ce changement : leur .env porte
+        # encore CORS_ORIGINS=*, hérité de l'ancien .env.example. On n'écrase
+        # pas leur configuration, mais on la signale à chaque démarrage.
+        logger.warning(
+            "CORS_ORIGINS=* : n'importe quel site peut appeler les endpoints "
+            "publics de cette instance et lire les réponses. Le déploiement "
+            "standard n'a besoin d'aucun CORS (front et API sur la même "
+            "origine) : videz CORS_ORIGINS dans votre .env."
+        )
+    app.add_middleware(
+        CORSMiddleware,
+        allow_origins=CORS_ORIGINS,
+        allow_credentials=True,
+        allow_methods=["*"],
+        allow_headers=["*"],
+        expose_headers=["Retry-After"],
+    )
+    logger.info("CORS activé pour : %s", ", ".join(CORS_ORIGINS))
+
+
+# ---------------------------------------------------------------------------
+# Durcissement HTTP
+# ---------------------------------------------------------------------------
+# nginx pose déjà ces en-têtes et plafonne la taille des corps, mais le port
+# 8000 du backend est publié en direct (nécessaire à Home Assistant) : une
+# instance jointe sans passer par nginx n'avait donc aucune de ces protections.
+MAX_REQUEST_BODY_BYTES = 12 * 1024 * 1024  # aligné sur client_max_body_size de nginx
+
+SECURITY_HEADERS = {
+    "X-Frame-Options": "SAMEORIGIN",
+    "X-Content-Type-Options": "nosniff",
+    "Referrer-Policy": "strict-origin-when-cross-origin",
+}
+
+
+@app.middleware("http")
+async def security_middleware(request: Request, call_next):
+    content_length = request.headers.get("content-length")
+    if content_length and content_length.isdigit() and int(content_length) > MAX_REQUEST_BODY_BYTES:
+        return JSONResponse(
+            status_code=413,
+            content={"detail": "Requête trop volumineuse."},
+        )
+
+    response = await call_next(request)
+    for header, value in SECURITY_HEADERS.items():
+        response.headers.setdefault(header, value)
+    return response
 
 
 # ---------------------------------------------------------------------------

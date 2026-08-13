@@ -30,6 +30,7 @@ from security import (
     get_current_admin,
     get_client_ip,
     login_limiter,
+    account_limiter,
 )
 from config import HA_INIT_KEY
 import config as app_config
@@ -184,23 +185,29 @@ async def register(data: RegisterRequest, db: Session = Depends(get_db)):
 @router.post("/auth/login", response_model=TokenResponse)
 async def login(data: LoginRequest, request: Request, db: Session = Depends(get_db)):
     client_ip = get_client_ip(request)
+    username = data.username.lower()
 
-    wait = login_limiter.check(client_ip)
+    # Deux compteurs indépendants : par IP et par compte. Le second reste
+    # efficace quand l'IP n'est pas fiable (port 8000 exposé, en-têtes
+    # usurpables) ou partagée par tous les visiteurs derrière un proxy amont.
+    wait = max(login_limiter.check(client_ip), account_limiter.check(username))
     if wait > 0:
-        logger.warning("Login bloqué pour %s (%ds restantes)", client_ip, wait)
+        logger.warning("Login bloqué pour %s / compte %s (%ds restantes)", client_ip, username, wait)
         raise HTTPException(
             status_code=429,
             detail=f"Trop de tentatives. Réessayez dans {wait} secondes.",
             headers={"Retry-After": str(wait)},
         )
 
-    user = db.query(User).filter(User.username == data.username.lower()).first()
+    user = db.query(User).filter(User.username == username).first()
     if not user or not verify_password(data.password, user.password_hash):
         login_limiter.record_failure(client_ip)
+        account_limiter.record_failure(username)
         logger.warning("Tentative de login échouée pour: %s", data.username)
         raise HTTPException(status_code=401, detail="Identifiant ou mot de passe incorrect")
 
     login_limiter.record_success(client_ip)
+    account_limiter.record_success(username)
     token = create_access_token(user.id, user.username, password_changed_at=user.password_changed_at)
     logger.info("Login réussi pour: %s", user.username)
     return token
