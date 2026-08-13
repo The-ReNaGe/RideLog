@@ -140,7 +140,13 @@ export const api = {
     });
   },
   deleteVehiclePhoto: (vehicleId) => client.delete(`/vehicles/${vehicleId}/photo`),
-  getVehiclePhotoUrl: (vehicleId) => `${API_BASE}/vehicles/${vehicleId}/photo`,
+  // L'endpoint photo exige un JWT : il ne peut donc plus alimenter un <img src>,
+  // qui n'envoie aucun en-tête Authorization. On récupère le binaire via le
+  // client authentifié et le composant VehiclePhoto l'affiche en object URL.
+  getVehiclePhotoBlob: async (vehicleId) => {
+    const response = await client.get(`/vehicles/${vehicleId}/photo`, { responseType: 'blob' });
+    return response.data;
+  },
 
   // Maintenances
   getMaintenances: (vehicleId) => client.get(`/vehicles/${vehicleId}/maintenances`),

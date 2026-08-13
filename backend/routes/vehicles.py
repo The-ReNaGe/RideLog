@@ -19,6 +19,12 @@ from maintenance_calculator import MaintenanceCalculator, get_intervention_key
 
 PHOTO_STORAGE_DIR = Path(os.getenv("PHOTO_STORAGE_DIR", "/data/photos"))
 ALLOWED_PHOTO_MIME = {"image/jpeg", "image/png", "image/webp"}
+PHOTO_MIME_BY_SUFFIX = {
+    ".jpg": "image/jpeg",
+    ".jpeg": "image/jpeg",
+    ".png": "image/png",
+    ".webp": "image/webp",
+}
 MAX_PHOTO_SIZE = 5 * 1024 * 1024  # 5 MB
 
 logger = logging.getLogger("ridelog.vehicles")
@@ -704,9 +710,27 @@ async def upload_vehicle_photo(
 @router.get("/{vehicle_id}/photo")
 def get_vehicle_photo(
     vehicle_id: int,
-    db: Session = Depends(get_db)
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
 ):
-    vehicle = db.query(Vehicle).filter(Vehicle.id == vehicle_id).first()
+    """
+    Sert la photo d'un véhicule — réservée à son propriétaire.
+
+    Cet endpoint était public : une simple boucle sur les identifiants
+    permettait de récupérer les photos de tous les véhicules de tous les
+    comptes (plaque d'immatriculation et lieu souvent lisibles dessus).
+    Il exige désormais un JWT, comme le reste de l'API ; le front ne peut donc
+    plus l'utiliser dans un ``<img src>`` et passe par le composant
+    ``VehiclePhoto`` qui charge l'image via le client authentifié.
+    """
+    if current_user.is_integration_account:
+        vehicle = db.query(Vehicle).filter(Vehicle.id == vehicle_id).first()
+    else:
+        vehicle = db.query(Vehicle).filter(
+            Vehicle.id == vehicle_id,
+            Vehicle.user_id == current_user.id,
+        ).first()
+
     if not vehicle:
         raise HTTPException(status_code=404, detail="Vehicle not found")
     if not vehicle.photo_path:
@@ -716,7 +740,10 @@ def get_vehicle_photo(
     if not photo.exists():
         raise HTTPException(status_code=404, detail="Fichier photo introuvable")
 
-    return FileResponse(path=str(photo), media_type="image/jpeg")
+    # Le type était figé à image/jpeg alors que PNG et WEBP sont acceptés à
+    # l'upload — on le déduit de l'extension réellement stockée.
+    media_type = PHOTO_MIME_BY_SUFFIX.get(photo.suffix.lower(), "image/jpeg")
+    return FileResponse(path=str(photo), media_type=media_type)
 
 
 @router.delete("/{vehicle_id}/photo")

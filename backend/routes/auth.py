@@ -28,6 +28,7 @@ from security import (
     TokenData,
     get_current_user,
     get_current_admin,
+    get_client_ip,
     login_limiter,
 )
 from config import HA_INIT_KEY
@@ -182,7 +183,7 @@ async def register(data: RegisterRequest, db: Session = Depends(get_db)):
 
 @router.post("/auth/login", response_model=TokenResponse)
 async def login(data: LoginRequest, request: Request, db: Session = Depends(get_db)):
-    client_ip = request.headers.get("x-forwarded-for", "").split(",")[0].strip() or request.client.host
+    client_ip = get_client_ip(request)
 
     wait = login_limiter.check(client_ip)
     if wait > 0:
@@ -230,7 +231,7 @@ async def request_password_reset(
     - Aucune authentification requise (c'est justement pour un utilisateur
       qui n'arrive plus à se connecter)
     """
-    client_ip = request.headers.get("x-forwarded-for", "").split(",")[0].strip() or request.client.host
+    client_ip = get_client_ip(request)
 
     wait = login_limiter.check(client_ip)
     if wait > 0:
@@ -288,7 +289,7 @@ async def change_own_password(
     """
     from datetime import datetime, timezone
 
-    client_ip = request.headers.get("x-forwarded-for", "").split(",")[0].strip() or request.client.host
+    client_ip = get_client_ip(request)
 
     wait = login_limiter.check(client_ip)
     if wait > 0:
