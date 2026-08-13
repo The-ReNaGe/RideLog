@@ -1,5 +1,5 @@
 from datetime import datetime, timezone
-from sqlalchemy import create_engine, Column, Integer, String, Float, DateTime, ForeignKey, Text, Boolean, JSON, inspect, text
+from sqlalchemy import create_engine, Column, Integer, String, Float, DateTime, ForeignKey, Text, Boolean, JSON
 from sqlalchemy.orm import declarative_base, relationship, sessionmaker
 from typing import Optional
 import os
@@ -349,86 +349,12 @@ def get_db():
 
 
 def init_db():
-    Base.metadata.create_all(bind=engine)
+    """Amène la base au schéma courant.
 
-    inspector = inspect(engine)
+    Toute la logique vit dans migrations.py : registre versionné, sauvegarde
+    préalable, une transaction par migration, refus de démarrer sur une base
+    plus récente que le code. Voir §13 de CLAUDE.md.
+    """
+    from migrations import run_migrations
 
-    if "maintenances" in inspector.get_table_names():
-        columns = {column["name"] for column in inspector.get_columns("maintenances")}
-        with engine.begin() as conn:
-            if "invoice_filename" not in columns:
-                conn.execute(text("ALTER TABLE maintenances ADD COLUMN invoice_filename VARCHAR(255)"))
-            if "invoice_path" not in columns:
-                conn.execute(text("ALTER TABLE maintenances ADD COLUMN invoice_path VARCHAR(500)"))
-            if "invoice_mime_type" not in columns:
-                conn.execute(text("ALTER TABLE maintenances ADD COLUMN invoice_mime_type VARCHAR(100)"))
-            if "maintenance_category" not in columns:
-                conn.execute(text("ALTER TABLE maintenances ADD COLUMN maintenance_category VARCHAR(50) DEFAULT 'scheduled'"))
-            if "other_description" not in columns:
-                conn.execute(text("ALTER TABLE maintenances ADD COLUMN other_description VARCHAR(200)"))
-            if "sub_interventions" not in columns:
-                conn.execute(text("ALTER TABLE maintenances ADD COLUMN sub_interventions JSON"))
-
-    if "vehicles" in inspector.get_table_names():
-        columns = {column["name"] for column in inspector.get_columns("vehicles")}
-        with engine.begin() as conn:
-            if "photo_path" not in columns:
-                conn.execute(text("ALTER TABLE vehicles ADD COLUMN photo_path VARCHAR(500)"))
-            if "service_interval_km" not in columns:
-                conn.execute(text("ALTER TABLE vehicles ADD COLUMN service_interval_km INTEGER"))
-            if "service_interval_months" not in columns:
-                conn.execute(text("ALTER TABLE vehicles ADD COLUMN service_interval_months INTEGER"))
-
-    if "users" in inspector.get_table_names():
-        columns = {column["name"] for column in inspector.get_columns("users")}
-        with engine.begin() as conn:
-            if "password_changed_at" not in columns:
-                conn.execute(text("ALTER TABLE users ADD COLUMN password_changed_at DATETIME"))
-            if "must_change_password" not in columns:
-                conn.execute(text("ALTER TABLE users ADD COLUMN must_change_password BOOLEAN DEFAULT 0"))
-            if "password_reset_requested_at" not in columns:
-                conn.execute(text("ALTER TABLE users ADD COLUMN password_reset_requested_at DATETIME"))
-
-    if "fuel_logs" not in inspector.get_table_names():
-        FuelLog.__table__.create(bind=engine)
-
-    # Migrate fuel_logs to nullable liters/price_per_liter if needed (SQLite workaround)
-    if "fuel_logs" in inspector.get_table_names():
-        columns = {col["name"]: col for col in inspector.get_columns("fuel_logs")}
-        if "liters" in columns and not columns["liters"]["nullable"]:
-            with engine.begin() as conn:
-                conn.execute(text("PRAGMA foreign_keys=OFF"))
-                conn.execute(text("""
-                    CREATE TABLE fuel_logs_new (
-                        id INTEGER PRIMARY KEY,
-                        vehicle_id INTEGER NOT NULL,
-                        fill_date DATETIME NOT NULL,
-                        mileage_at_fill INTEGER NOT NULL,
-                        liters FLOAT,
-                        total_cost FLOAT NOT NULL,
-                        price_per_liter FLOAT,
-                        station VARCHAR(255),
-                        notes TEXT,
-                        created_at DATETIME NOT NULL,
-                        FOREIGN KEY(vehicle_id) REFERENCES vehicles (id)
-                    )
-                """))
-                conn.execute(text("""
-                    INSERT INTO fuel_logs_new 
-                    SELECT id, vehicle_id, fill_date, mileage_at_fill, liters, total_cost, 
-                           price_per_liter, station, notes, created_at 
-                    FROM fuel_logs
-                """))
-                conn.execute(text("DROP TABLE fuel_logs"))
-                conn.execute(text("ALTER TABLE fuel_logs_new RENAME TO fuel_logs"))
-                conn.execute(text("PRAGMA foreign_keys=ON"))
-
-    if "notification_logs" not in inspector.get_table_names():
-        NotificationLog.__table__.create(bind=engine)
-
-    if "invitations" not in inspector.get_table_names():
-        Invitation.__table__.create(bind=engine)
-
-    # ── Migration : table des surcharges d'intervalles par véhicule ──
-    if "vehicle_maintenance_overrides" not in inspector.get_table_names():
-        VehicleMaintenanceOverride.__table__.create(bind=engine)
+    run_migrations(engine, lambda: Base.metadata.create_all(bind=engine))

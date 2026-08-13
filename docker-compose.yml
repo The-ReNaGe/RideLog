@@ -40,6 +40,13 @@ services:
       - INVOICE_STORAGE_DIR=/data/invoices
       - PHOTO_STORAGE_DIR=/data/photos
 
+      # SAUVEGARDES AUTOMATIQUES DE LA BASE
+      # Une copie est déposée ici avant toute migration de schéma, et les
+      # DB_BACKUP_KEEP plus récentes sont conservées. Dans /data, donc visible
+      # depuis ./data/backups/ sur la machine hôte.
+      - DB_BACKUP_DIR=/data/backups
+      - DB_BACKUP_KEEP=5
+
       # PROXY DE CONFIANCE
       # Seul le nginx fourni (service "frontend") est autorisé à déclarer
       # l'IP réelle du visiteur via X-Forwarded-For / X-Real-IP.
