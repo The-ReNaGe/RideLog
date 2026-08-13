@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.7.3](https://github.com/The-ReNaGe/RideLog/compare/v1.7.2...v1.7.3) (2026-08-13)
+
+
+### Bug Fixes
+
+* durcit l'instance pour une exposition Internet ([28d99e5](https://github.com/The-ReNaGe/RideLog/commit/28d99e5b72b3113db287134b705a9adc696ec779))
+
 ## [1.7.2](https://github.com/The-ReNaGe/RideLog/compare/v1.7.1...v1.7.2) (2026-08-13)
 
 
