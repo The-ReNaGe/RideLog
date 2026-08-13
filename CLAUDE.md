@@ -713,10 +713,23 @@ Ainsi "pont-péan", "pont pean" et "pont péan" trouvent tous "Pont-Péan" dans 
 | GET | `/api/fuel-stations/city-suggestions?q=...` | Autocomplétion ville (max 3 résultats) |
 | GET | `/api/fuel-stations/fuel-types` | Types de carburant disponibles |
 
+**Les trois routes exigent un JWT** — la dépendance est posée sur le routeur entier (`APIRouter(..., dependencies=[Depends(get_current_user)])`), pas endpoint par endpoint, pour qu'un ajout futur soit protégé par défaut.
+
+> **Pourquoi** : ces endpoints n'exposent aucune donnée confidentielle, mais `/search` déclenche des appels sortants vers Nominatim, Overpass et prix-carburants. Ouverts, ils faisaient de l'instance un **relais gratuit vers ces services, sous son adresse IP** : n'importe qui pouvait boucler dessus jusqu'à faire bannir l'instance, et la fonctionnalité cessait alors de marcher pour les utilisateurs légitimes — sans que rien dans les logs ne ressemble à une attaque. S'y ajoutait un déni de service bon marché : chaque appel mobilise jusqu'à 30 s de connexions sortantes sur un conteneur limité à 256 Mo. L'interface n'a pas été touchée : `FuelStations.jsx` appelle déjà `api.request()`, donc le client Axios qui porte le token.
+
+### Cache et bornes de `/search`
+
+- **Cache mémoire** (`_search_cache`, TTL 900 s, 200 entrées max, éviction de la plus ancienne). Clé : `(ville normalisée, fuel_type, max_distance, limit)` — la normalisation passe par `_remove_accents()`, donc « Pont-Péan » et « pont pean » partagent la même entrée. Les résultats **vides sont mis en cache aussi** : ils ont coûté le même aller-retour réseau. Mesuré sur l'instance : 912 ms sans cache, 19 ms avec.
+- **Bornes** : `max_distance` ∈ ]0, 100] km et `limit` ∈ ]0, 100]. Le rayon dimensionne la requête Overpass, dont le coût de calcul croît avec son carré — libre, il permettait de demander un rayon continental à chaque appel. Hors bornes → `422`.
+- **Erreurs** : les exceptions d'appel sortant sont journalisées mais jamais renvoyées (elles portent des URL internes et des extraits de réponse tierce) — le client reçoit un `502` générique.
+
+> C'est un cache **par processus**, perdu au redémarrage et non partagé : correct tant que le backend tourne avec un seul worker uvicorn (cf. §13).
+
 ### Pour modifier
 
 - **Ajouter un type de carburant** : `fuel_stations.py` + `FuelStations.jsx`
-- **Modifier le rayon de recherche** : paramètre `max_distance` de l'endpoint
+- **Modifier le rayon de recherche** : paramètre `max_distance` de l'endpoint (plafond dans le `Query(...)`)
+- **Modifier la durée du cache** : `fuel_stations.py` → `_SEARCH_CACHE_TTL`
 - **Ajouter une source de prix** : `fuel_stations.py` → fonction de recherche
 
 ---
@@ -1436,6 +1449,7 @@ python -m pytest tests/ -v
 | `test_maintenance_calculator.py` | `maintenance_calculator.py` — intervalles dynamiques moto, anti-drift, statuts, contrôle technique, filtrage motorisation, overrides. Aucune dépendance DB/HTTP. |
 | `test_login_rate_limiter.py` | `LoginRateLimiter` (`security.py`) — paliers 3/6/9/12+, reset après succès, isolation par IP. Aucune dépendance DB/HTTP. |
 | `test_client_ip.py` | `get_client_ip()`, les deux limiteurs et `validate_jwt_secret()` (`security.py`) — verrouille les deux contournements corrigés du rate limiter (`X-Forwarded-For` falsifié, et passerelle Docker prise pour un proxy de confiance sur le port 8000 — voir §4), le verrouillage par compte, et le refus de démarrer sur un `JWT_SECRET` public. |
+| `test_fuel_stations.py` | Routes `/fuel-stations/*` — authentification exigée sur les trois endpoints, bornes de `max_distance`/`limit`, cache (clé insensible aux accents, plafond, expiration). Les appels sortants sont monkeypatchés : aucun test ne sort sur le réseau. |
 | `test_auth_integration.py` | Routes `/auth/*` et `/admin/users/*` via `TestClient` sur une DB SQLite temporaire — register/login, changement de mot de passe, reset admin, mot de passe temporaire (`must_change_password`), demande de reset anti-énumération, et non-énumération des identifiants à l'inscription (voir §4). |
 
 ### `conftest.py` — points importants
