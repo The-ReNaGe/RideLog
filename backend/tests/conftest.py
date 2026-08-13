@@ -45,13 +45,16 @@ def clean_db():
 
 @pytest.fixture(autouse=True)
 def clean_login_limiter():
-    """login_limiter est un singleton module-level (security.py) — sans reset,
-    les échecs de login d'un test polluent le suivant (TestClient utilise
-    toujours la même IP factice "testclient")."""
-    from security import login_limiter
+    """login_limiter et account_limiter sont des singletons module-level
+    (security.py) — sans reset, les échecs de login d'un test polluent le
+    suivant (TestClient utilise toujours la même IP factice "testclient", et
+    les tests réutilisent les mêmes noms de compte)."""
+    from security import login_limiter, account_limiter
     login_limiter.reset()
+    account_limiter.reset()
     yield
     login_limiter.reset()
+    account_limiter.reset()
 
 
 @pytest.fixture(autouse=True)
