@@ -1,5 +1,13 @@
 # Changelog
 
+## [1.7.2](https://github.com/The-ReNaGe/RideLog/compare/v1.7.1...v1.7.2) (2026-08-13)
+
+
+### Bug Fixes
+
+* corrige 4 failles de sécurité (rate limiter, JWT, photos, dépend… ([e21fae4](https://github.com/The-ReNaGe/RideLog/commit/e21fae425e6bafce37d193a4def5ce7c3900b2e3))
+* corrige 4 failles de sécurité (rate limiter, JWT, photos, dépendance morte) ([f0bfbff](https://github.com/The-ReNaGe/RideLog/commit/f0bfbffe590dafa8db264f8f76db138d7c80620e))
+
 ## [1.7.1](https://github.com/The-ReNaGe/RideLog/compare/v1.7.0...v1.7.1) (2026-08-12)
 
 
