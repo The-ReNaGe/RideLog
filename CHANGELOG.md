@@ -1,5 +1,18 @@
 # Changelog
 
+## [1.9.0](https://github.com/The-ReNaGe/RideLog/compare/v1.8.0...v1.9.0) (2026-08-14)
+
+
+### Features
+
+* renseigne la clé technique à l'enregistrement d'un entretien ([5738016](https://github.com/The-ReNaGe/RideLog/commit/5738016c38673fc1ae33b898f8c5f05e7e9ba763))
+* stocke la clé technique d'intervention en base ([b6b267a](https://github.com/The-ReNaGe/RideLog/commit/b6b267a492b64da7176887c86589c2fd33cbf3e7))
+
+
+### Bug Fixes
+
+* fait foi de la clé stockée plutôt que du libellé affiché ([f8df7f9](https://github.com/The-ReNaGe/RideLog/commit/f8df7f9d7fcdcd122f5d4d7c09fb2f54d65cc44f))
+
 ## [1.8.0](https://github.com/The-ReNaGe/RideLog/compare/v1.7.4...v1.8.0) (2026-08-14)
 
 
