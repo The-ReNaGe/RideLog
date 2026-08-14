@@ -27,6 +27,7 @@
 18. [Kilométrage moyen annuel](#18-kilométrage-moyen-annuel)
 19. [Tests backend](#19-tests-backend)
 20. [Préparation à l'internationalisation](#20-préparation-à-linternationalisation)
+21. [Distribution par images publiées](#21-distribution-par-images-publiées)
 
 ---
 
@@ -68,29 +69,36 @@
 
 ### Fichier : `docker-compose.yml`
 
+> ⚠️ **Depuis la 2.0, `docker-compose.yml` ne construit plus rien.** Il tire des
+> images publiées sur ghcr.io. Toute vérification d'une modification du code
+> exige la surcharge `docker-compose.dev.yml` — sans elle, on teste l'image
+> publiée, c'est-à-dire la version précédente, et on croit avoir validé son
+> changement. Voir §21.
+
 ```bash
-# Lancer tout
-docker compose up -d --build
+# Utilisateur — télécharger et lancer
+docker compose pull
+docker compose up -d
 
-# Logs backend
+# Développement — construire le code du dépôt
+docker compose -f docker-compose.yml -f docker-compose.dev.yml up -d --build
+
+# Un seul service
+docker compose -f docker-compose.yml -f docker-compose.dev.yml up -d --build backend
+
+# Logs
 docker logs ridelog-backend --tail 50
-
-# Logs frontend
 docker logs ridelog-frontend --tail 50
-
-# Reconstruire uniquement le backend
-docker compose up -d --build backend
-
-# Reconstruire uniquement le frontend
-docker compose up -d --build frontend
 ```
 
 ### Services
 
-| Service | Image | RAM limit | Volumes |
-|---------|-------|-----------|---------|
-| `backend` | `python:3.11-slim` | 256 MB | `./data:/data` (BDD, photos, factures) |
-| `frontend` | `node:18-alpine` → `nginx:alpine` | 512 MB | — (statique) |
+| Service | Image publiée | Base | RAM limit | Volumes |
+|---------|---------------|------|-----------|---------|
+| `backend` | `ghcr.io/the-renage/ridelog-backend` | `python:3.11-slim` | 256 MB | `./data:/data` (BDD, sauvegardes, photos, factures) |
+| `frontend` | `ghcr.io/the-renage/ridelog-frontend` | `node:18-alpine` → `nginx:alpine` | 512 MB | — (statique) |
+
+Architectures publiées : `linux/amd64` et `linux/arm64`.
 
 ### Variables d'environnement backend
 
@@ -106,6 +114,7 @@ Les variables d'environnement sont gérées via un fichier `.env` à la racine d
 | `TRUSTED_PROXIES` | `frontend` *(docker-compose)* | Proxys autorisés à déclarer l'IP du visiteur (IP, CIDR ou nom d'hôte, séparés par `,`). Vide = aucune confiance. Voir §4 |
 | `LOG_LEVEL` | `INFO` | Niveau de log |
 | `RAPIDAPI_KEY` | — | Clé API pour décodage plaque d'immatriculation |
+| `RIDELOG_TAG` | `stable` | Canal d'image : `stable` (validé à la main), `latest` (chaque merge, non validé), ou une version figée. Voir §21 |
 | `REGION` | `FR` | Pays actif — format de plaque et service de décodage (voir §20). Un code inconnu retombe sur `FR` |
 | `REMINDER_INTERVAL` | `3600` | Intervalle de vérification des rappels (secondes) |
 | `REMINDER_ENABLED` | `true` | Active/désactive le scheduler de rappels |
@@ -123,10 +132,12 @@ Les deux containers communiquent via le réseau Docker `ridelog`. Le frontend ng
 ```bash
 # Sur le serveur, dans le dossier du projet
 git pull origin main
-docker compose up -d --build
+docker compose pull
+docker compose up -d
 ```
 
-Le script `update.sh` à la racine automatise backup BDD + pull + rebuild en une commande.
+Le backend migre le schéma au démarrage, après avoir déposé une sauvegarde dans
+`/data/backups` (voir §13).
 
 ---
 
@@ -1613,6 +1624,93 @@ déplacé** — abstraire sans second cas réel ne valide rien :
 3. Traduction des chaînes du front (`frontend/src/lib/interventionTranslations.js`
    est le point de départ).
 4. Messages d'erreur backend, aujourd'hui en français en dur dans les routes.
+
+---
+
+---
+
+## 21. Distribution par images publiées
+
+### 21.1 Le problème résolu
+
+`python:3.11-slim` et `node:18-alpine` sont des **tags mobiles**, reconstruits
+régulièrement en amont. Tant que chaque utilisateur construisait son image, deux
+installations de la même version de RideLog différaient si elles avaient été
+buildées à quelques semaines d'intervalle — et un bug n'apparaissant que chez
+l'une était indiagnosticable, faute de savoir si l'écart venait du code ou du
+socle.
+
+Les images sont désormais construites **une fois**, en CI, et publiées. Tout le
+monde exécute le même digest.
+
+### 21.2 Les canaux
+
+| Tag | Produit par | Reconstruit ? |
+|---|---|---|
+| `stable` | promotion manuelle | **non** — re-tag d'un digest existant |
+| `latest` | chaque merge sur `main` | oui |
+| `X.Y.Z` | Release publiée | oui, une seule fois |
+| `sha-xxxxxxx` | chaque merge sur `main` | non, même build que `latest` |
+
+> ⚠️ `docker pull` sans tag prend `latest`, donc le canal **non validé**. Choix
+> assumé du projet : la documentation doit écrire `:stable` explicitement.
+
+**La promotion ne reconstruit jamais.** `imagetools create` pose un tag
+supplémentaire sur un manifeste déjà publié. Reconstruire donnerait une image
+différente de celle qui a été testée — précisément le problème que tout ce
+dispositif supprime.
+
+Promouvoir : Actions → *Publier les images* → *Run workflow* → saisir la version.
+
+### 21.3 Le piège du développement
+
+`docker-compose.yml` ne construit plus rien. **Vérifier une modification du code
+exige la surcharge :**
+
+```bash
+docker compose -f docker-compose.yml -f docker-compose.dev.yml up -d --build
+```
+
+Sans elle, on lance l'image publiée — la version précédente — en croyant tester
+son changement. C'est aussi pourquoi `build-test.yml` porte cette surcharge :
+une CI qui validerait l'image publiée serait verte sans rien vérifier.
+
+Conséquence à connaître : un build de développement écrase l'image locale
+`:stable`. Un `docker compose up -d` ultérieur réutilisera cette image locale
+sans rien télécharger. `docker compose pull` rétablit l'image publiée.
+
+### 21.4 Architectures
+
+`linux/amd64` et `linux/arm64`, dans un même index de manifestes : un seul tag,
+le client tire l'image de sa machine.
+
+Mesuré sans cache : backend 15 s en amd64, 67 s en arm64 — aucune compilation,
+`bcrypt` et `pydantic-core` publiant des wheels `aarch64`. Le frontend passe de
+144 s à 17 s grâce à `--platform=$BUILDPLATFORM` sur son étage de build, qui
+laisse `npm` tourner nativement puisqu'il produit du JavaScript, indifférent au
+processeur.
+
+> Une dépendance ajoutée sans wheel `aarch64` ferait échouer le build ARM. C'est
+> le bon comportement : l'échec est visible en CI, pas chez les utilisateurs.
+
+### 21.5 Retour arrière — image **et** base
+
+Revenir à une image ancienne ne fait pas revenir la base. Le système de
+migrations **refuse de démarrer** sur une base plus récente que le code (§13).
+Un retour arrière complet suppose donc les deux :
+
+```bash
+RIDELOG_TAG=1.9.0        # dans .env
+docker compose pull && docker compose up -d
+# puis, si le schéma avait été migré entre-temps :
+docker compose stop backend
+cp ./data/backups/ridelog-<horodatage>.db ./data/ridelog.db
+docker compose start backend
+```
+
+Un backend qui refuse de démarrer après un retour arrière n'est pas une panne,
+c'est cette protection. À dire tel quel dans toute doc de rollback, sinon le
+premier essai passe pour un bug.
 
 ---
 
