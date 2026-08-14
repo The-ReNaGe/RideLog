@@ -1649,8 +1649,16 @@ monde exécute le même digest.
 |---|---|---|
 | `stable` | promotion manuelle | **non** — re-tag d'un digest existant |
 | `latest` | chaque merge sur `main` | oui |
-| `X.Y.Z` | Release publiée | oui, une seule fois |
+| `X.Y.Z` | **appel** de release-please | oui, une seule fois |
 | `sha-xxxxxxx` | chaque merge sur `main` | non, même build que `latest` |
+
+> ⚠️ **Ne jamais déclencher la publication sur `release: types: [published]`.**
+> GitHub Actions refuse qu'un évènement produit avec le `GITHUB_TOKEN` en
+> déclenche un autre — protection anti-boucle. release-please créant la Release
+> avec ce jeton, l'évènement n'arrive jamais. Constaté en vrai : la v2.0.0 a été
+> publiée sans qu'aucune image `2.0.0` ne soit construite. `release-please.yml`
+> **appelle** donc `publish-images.yml` (`workflow_call`) au lieu de l'attendre.
+> La même règle vaudra pour tout futur workflow branché sur une release.
 
 > ⚠️ `docker pull` sans tag prend `latest`, donc le canal **non validé**. Choix
 > assumé du projet : la documentation doit écrire `:stable` explicitement.
@@ -1660,7 +1668,10 @@ supplémentaire sur un manifeste déjà publié. Reconstruire donnerait une imag
 différente de celle qui a été testée — précisément le problème que tout ce
 dispositif supprime.
 
-Promouvoir : Actions → *Publier les images* → *Run workflow* → saisir la version.
+Promouvoir : Actions → *Publier les images* → *Run workflow*, puis un tag
+**source** déjà publié et un tag **cible** à poser (`2.0.0` → `stable`). La
+source accepte aussi `latest`, ce qui dépanne quand aucune version n'a encore
+d'image.
 
 ### 21.3 Le piège du développement
 

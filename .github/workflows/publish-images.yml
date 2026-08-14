@@ -35,17 +35,32 @@ on:
   push:
     branches: [main]
 
-  # release-please crée une Release à chaque merge de sa PR : on en fait le
-  # tag de version immuable.
-  release:
-    types: [published]
-
-  # Promotion manuelle en `stable`.
-  workflow_dispatch:
+  # Tag de version immuable, APPELÉ par release-please.
+  #
+  # ⚠️ Surtout pas `release: types: [published]`. Un évènement produit avec le
+  # GITHUB_TOKEN ne déclenche aucun autre workflow — c'est une protection
+  # anti-boucle de GitHub Actions. Or release-please crée la Release avec ce
+  # jeton : l'évènement `release` n'arrive donc JAMAIS. C'est ce qui a laissé
+  # la 2.0.0 sans image `2.0.0`. release-please nous appelle explicitement.
+  workflow_call:
     inputs:
       version:
-        description: "Version à promouvoir en stable (ex: 1.8.0)"
+        description: "Tag de version à publier (ex: v2.0.0 ou 2.0.0)"
         required: true
+        type: string
+
+  # Promotion manuelle : pose un tag supplémentaire sur un digest EXISTANT.
+  workflow_dispatch:
+    inputs:
+      source:
+        description: "Tag source, déjà publié (ex: latest, 2.0.0)"
+        required: true
+        default: "latest"
+        type: string
+      target:
+        description: "Tag à créer ou déplacer (ex: stable)"
+        required: true
+        default: "stable"
         type: string
 
 permissions:
@@ -104,9 +119,12 @@ jobs:
           OWNER=$(echo "${{ github.repository_owner }}" | tr '[:upper:]' '[:lower:]')
           IMAGE="ghcr.io/${OWNER}/ridelog-${{ matrix.component }}"
 
-          if [ "${{ github.event_name }}" = "release" ]; then
-            # release-please tague « v1.8.0 » ; les images se taguent « 1.8.0 ».
-            VERSION="${{ github.event.release.tag_name }}"
+          # On distingue les cas par la PRÉSENCE de l'entrée `version`, pas par
+          # github.event_name : dans un workflow appelé, event_name reste celui
+          # du déclencheur d'origine (`push`), il ne dirait donc rien d'utile.
+          VERSION="${{ inputs.version }}"
+          if [ -n "$VERSION" ]; then
+            # release-please tague « v2.0.0 » ; les images se taguent « 2.0.0 ».
             VERSION="${VERSION#v}"
             echo "tags=${IMAGE}:${VERSION}" >> "$GITHUB_OUTPUT"
             echo "resume=${IMAGE}:${VERSION} (version épinglable)" >> "$GITHUB_OUTPUT"
@@ -167,19 +185,21 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Promouvoir ${{ inputs.version }} en stable
+      - name: Promouvoir ${{ inputs.source }} → ${{ inputs.target }}
         run: |
           OWNER=$(echo "${{ github.repository_owner }}" | tr '[:upper:]' '[:lower:]')
           IMAGE="ghcr.io/${OWNER}/ridelog-${{ matrix.component }}"
-          VERSION="${{ inputs.version }}"
-          VERSION="${VERSION#v}"
+          SOURCE="${{ inputs.source }}"; SOURCE="${SOURCE#v}"
+          TARGET="${{ inputs.target }}"; TARGET="${TARGET#v}"
 
           # `imagetools create` ajoute un tag sur un manifeste EXISTANT : rien
-          # n'est reconstruit, rien n'est retéléchargé. `stable` désigne donc
-          # exactement le même digest que la version validée.
+          # n'est reconstruit, rien n'est retéléchargé, et les DEUX
+          # architectures suivent. Le tag cible désigne exactement le même
+          # digest que la source — c'est ce qui rend `stable` bit pour bit
+          # identique à ce qui a été validé.
           docker buildx imagetools create \
-            --tag "${IMAGE}:stable" \
-            "${IMAGE}:${VERSION}"
+            --tag "${IMAGE}:${TARGET}" \
+            "${IMAGE}:${SOURCE}"
 
-          echo "✅ ${IMAGE}:${VERSION} → stable" >> "$GITHUB_STEP_SUMMARY"
-          docker buildx imagetools inspect "${IMAGE}:stable" | head -5
+          echo "✅ ${IMAGE}: ${SOURCE} → ${TARGET}" >> "$GITHUB_STEP_SUMMARY"
+          docker buildx imagetools inspect "${IMAGE}:${TARGET}" | head -5
