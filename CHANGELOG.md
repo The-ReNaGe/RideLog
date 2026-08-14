@@ -1,5 +1,16 @@
 # Changelog
 
+## [2.0.0](https://github.com/The-ReNaGe/RideLog/compare/v1.9.0...v2.0.0) (2026-08-14)
+
+
+### ⚠ BREAKING CHANGES
+
+* `docker compose up -d --build` ne construit plus le code du dépôt. La mise à jour devient `docker compose pull && docker compose up -d`, et toute modification locale du code reste sans effet sans la surcharge docker-compose.dev.yml. Les données ne sont pas concernées : elles vivent dans ./data, en dehors des images. Procédure détaillée dans le README.
+
+### Features
+
+* distribue des images publiées plutôt qu'un build local ([80bec74](https://github.com/The-ReNaGe/RideLog/commit/80bec744115e74999dfe82da99a6819f550c45f4)), closes [#13](https://github.com/The-ReNaGe/RideLog/issues/13)
+
 ## [1.9.0](https://github.com/The-ReNaGe/RideLog/compare/v1.8.0...v1.9.0) (2026-08-14)
 
 
