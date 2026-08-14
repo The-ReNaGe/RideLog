@@ -226,7 +226,7 @@ Schémas Pydantic pour les entrées/sorties :
   - Vérifie `NotificationLog` pour éviter les doublons
   - Envoie via `send_webhook_notification()` (Discord, ntfy, etc.)
 
-> **Note** : le scheduler ne charge pas encore les overrides d'intervalles. Si un utilisateur a personnalisé un intervalle, les rappels webhook utilisent encore les valeurs par défaut du JSON. À corriger dans une future version en passant les overrides à `get_all_upcoming_maintenances()` comme dans `_compute_upcoming()`.
+> **Note** : le scheduler charge les overrides d'intervalles du véhicule et les passe à `get_all_upcoming_maintenances()` (`_check_vehicle_reminders()`), comme `_compute_upcoming()`. Les rappels webhook respectent donc les intervalles personnalisés. Toute nouvelle source d'échéances doit faire de même, sinon l'UI et les rappels divergent en silence.
 
 ---
 
