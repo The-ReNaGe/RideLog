@@ -107,6 +107,8 @@ Les variables d'environnement sont gérées via un fichier `.env` à la racine d
 | `RAPIDAPI_KEY` | — | Clé API pour décodage plaque d'immatriculation |
 | `REMINDER_INTERVAL` | `3600` | Intervalle de vérification des rappels (secondes) |
 | `REMINDER_ENABLED` | `true` | Active/désactive le scheduler de rappels |
+| `DB_BACKUP_DIR` | `/data/backups` | Répertoire des sauvegardes automatiques prises avant toute migration de schéma (voir §13) |
+| `DB_BACKUP_KEEP` | `5` | Nombre de sauvegardes conservées ; les plus anciennes sont supprimées |
 | `INVOICE_STORAGE_DIR` | `/data/invoices` | Répertoire des factures |
 | `PHOTO_STORAGE_DIR` | `/data/photos` | Répertoire des photos véhicules |
 
@@ -1012,18 +1014,56 @@ api.getMaintenanceRecap(vehicleId),  // ← chargé d'emblée pour les KPI cards
 
 La combinaison `(vehicle_id, intervention_key)` est unique — un seul override par intervention par véhicule.
 
-### Migrations
+### Migrations — `backend/migrations.py`
 
-Les migrations sont gérées manuellement dans `models.py` → `init_db()` :
-- Vérification de l'existence des colonnes via `PRAGMA table_info`
-- Ajout via `ALTER TABLE ADD COLUMN`
-- Idempotent (peut être relancé sans erreur)
-- **Pas d'Alembic** — toutes les migrations sont écrites à la main
+**Pas d'Alembic** : les migrations sont écrites à la main, mais versionnées et enregistrées en base. `init_db()` ne fait plus que déléguer à `run_migrations()`.
+
+#### Ce que le système garantit
+
+| Garantie | Mécanisme |
+|---|---|
+| La base sait où elle en est | Table `schema_migrations` — une ligne par migration appliquée |
+| Une migration n'est jamais rejouée | Registre + prédicat d'adoption |
+| Une migration rejouée serait sans effet | Chaque opération vérifie l'état réel (`add_column_if_missing`) — ceinture **et** bretelles |
+| Un échec n'abîme rien | Une transaction par migration ; échec → annulation + `RuntimeError`, le backend refuse de démarrer |
+| On peut revenir en arrière | Sauvegarde dans `/data/backups` avant toute migration (`DB_BACKUP_KEEP`, 5 par défaut) |
+| Un retour à une image plus ancienne est bloqué | Migration inconnue dans le registre → refus de démarrer |
+| Base neuve et base migrée sont identiques | `schema_fingerprint()` + test de parité en CI |
+
+#### Les trois cas au démarrage
+
+```
+base vide          → create_all(), puis estampillage de toutes les migrations sans les exécuter
+base sans registre → adoption : détection de l'existant, estampillage, application du reste
+base avec registre → application de ce qui manque
+```
+
+L'**adoption** est le seul endroit où subsiste l'ancienne heuristique d'inspection du schéma. Elle ne s'exécute qu'une fois par base, jamais plus.
+
+#### Le DDL SQLite n'est transactionnel que si on le force
+
+Le pilote `sqlite3` de Python n'ouvre une transaction implicite que devant du DML, **jamais devant du DDL** : un `ALTER TABLE` s'exécute en autocommit et le `with engine.begin()` qui l'entoure ne protège rien. `_make_transactional_engine()` crée donc un moteur **jetable**, dédié aux migrations, où le `BEGIN` est émis explicitement. Le moteur applicatif n'est pas modifié.
+
+#### Ajouter une migration
+
+1. Ajouter une entrée **à la fin** de `MIGRATIONS`, avec le numéro suivant.
+2. Le prédicat `already_applied` doit exiger **toutes** les colonnes que la migration ajoute (`has_all_columns`), jamais un échantillon — sinon une migration à demi appliquée est estampillée « faite » et ses colonnes manquantes ne sont jamais créées. Cet état existe dans l'historique du dépôt (`password_changed_at` ajouté dans un commit, les deux autres dans le suivant).
+3. **Ne jamais modifier ni réordonner une migration publiée.** C'est la seule règle qui garantit qu'une base neuve et une base migrée convergent.
+4. Une table entièrement nouvelle ne demande **pas** de migration : `create_all()` la crée à partir du modèle, une déclaration ne pouvant pas diverger d'elle-même.
+
+#### Divergences réelles trouvées en écrivant ce système
+
+Le test de parité les a révélées immédiatement — elles préexistaient toutes :
+
+1. **Trois colonnes mortes** — l'ancien `init_db` ajoutait `invoice_filename`, `invoice_path` et `invoice_mime_type` à `maintenances` alors que le modèle ne les déclare plus (les factures vivent dans `maintenance_invoices`). Constaté sur une instance en service. Migration 006 les retire, après avoir reversé dans `maintenance_invoices` toute facture encore décrite par elles.
+2. **La reconstruction de `fuel_logs` cassait le schéma** — elle recréait la table avec `created_at NOT NULL` (le modèle le veut nullable) et, `DROP TABLE` ayant emporté les index, ne recréait ni `ix_fuel_logs_id` ni `ix_fuel_logs_vehicle_id`. Toute base passée par ce chemin restait sans index sur `vehicle_id`.
+3. **Le rollback n'existait pas** — voir le DDL SQLite ci-dessus. La promesse « une migration échouée est annulée » était fausse.
 
 ### Pour modifier
 
-- **Ajouter une colonne** : `models.py` → ajouter dans le modèle + dans `init_db()` (migration `ALTER TABLE`)
-- **Ajouter une table** : `models.py` → créer le modèle, `init_db()` s'occupe du `create_all()`
+- **Ajouter une colonne** : `models.py` (modèle) + `migrations.py` (nouvelle entrée dans `MIGRATIONS`)
+- **Ajouter une table** : `models.py` → créer le modèle. `create_all()` s'en charge, aucune migration nécessaire.
+- **Restaurer une sauvegarde** : arrêter le backend, remplacer `data/ridelog.db` par le fichier voulu dans `data/backups/`, redémarrer.
 
 ---
 
@@ -1449,6 +1489,7 @@ python -m pytest tests/ -v
 | `test_maintenance_calculator.py` | `maintenance_calculator.py` — intervalles dynamiques moto, anti-drift, statuts, contrôle technique, filtrage motorisation, overrides. Aucune dépendance DB/HTTP. |
 | `test_login_rate_limiter.py` | `LoginRateLimiter` (`security.py`) — paliers 3/6/9/12+, reset après succès, isolation par IP. Aucune dépendance DB/HTTP. |
 | `test_client_ip.py` | `get_client_ip()`, les deux limiteurs et `validate_jwt_secret()` (`security.py`) — verrouille les deux contournements corrigés du rate limiter (`X-Forwarded-For` falsifié, et passerelle Docker prise pour un proxy de confiance sur le port 8000 — voir §4), le verrouillage par compte, et le refus de démarrer sur un `JWT_SECRET` public. |
+| `test_migrations.py` | `migrations.py` — parité de schéma entre base neuve et base migrée, survie des données, idempotence, adoption d'une base sans registre, migration à demi appliquée, rollback, garde anti-retour-arrière, sauvegardes. Tourne sur **deux schémas anciens réels** figés dans `tests/fixtures/*.sql` (le commit initial du dépôt et une instance antérieure au dépôt), jamais sur un schéma écrit de mémoire. |
 | `test_fuel_stations.py` | Routes `/fuel-stations/*` — authentification exigée sur les trois endpoints, bornes de `max_distance`/`limit`, cache (clé insensible aux accents, plafond, expiration). Les appels sortants sont monkeypatchés : aucun test ne sort sur le réseau. |
 | `test_auth_integration.py` | Routes `/auth/*` et `/admin/users/*` via `TestClient` sur une DB SQLite temporaire — register/login, changement de mot de passe, reset admin, mot de passe temporaire (`must_change_password`), demande de reset anti-énumération, et non-énumération des identifiants à l'inscription (voir §4). |
 
