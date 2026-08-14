@@ -16,6 +16,7 @@ from security import get_current_user
 from routes import secure_delete
 from schemas import VehicleCreate, VehicleUpdate
 from maintenance_calculator import MaintenanceCalculator, build_last_maintenances_dict
+from regions import format_model_text, get_region
 
 PHOTO_STORAGE_DIR = Path(os.getenv("PHOTO_STORAGE_DIR", "/data/photos"))
 ALLOWED_PHOTO_MIME = {"image/jpeg", "image/png", "image/webp"}
@@ -30,165 +31,6 @@ MAX_PHOTO_SIZE = 5 * 1024 * 1024  # 5 MB
 logger = logging.getLogger("ridelog.vehicles")
 router = APIRouter(prefix="/vehicles", tags=["vehicles"])
 planning_calculator = MaintenanceCalculator()
-FR_PLATE_REGEX = re.compile(r"^[A-Z]{2}-?\d{3}-?[A-Z]{2}$")
-
-
-def normalize_french_plate(plate: str) -> str:
-    normalized = re.sub(r"[^A-Za-z0-9]", "", (plate or "").upper())
-    if len(normalized) != 7:
-        return ""
-    return f"{normalized[0:2]}-{normalized[2:5]}-{normalized[5:7]}"
-
-
-def _to_int(value):
-    if value is None:
-        return None
-    text = str(value).replace(",", ".")
-    match = re.search(r"\d+(?:\.\d+)?", text)
-    if not match:
-        return None
-    return int(round(float(match.group(0))))
-
-
-def _format_model_text(value: str) -> str:
-    text = re.sub(r"\s+", " ", (value or "").strip())
-    if not text:
-        return ""
-    titled = text.title()
-    formatted = re.sub(
-        r"\b([ivxlcdm]{1,8})\b",
-        lambda m: m.group(1).upper(),
-        titled,
-        flags=re.IGNORECASE,
-    )
-    return formatted
-
-
-def _parse_displacement_cc(data: dict):
-    ccm = _to_int(data.get("ccm") or data.get("cylindree"))
-    if ccm and ccm >= 80:
-        return ccm
-
-    liters_raw = data.get("capacite_litres")
-    if liters_raw is not None:
-        as_text = str(liters_raw).replace(",", ".")
-        match = re.search(r"\d+(?:\.\d+)?", as_text)
-        if match:
-            liters = float(match.group(0))
-            if 0 < liters < 20:
-                return int(round(liters * 1000))
-
-    direct = _to_int(data.get("displacement"))
-    if direct and direct >= 80:
-        return direct
-
-    version = str(data.get("version") or "")
-    version_liters = re.search(r"(\d+(?:[\.,]\d+)?)\s*(?:dci|tdi|hdi|tsi|tce|l)\b", version, flags=re.IGNORECASE)
-    if version_liters:
-        liters = float(version_liters.group(1).replace(",", "."))
-        if 0 < liters < 20:
-            return int(round(liters * 1000))
-
-    version_cc = re.search(r"\b(\d{2,4})\s*cc\b", version, flags=re.IGNORECASE)
-    if version_cc:
-        cc = int(version_cc.group(1))
-        if 80 <= cc <= 3000:
-            return cc
-
-    sra = str(data.get("sra_commercial") or "")
-    if sra:
-        sra_cc = re.search(r"\b(\d{3,4})\b", sra)
-        if sra_cc:
-            cc = int(sra_cc.group(1))
-            if 50 <= cc <= 3000:
-                return cc
-
-    return None
-
-
-def parse_plate_response(payload: dict, vehicle_type_hint: str = None) -> dict:
-    data = payload.get("data", payload)
-
-    brand = _format_model_text(data.get("marque") or data.get("brand") or "")
-    model = _format_model_text(data.get("modele") or data.get("model") or "")
-    fuel_raw = (data.get("energieNGC") or data.get("type_moteur") or data.get("energie") or "").lower()
-    displacement = _parse_displacement_cc(data)
-
-    genre_raw = " ".join(
-        [
-            str(data.get("genreVCGNGC") or ""),
-            str(data.get("genreVCG") or ""),
-            str(data.get("carrosserieCG") or ""),
-            str(data.get("carrosserie") or ""),
-        ]
-    ).lower()
-
-    motorcycle_markers = ["moto", "motocyclette", "cyclomoteur", "mtl", "mtt1", "mtt2", "mtt", "cyclo"]
-    has_motorcycle_marker = any(marker in genre_raw for marker in motorcycle_markers)
-    has_explicit_car_marker = any(marker in genre_raw for marker in ["vp", "vtsu", "ctte"])
-
-    if has_motorcycle_marker:
-        vehicle_type = "motorcycle"
-    else:
-        vehicle_type = "car"
-
-    genre_is_inconclusive = not has_motorcycle_marker and not has_explicit_car_marker
-    if vehicle_type_hint in {"car", "motorcycle"} and vehicle_type != vehicle_type_hint and genre_is_inconclusive:
-        vehicle_type = vehicle_type_hint
-
-    year = None
-    first_reg = data.get("date1erCir_fr") or data.get("date1erCir_us")
-    if isinstance(first_reg, str):
-        match = re.search(r"(19|20)\d{2}", first_reg)
-        if match:
-            year = int(match.group(0))
-
-    if not year:
-        start_model = data.get("debut_modele")
-        if isinstance(start_model, str):
-            match = re.search(r"(19|20)\d{2}", start_model)
-            if match:
-                year = int(match.group(0))
-
-    motorization = "essence"
-    if any(k in fuel_raw for k in ["diesel", "gazole"]):
-        motorization = "diesel"
-    elif any(k in fuel_raw for k in ["elect", "élect"]):
-        motorization = "electric"
-    elif "hybrid" in fuel_raw or "hybride" in fuel_raw:
-        motorization = "hybrid"
-
-    if vehicle_type == "motorcycle" and motorization != "electric":
-        motorization = "thermal"
-
-    registration_date = None
-    date_fr = data.get("date1erCir_fr") or ""
-    if date_fr:
-        parts = date_fr.split("-")
-        if len(parts) == 3 and len(parts[2]) == 4:
-            registration_date = f"{parts[2]}-{parts[1]}-{parts[0]}"
-
-    fiscal_power = _to_int(data.get("puisFisc"))
-    sra_commercial = (data.get("sra_commercial") or "").strip()
-    vin = (data.get("vin") or "").strip()
-    cylinders = _to_int(data.get("cylindres"))
-
-    return {
-        "brand": brand,
-        "model": model,
-        "year": year,
-        "motorization": motorization,
-        "displacement": displacement,
-        "vehicle_type": vehicle_type,
-        "registration_date": registration_date,
-        "fiscal_power": fiscal_power,
-        "sra_commercial": sra_commercial if sra_commercial else None,
-        "vin": vin if vin else None,
-        "cylinders": cylinders,
-        "source": "api.apiplaqueimmatriculation.com",
-    }
-
-
 @router.get("/brand-service-defaults")
 def get_brand_service_defaults(
     brand: str = Query(..., min_length=1),
@@ -400,7 +242,7 @@ def decode_vin(
 
         return {
             "brand": brand,
-            "model": _format_model_text(model),
+            "model": format_model_text(model),
             "year": int(year) if year and year.isdigit() else None,
             "motorization": motorization,
             "displacement": displacement,
@@ -424,9 +266,13 @@ def decode_license_plate(
     vehicle_type_hint: str = Query(None),
     current_user: User = Depends(get_current_user),
 ):
-    normalized_plate = normalize_french_plate(plate)
-    if not normalized_plate or not FR_PLATE_REGEX.match(normalized_plate):
-        raise HTTPException(status_code=400, detail="Format de plaque invalide. Exemple attendu: AB-123-CD")
+    region = get_region()
+    normalized_plate = region.normalize_plate(plate)
+    if not normalized_plate:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Format de plaque invalide. Exemple attendu: {region.plate_example}",
+        )
 
     rapidapi_key = os.getenv("RAPIDAPI_KEY")
     direct_token = os.getenv("PLATE_API_TOKEN")
@@ -510,7 +356,7 @@ def decode_license_plate(
         if "error" in data and data["error"]:
             raise HTTPException(status_code=400, detail=str(data["error"]))
 
-        parsed = parse_plate_response(data, vehicle_type_hint=vehicle_type_hint)
+        parsed = region.parse_plate_response(data, vehicle_type_hint=vehicle_type_hint)
         if not parsed.get("brand") or not parsed.get("model"):
             raise HTTPException(status_code=404, detail="Aucune donnée exploitable trouvée pour cette plaque")
 
