@@ -64,7 +64,11 @@ VALUES (1, 1, 'Ma moto', 'Yamaha', 'MT-07', 2021, 'motorcycle', 'essence', 'acce
 INSERT INTO maintenances (id, vehicle_id, intervention_type, execution_date,
                           mileage_at_intervention, cost_paid, notes, maintenance_category, created_at)
 VALUES (1, 1, 'Révision périodique (km)', '2024-06-01 10:00:00', 20000, 250.0, 'chez le concessionnaire', 'scheduled', '2024-06-01 10:00:00'),
-       (2, 2, 'Vidange d''huile', '2024-05-01 10:00:00', 80000, 120.5, NULL, 'scheduled', '2024-05-01 10:00:00');
+       (2, 2, 'Vidange d''huile', '2024-05-01 10:00:00', 80000, 120.5, NULL, 'scheduled', '2024-05-01 10:00:00'),
+       -- Libellé abandonné depuis, conservé dans le dictionnaire uniquement
+       -- pour les bases existantes : c'est le cas que la migration 007 doit
+       -- savoir rattacher à sa clé, sinon l'échéance disparaît de « À venir ».
+       (3, 1, 'Purge liquide de frein et embrayage', '2024-03-01 10:00:00', 18000, 60.0, NULL, 'scheduled', '2024-03-01 10:00:00');
 
 INSERT INTO fuel_logs (id, vehicle_id, fill_date, mileage_at_fill, liters, total_cost, price_per_liter, station, notes, created_at)
 VALUES (1, 1, '2024-06-10 10:00:00', 20500, 14.2, 25.56, 1.80, 'Total Rennes', NULL, '2024-06-10 10:00:00'),
@@ -396,6 +400,74 @@ def test_legacy_invoice_data_is_rescued_before_dropping(tmp_path, monkeypatch):
     assert rows[0][1] == "facture.pdf"
     assert rows[0][3] == "application/pdf"
     assert rows[0][4] == invoice.stat().st_size
+
+
+# ═══════════════════════════════════════════════════════════════════════════
+# 3 bis. Migration 007 — clé technique d'intervention
+# ═══════════════════════════════════════════════════════════════════════════
+
+def _keys_by_label(engine) -> dict:
+    with engine.begin() as conn:
+        return {
+            label: key
+            for label, key in conn.execute(text(
+                "SELECT intervention_type, intervention_key FROM maintenances"
+            ))
+        }
+
+
+def test_intervention_keys_are_backfilled_from_history(legacy_engine):
+    """Tout l'historique existant doit ressortir avec sa clé technique — y
+    compris le libellé abandonné, qui est précisément le cas que le stockage
+    par libellé rendait fragile."""
+    migrate(legacy_engine)
+    keys = _keys_by_label(legacy_engine)
+
+    assert keys["Révision périodique (km)"] == "periodic_service"
+    assert keys["Vidange d'huile"] == "oil_change"
+    assert keys["Purge liquide de frein et embrayage"] == "brake_fluid"
+
+
+def test_no_maintenance_is_left_without_a_key(legacy_engine):
+    migrate(legacy_engine)
+    with legacy_engine.begin() as conn:
+        orphans = conn.execute(text(
+            "SELECT COUNT(*) FROM maintenances WHERE intervention_key IS NULL"
+        )).scalar_one()
+    assert orphans == 0
+
+
+def test_backfill_completes_when_column_exists_but_is_empty(tmp_path, monkeypatch):
+    """Colonne créée mais backfill non fait — l'état que laisserait une 007
+    interrompue. Le prédicat d'adoption ne doit pas l'estampiller « faite »,
+    sinon l'historique reste sans clé pour toujours."""
+    monkeypatch.setattr(migrations, "BACKUP_DIR", str(tmp_path / "backups"))
+    db = tmp_path / "half.db"
+    build_legacy_db(str(db), variant="initial_commit")
+    engine = create_engine(f"sqlite:///{db}", connect_args={"check_same_thread": False})
+
+    with engine.begin() as conn:
+        conn.execute(text("ALTER TABLE maintenances ADD COLUMN intervention_key VARCHAR(100)"))
+
+    migrate(engine)
+
+    assert _keys_by_label(engine)["Révision périodique (km)"] == "periodic_service"
+
+
+def test_frozen_snapshot_still_agrees_with_the_live_dictionary(legacy_engine):
+    """Le dictionnaire vivant a le droit d'évoluer — la migration, non. Ce test
+    ne l'interdit pas : il signale la divergence, pour qu'un renommage soit un
+    choix conscient accompagné d'une migration 008 de remappage, et non une
+    dérive silencieuse entre l'historique et les écritures nouvelles."""
+    from maintenance_calculator import get_intervention_key
+
+    migrate(legacy_engine)
+    for label, stored in _keys_by_label(legacy_engine).items():
+        assert stored == get_intervention_key(label), (
+            f"« {label} » est migré vers « {stored} » mais le code vivant "
+            f"calcule « {get_intervention_key(label)} ». Si le renommage est "
+            f"voulu, ajouter une migration qui remappe les lignes existantes."
+        )
 
 
 # ═══════════════════════════════════════════════════════════════════════════

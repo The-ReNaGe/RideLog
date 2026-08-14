@@ -232,9 +232,14 @@ async def create_maintenance(
     if mileage and mileage > vehicle.current_mileage:
         vehicle.current_mileage = mileage
 
+    # La clé technique est résolue une fois, à l'écriture, et stockée. C'est
+    # elle qui fera foi pour les calculs d'échéance ; `intervention_type` ne
+    # reste qu'un libellé d'affichage, qu'on pourra donc renommer ou traduire
+    # sans détacher la ligne de son historique.
     maintenance = Maintenance(
         vehicle_id=vehicle_id,
         intervention_type=data.get("intervention_type"),
+        intervention_key=get_intervention_key(data.get("intervention_type")),
         execution_date=execution_date,
         mileage_at_intervention=mileage,
         cost_paid=data.get("cost_paid"),
@@ -271,7 +276,7 @@ async def create_maintenance(
     vehicle.updated_at = datetime.now(timezone.utc)
     db.commit()
     db.refresh(maintenance)
-    clear_notification_logs_for(vehicle_id, maintenance.intervention_type, db, maintenance.sub_interventions)
+    clear_notification_logs_for(vehicle_id, maintenance, db)
     try:
         await _check_vehicle_reminders(vehicle, db)
     except Exception:
@@ -371,7 +376,7 @@ async def update_maintenance(
     maintenance.updated_at = datetime.now(timezone.utc)
     db.commit()
     db.refresh(maintenance)
-    clear_notification_logs_for(vehicle_id, maintenance.intervention_type, db, maintenance.sub_interventions)
+    clear_notification_logs_for(vehicle_id, maintenance, db)
     try:
         await _check_vehicle_reminders(vehicle, db)
     except Exception:
@@ -397,7 +402,7 @@ def delete_maintenance(
     for invoice in maintenance.invoices:
         if invoice.file_path:
             secure_delete(invoice.file_path)
-    clear_notification_logs_for(vehicle_id, maintenance.intervention_type, db, maintenance.sub_interventions)
+    clear_notification_logs_for(vehicle_id, maintenance, db)
     db.delete(maintenance)
     db.commit()
     return {"detail": "Maintenance deleted"}

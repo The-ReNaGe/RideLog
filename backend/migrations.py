@@ -322,6 +322,181 @@ def _m006_drop_legacy_invoice_columns(conn: Connection) -> None:
         logger.info("  - maintenances.%s (colonne héritée retirée)", column)
 
 
+# ── 007 ────────────────────────────────────────────────────────────────────
+
+# Instantané FIGÉ du dictionnaire de traduction au moment où cette migration a
+# été écrite. Volontairement recopié, et non importé depuis
+# maintenance_calculator : une migration est un artefact historique, elle doit
+# produire le même résultat dans un an qu'aujourd'hui. Si le dictionnaire vivant
+# évoluait, importer ferait silencieusement changer le passé — deux instances
+# migrées à deux dates différentes n'auraient pas les mêmes clés en base.
+#
+# NE PAS METTRE À JOUR. Un renommage futur se traite par une migration 008 qui
+# remappe les clés déjà stockées : c'est précisément ce que cette colonne rend
+# possible, et qui était impossible tant que la base ne stockait que le libellé.
+_M007_FROZEN_TRANSLATIONS: dict[str, str] = {
+    # Moteur / Engine
+    "Vidange d'huile": "oil_change",
+    "Vidange d'huile + filtre": "oil_change",
+    "Vidange + filtre à huile": "oil_change",
+    "Vidange d'huile (entretien 4000km)": "oil_change",
+    "Vidange d'huile (entretien 6000km)": "oil_change",
+    "Vidange d'huile (entretien 10000km)": "oil_change",
+    "Vidange d'huile (entretien 10-12000km)": "oil_change",
+    "Vidange d'huile + Remplacement filtre à huile": "oil_change_moto",
+    "Remplacement filtre à huile": "oil_filter",
+    "Remplacement bougie d'allumage": "spark_plug",
+    "Remplacement bougies d'allumage": "spark_plug",
+    "Remplacement filtre à air": "air_filter",
+    "Remplacement filtre d'habitacle": "cabin_filter",
+    "Remplacement filtre à carburant": "fuel_filter_diesel",
+    # Transmission / Chain
+    "Remplacement kit chaîne (chaîne + pignon + couronne)": "chain_kit",
+    "Vérification et ajustement tension chaîne": "chain_tension",
+    "Graissage de chaîne": "chain_lubrication",
+    "Nettoyage chaîne": "chain_cleaning",
+    "Tension et lubrification chaîne": "chain_maintenance",
+    # Tires
+    "Remplacement pneu arrière": "tire_replacement_rear",
+    "Remplacement pneu avant": "tire_replacement_front",
+    "Remplacement pneus": "tire_replacement",
+    "Remplacement pneus (paire)": "tire_replacement",
+    # Braking
+    "Purge de frein": "brake_fluid",
+    "Purge circuit de freinage": "brake_fluid",
+    "Remplacement plaquettes de frein": "brake_pads",
+    "Remplacement plaquettes (avant ou arrière)": "brake_pads",
+    "Remplacement disques de frein": "brake_disc",
+    "Remplacement disques": "brake_disc",
+    "Remplacement freins": "brake_replacement",
+    # Electrical
+    "Remplacement batterie": "battery",
+    # Cooling
+    "Renouvellement liquide de refroidissement": "coolant",
+    "Renouvellement liquide refroidissement": "coolant",
+    # Transmission Fluid
+    "Renouvellement liquide de transmission": "transmission_fluid",
+    "Renouvellement huile transmission": "transmission_fluid",
+    # Suspension
+    "Révision fourche (vidange + joints)": "fork_service",
+    "Vidange fourche": "fork_service",
+    # Regular checks
+    "Contrôle et ajustement jeu aux soupapes": "valve_clearance",
+    "Contrôle jeu aux soupapes": "valve_clearance",
+    "Jeu aux soupapes": "valve_clearance",
+    "Vérification et serrage visserie": "fastener_tightening",
+    "Serrage visserie": "fastener_tightening",
+    "Graissage câbles (embrayage/accélérateur)": "cable_greasing",
+    "Graissage câbles": "cable_greasing",
+    "Contrôle roulements de roue": "wheel_bearings",
+    "Roulements de roue": "wheel_bearings",
+    "Remplacement roulements de roue": "wheel_bearings",
+    "Contrôle roulements de direction": "steering_bearings",
+    "Roulements de direction": "steering_bearings",
+    "Remplacement roulements de direction": "steering_bearings",
+    "Contrôle roulements de bras oscillant": "swingarm_bearings",
+    "Roulements de bras oscillant": "swingarm_bearings",
+    "Contrôle durites et flexibles": "hose_check",
+    "Durites": "hose_check",
+    # Carburation / Injection
+    "Nettoyage carburateur": "carburetor_cleaning",
+    "Nettoyage carburateur(s)": "carburetor_cleaning",
+    "Synchronisation injection": "injection_sync",
+    "Diagnostic électronique": "electronic_diagnosis",
+    "Diagnostic électronique (valise)": "electronic_diagnosis",
+    # Services réguliers et inspections
+    "Révision rodage (fin de rodage)": "break_in_service",
+    "Révision rodage (1000 km)": "break_in_service",
+    "Révision périodique (km)": "periodic_service",
+    "Révision périodique (entretien)": "periodic_service",
+    "Entretien annuel": "annual_service",
+    "Contrôle technique": "inspection_technical_car",
+    # Fluids (moto-specific names)
+    "Purge liquide de frein et embrayage": "brake_fluid",   # ancien nom
+    "Remplacement liquide de frein": "brake_fluid",          # nouveau nom
+    "Remplacement liquide de refroidissement": "coolant",
+    "Remplacement huile de transmission": "transmission_fluid",
+    "Remplacement courroie de distribution": "timing_belt",
+    "Tension et graissage chaîne": "chain_maintenance",
+    # Fuel filter (motorization-specific)
+    "Remplacement filtre à gasoil": "fuel_filter_diesel",
+    "Remplacement filtre à essence": "fuel_filter_gasoline",
+}
+
+
+def _m007_frozen_key(label: str) -> str:
+    """Reproduit get_intervention_key() tel qu'il était à l'écriture de 007.
+
+    Même cascade : correspondance exacte, puis insensible à la casse, puis
+    repli sur un slug. Figée pour la même raison que le dictionnaire ci-dessus.
+    """
+    normalized = (label or "").strip()
+    if normalized in _M007_FROZEN_TRANSLATIONS:
+        return _M007_FROZEN_TRANSLATIONS[normalized]
+    lowered = normalized.lower()
+    for fr_name, key in _M007_FROZEN_TRANSLATIONS.items():
+        if lowered == fr_name.lower():
+            return key
+    return lowered.replace(" ", "_")
+
+
+def _m007_maintenance_intervention_key(conn: Connection) -> None:
+    """Ajoute `maintenances.intervention_key` et l'alimente depuis l'historique.
+
+    Jusqu'ici la base ne stockait que le libellé français affiché, retraduit en
+    clé technique à chaque calcul. Deux conséquences bien réelles :
+
+    - renommer un libellé cassait silencieusement tout l'historique déjà
+      enregistré (d'où le doublon « Purge liquide de frein et embrayage » /
+      « Remplacement liquide de frein », conservé uniquement pour ça) ;
+    - un libellé hors dictionnaire ne levait aucune erreur : l'entretien était
+      enregistré puis simplement ignoré dans « À venir », l'échéance
+      disparaissait sans trace.
+
+    La colonne est NULLABLE et le code de lecture retombe sur la traduction
+    quand elle est vide : une base non migrée, ou une ligne écrite par une
+    version antérieure, se comporte exactement comme avant.
+    """
+    added = add_column_if_missing(
+        conn, "maintenances", "intervention_key", "VARCHAR(100)"
+    )
+    if table_exists(conn, "maintenances"):
+        conn.execute(text(
+            "CREATE INDEX IF NOT EXISTS ix_maintenances_intervention_key "
+            "ON maintenances (intervention_key)"
+        ))
+
+    if not added and not table_exists(conn, "maintenances"):
+        return
+
+    # Le backfill vise les lignes sans clé — donc aussi celles qu'une migration
+    # interrompue aurait laissées à NULL après avoir créé la colonne.
+    rows = conn.execute(text(
+        "SELECT id, intervention_type FROM maintenances WHERE intervention_key IS NULL"
+    )).fetchall()
+
+    for maintenance_id, label in rows:
+        conn.execute(
+            text("UPDATE maintenances SET intervention_key = :k WHERE id = :i"),
+            {"k": _m007_frozen_key(label), "i": maintenance_id},
+        )
+
+    if rows:
+        logger.info("  ↳ %d intervention(s) historique(s) associée(s) à leur clé", len(rows))
+
+
+def _m007_backfill_is_complete(conn: Connection) -> bool:
+    """Vrai si plus aucune maintenance n'attend sa clé."""
+    if not table_exists(conn, "maintenances"):
+        return True
+    if "intervention_key" not in column_names(conn, "maintenances"):
+        return False
+    remaining = conn.execute(text(
+        "SELECT COUNT(*) FROM maintenances WHERE intervention_key IS NULL"
+    )).scalar_one()
+    return remaining == 0
+
+
 MIGRATIONS: list[Migration] = [
     Migration(
         1, "maintenance_category",
@@ -360,6 +535,16 @@ MIGRATIONS: list[Migration] = [
         # bases anciennes qu'elle doit tourner. Elle est sans effet si les
         # colonnes sont absentes.
         lambda c: False,
+    ),
+    Migration(
+        7, "maintenance_intervention_key",
+        _m007_maintenance_intervention_key,
+        # Exiger la colonne ne suffit pas : une adoption qui estampillerait 007
+        # « faite » sur une base où la colonne existe mais reste vide laisserait
+        # tout l'historique sans clé, sans jamais repasser. On exige donc aussi
+        # qu'il ne reste aucune ligne à renseigner.
+        lambda c: has_all_columns(c, "maintenances", "intervention_key")
+        and _m007_backfill_is_complete(c),
     ),
 ]
 

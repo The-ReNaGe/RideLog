@@ -13,7 +13,12 @@ import logging
 from datetime import datetime, timezone
 
 from models import SessionLocal, Vehicle, Maintenance, NotificationLog, VehicleMaintenanceOverride
-from maintenance_calculator import MaintenanceCalculator, get_intervention_key, build_last_maintenances_dict
+from maintenance_calculator import (
+    MaintenanceCalculator,
+    build_last_maintenances_dict,
+    resolve_intervention_key,
+    resolve_sub_intervention_key,
+)
 from routes.webhooks import send_webhook_notification
 
 logger = logging.getLogger("ridelog.scheduler")
@@ -72,7 +77,10 @@ async def _check_vehicle_reminders(vehicle, db):
             item["estimated_cost_max"] = None
 
     for item in upcoming:
-        intervention_key = get_intervention_key(item["intervention_type"])
+        # Les items « à venir » portent déjà leur clé technique : la redériver
+        # depuis le libellé affiché rouvrirait la voie à une divergence entre
+        # ce qui est calculé et ce qui est journalisé comme notifié.
+        intervention_key = item["intervention_key"]
         km_rem = item.get("km_remaining", 999999)
         days_rem = item.get("days_remaining", 999999)
 
@@ -137,25 +145,23 @@ async def check_all_reminders():
         db.close()
 
 
-def clear_notification_logs_for(vehicle_id: int, intervention_type: str, db, sub_interventions=None):
-    """Clear notification logs for a specific intervention after it's been done."""
-    intervention_key = get_intervention_key(intervention_type)
+def clear_notification_logs_for(vehicle_id: int, maintenance, db):
+    """Efface les rappels déjà envoyés pour une intervention qui vient d'être
+    faite, afin qu'un rappel frais reparte au prochain cycle.
+
+    Prend la maintenance elle-même plutôt que son libellé : les clés effacées
+    doivent être exactement celles que le calcul d'échéance utilise, sinon un
+    rappel « en retard » continue de partir pour un entretien enregistré.
+    """
+    keys = {resolve_intervention_key(maintenance)}
+    for sub in maintenance.sub_interventions or []:
+        if isinstance(sub, dict):
+            keys.add(resolve_sub_intervention_key(sub))
+
     db.query(NotificationLog).filter(
         NotificationLog.vehicle_id == vehicle_id,
-        NotificationLog.intervention_key == intervention_key,
-    ).delete()
-
-    # Effacer aussi les logs pour les sous-interventions
-    if sub_interventions:
-        for sub in sub_interventions:
-            sub_name = sub.get("name") if isinstance(sub, dict) else None
-            if sub_name:
-                sub_key = get_intervention_key(sub_name)
-                if sub_key:
-                    db.query(NotificationLog).filter(
-                        NotificationLog.vehicle_id == vehicle_id,
-                        NotificationLog.intervention_key == sub_key,
-                    ).delete()
+        NotificationLog.intervention_key.in_([k for k in keys if k]),
+    ).delete(synchronize_session=False)
     db.commit()
 
 

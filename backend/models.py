@@ -149,7 +149,13 @@ class Maintenance(Base):
 
     id = Column(Integer, primary_key=True, index=True)
     vehicle_id = Column(Integer, ForeignKey("vehicles.id"), nullable=False)
-    intervention_type = Column(String(200), nullable=False)  # Oil change, Brake fluid, etc.
+    intervention_type = Column(String(200), nullable=False)  # Libellé affiché (français)
+    # Clé technique stable (oil_change_moto, brake_fluid…). C'est elle qui fait
+    # foi pour les calculs d'échéance ; `intervention_type` n'est plus qu'un
+    # libellé d'affichage. Nullable : les lignes antérieures à la migration 007
+    # et celles écrites par une version plus ancienne restent lisibles, le code
+    # retombe alors sur la traduction du libellé.
+    intervention_key = Column(String(100), nullable=True, index=True)
     execution_date = Column(DateTime, nullable=False)
     mileage_at_intervention = Column(Integer, nullable=False)
     cost_paid = Column(Float, nullable=True)
@@ -167,6 +173,7 @@ class Maintenance(Base):
             "id": self.id,
             "vehicle_id": self.vehicle_id,
             "intervention_type": self.intervention_type,
+            "intervention_key": self.intervention_key,
             "execution_date": self.execution_date.isoformat(),
             "mileage_at_intervention": self.mileage_at_intervention,
             "cost_paid": self.cost_paid,

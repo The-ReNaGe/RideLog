@@ -26,6 +26,7 @@
 17. [KPI cards VehicleDetail](#17-kpi-cards-vehicledetail)
 18. [Kilométrage moyen annuel](#18-kilométrage-moyen-annuel)
 19. [Tests backend](#19-tests-backend)
+20. [Préparation à l'internationalisation](#20-préparation-à-linternationalisation)
 
 ---
 
@@ -105,6 +106,7 @@ Les variables d'environnement sont gérées via un fichier `.env` à la racine d
 | `TRUSTED_PROXIES` | `frontend` *(docker-compose)* | Proxys autorisés à déclarer l'IP du visiteur (IP, CIDR ou nom d'hôte, séparés par `,`). Vide = aucune confiance. Voir §4 |
 | `LOG_LEVEL` | `INFO` | Niveau de log |
 | `RAPIDAPI_KEY` | — | Clé API pour décodage plaque d'immatriculation |
+| `REGION` | `FR` | Pays actif — format de plaque et service de décodage (voir §20). Un code inconnu retombe sur `FR` |
 | `REMINDER_INTERVAL` | `3600` | Intervalle de vérification des rappels (secondes) |
 | `REMINDER_ENABLED` | `true` | Active/désactive le scheduler de rappels |
 | `DB_BACKUP_DIR` | `/data/backups` | Répertoire des sauvegardes automatiques prises avant toute migration de schéma (voir §13) |
@@ -134,11 +136,15 @@ Le script `update.sh` à la racine automatise backup BDD + pull + rebuild en une
 backend/
 ├── main.py                    # Point d'entrée FastAPI, CORS, lifespan
 ├── config.py                  # Variables d'environnement centralisées
-├── models.py                  # Modèles SQLAlchemy + init_db() + migrations
+├── models.py                  # Modèles SQLAlchemy + init_db()
+├── migrations.py              # ★ MIGRATIONS VERSIONNÉES — voir §13 ★
 ├── schemas.py                 # Schémas Pydantic (validation entrées/sorties)
 ├── security.py                # JWT, bcrypt, rate limiting, middlewares auth
 ├── maintenance_calculator.py  # ★ LOGIQUE MÉTIER PRINCIPALE ★
 ├── reminder_scheduler.py      # Scheduler background (rappels webhook)
+├── regions/                   # ★ Ce qui dépend du PAYS, pas de la langue — voir §20 ★
+│   ├── __init__.py            # Registre, helpers partagés, variable REGION
+│   └── fr.py                  # France : plaque SIV, réponse carte grise
 ├── Dockerfile
 ├── requirements.txt
 ├── requirements-dev.txt       # + pytest, pytest-cov (tests uniquement, jamais dans l'image de prod)
@@ -152,6 +158,9 @@ backend/
 │   ├── conftest.py
 │   ├── test_maintenance_calculator.py
 │   ├── test_login_rate_limiter.py
+│   ├── test_migrations.py
+│   ├── test_regions_fr.py
+│   ├── test_maintenance_routes.py
 │   └── test_auth_integration.py
 └── routes/
     ├── __init__.py        # secure_delete() — suppression sécurisée de fichiers
@@ -226,7 +235,7 @@ Schémas Pydantic pour les entrées/sorties :
   - Vérifie `NotificationLog` pour éviter les doublons
   - Envoie via `send_webhook_notification()` (Discord, ntfy, etc.)
 
-> **Note** : le scheduler ne charge pas encore les overrides d'intervalles. Si un utilisateur a personnalisé un intervalle, les rappels webhook utilisent encore les valeurs par défaut du JSON. À corriger dans une future version en passant les overrides à `get_all_upcoming_maintenances()` comme dans `_compute_upcoming()`.
+> **Note** : le scheduler charge les overrides d'intervalles du véhicule et les passe à `get_all_upcoming_maintenances()` (`_check_vehicle_reminders()`), comme `_compute_upcoming()`. Les rappels webhook respectent donc les intervalles personnalisés. Toute nouvelle source d'échéances doit faire de même, sinon l'UI et les rappels divergent en silence.
 
 ---
 
@@ -992,7 +1001,7 @@ api.getMaintenanceRecap(vehicleId),  // ← chargé d'emblée pour les KPI cards
 |-------|------|-------------|
 | `users` | id, username (unique) | Comptes utilisateurs (is_admin, is_integration_account) |
 | `vehicles` | id, user_id (FK) | Véhicules du parc |
-| `maintenances` | id, vehicle_id (FK) | Historique d'entretien |
+| `maintenances` | id, vehicle_id (FK), intervention_key | Historique d'entretien. `intervention_key` fait foi pour les calculs ; `intervention_type` n'est qu'un libellé d'affichage (voir §20) |
 | `maintenance_invoices` | id, maintenance_id (FK) | Factures jointes |
 | `fuel_logs` | id, vehicle_id (FK) | Pleins de carburant |
 | `webhooks` | id, user_id (FK) | Webhooks Discord configurés |
@@ -1491,6 +1500,8 @@ python -m pytest tests/ -v
 | `test_client_ip.py` | `get_client_ip()`, les deux limiteurs et `validate_jwt_secret()` (`security.py`) — verrouille les deux contournements corrigés du rate limiter (`X-Forwarded-For` falsifié, et passerelle Docker prise pour un proxy de confiance sur le port 8000 — voir §4), le verrouillage par compte, et le refus de démarrer sur un `JWT_SECRET` public. |
 | `test_migrations.py` | `migrations.py` — parité de schéma entre base neuve et base migrée, survie des données, idempotence, adoption d'une base sans registre, migration à demi appliquée, rollback, garde anti-retour-arrière, sauvegardes. Tourne sur **deux schémas anciens réels** figés dans `tests/fixtures/*.sql` (le commit initial du dépôt et une instance antérieure au dépôt), jamais sur un schéma écrit de mémoire. |
 | `test_fuel_stations.py` | Routes `/fuel-stations/*` — authentification exigée sur les trois endpoints, bornes de `max_distance`/`limit`, cache (clé insensible aux accents, plafond, expiration). Les appels sortants sont monkeypatchés : aucun test ne sort sur le réseau. |
+| `test_regions_fr.py` | `regions/fr.py` — normalisation de plaque, analyse de la réponse carte grise (détection moto par genre, replis de cylindrée, priorité du genre sur l'indication utilisateur), repli du registre sur `FR`. Aucun appel réseau : cette logique n'était auparavant atteignable que via un service tiers payant, donc jamais testée. |
+| `test_maintenance_routes.py` | Enregistrement d'un entretien via `TestClient` — la clé technique est stockée, deux libellés d'une même intervention partagent une clé, un libellé inconnu n'échoue pas, et l'entretien enregistré ressort bien rattaché à son échéance. |
 | `test_auth_integration.py` | Routes `/auth/*` et `/admin/users/*` via `TestClient` sur une DB SQLite temporaire — register/login, changement de mot de passe, reset admin, mot de passe temporaire (`must_change_password`), demande de reset anti-énumération, et non-énumération des identifiants à l'inscription (voir §4). |
 
 ### `conftest.py` — points importants
@@ -1513,4 +1524,96 @@ Ces trois bugs préexistaient dans le code, indépendamment des tests — ils on
 - Route API → `test_auth_integration.py` (ou nouveau fichier), utiliser la fixture `client` (déclenche le lifespan FastAPI sur la DB de test) et les helpers `register()` / `login()` / `auth_headers()` déjà définis en tête du fichier.
 - Nouvel état global module-level (nouveau flag `_xxx_enabled` façon `_ha_integration_enabled`) → penser à l'ajouter à la fixture `reset_module_level_flags` dans `conftest.py`, sinon il fuira silencieusement entre tests comme documenté ci-dessus.
 
-> **Dernière mise à jour** : Mars 2026
+---
+
+## 20. Préparation à l'internationalisation
+
+> Rien n'est traduit à ce stade. Ce qui a été fait, c'est **retirer les deux
+> obstacles** qui rendaient la traduction impossible sans casser les données
+> existantes. L'ajout d'une langue reste un lot à part entière, côté front.
+
+### 20.1 Deux problèmes distincts, souvent confondus
+
+| | Nature | Traitement |
+|---|---|---|
+| **Langue** | Le texte affiché est en français | Se traduit |
+| **Pays** | Format de plaque, calendrier du CT, communes, prix carburant | Ne se traduit pas — se **remplace** |
+
+Les confondre est le piège : traduire l'interface en anglais ne rendra pas
+l'application utilisable en Belgique, dont le contrôle technique et les plaques
+suivent d'autres règles.
+
+### 20.2 La clé technique fait foi (migration 007)
+
+**Avant** : la base ne stockait que le libellé français affiché
+(`intervention_type`), retraduit en clé technique à chaque calcul via
+`INTERVENTION_TRANSLATIONS`. Deux conséquences bien réelles, indépendamment de
+l'i18n :
+
+- renommer un libellé **cassait silencieusement** tout l'historique enregistré.
+  C'est la raison d'être du doublon `"Purge liquide de frein et embrayage"` /
+  `"Remplacement liquide de frein"` — le symptôme, pas une exception ;
+- un libellé absent du dictionnaire ne levait **aucune erreur** : l'entretien
+  était enregistré puis ignoré dans « À venir », l'échéance disparaissait sans
+  trace.
+
+**Après** : `maintenances.intervention_key` porte la clé technique.
+`resolve_intervention_key()` la lit en priorité et ne retombe sur la traduction
+du libellé que si elle est absente — les lignes antérieures à la migration se
+comportent donc exactement comme avant.
+
+```python
+# maintenance_calculator.py
+key = resolve_intervention_key(maintenance)   # ✅
+key = get_intervention_key(m.intervention_type)  # ❌ redérive depuis l'affichage
+```
+
+Même règle pour les sous-interventions de checklist, qui stockaient déjà leur
+clé dans `{key, name}` sans qu'on la lise.
+
+> **Le dictionnaire est recopié FIGÉ dans la migration 007**, jamais importé.
+> Une migration est un artefact historique : importer le code vivant ferait
+> changer le passé au premier renommage, et deux instances migrées à deux dates
+> n'auraient pas les mêmes clés en base. `test_frozen_snapshot_still_agrees_with_the_live_dictionary`
+> signale toute divergence entre l'instantané et le dictionnaire actuel.
+>
+> **Renommer une clé se fait donc par une migration de remappage**, pas en
+> éditant l'instantané. C'est précisément ce que cette colonne rend possible.
+
+### 20.3 Couture régionale (`backend/regions/`)
+
+Le pays actif se lit dans `REGION` (défaut `FR`). Un code inconnu retombe sur
+`FR` : une variable mal orthographiée ne doit pas rendre l'instance inutilisable.
+
+```python
+region = get_region()
+normalized = region.normalize_plate(plate)          # "" si format invalide
+parsed = region.parse_plate_response(payload, hint) # → champs véhicule RideLog
+```
+
+**Ajouter un pays** = ajouter `regions/xx.py` exposant `code`, `name`,
+`plate_example`, `normalize_plate()` et `parse_plate_response()`, puis
+l'inscrire dans `REGIONS`. Les tests de `test_regions_fr.py` se transposent tels
+quels.
+
+### 20.4 Ce qui reste franco-spécifique
+
+Recensé dans le docstring de `regions/__init__.py`, **volontairement pas encore
+déplacé** — abstraire sans second cas réel ne valide rien :
+
+- `maintenance_calculator.calculate_inspection_technical_date()` — calendrier CT
+- `routes/fuel_stations.py` — `communes.csv` et prix-carburants.gouv.fr
+- `data/maintenance_intervals.json` — libellés français (clés désormais découplées)
+
+### 20.5 Ce qu'il restera à faire pour traduire réellement
+
+1. Un catalogue de libellés par langue, `INTERVENTION_TRANSLATIONS` devenant le
+   catalogue `fr` — la base n'en dépend plus.
+2. L'API renvoie la clé ; le front affiche le libellé de la langue choisie.
+3. Traduction des chaînes du front (`frontend/src/lib/interventionTranslations.js`
+   est le point de départ).
+4. Messages d'erreur backend, aujourd'hui en français en dur dans les routes.
+
+---
+
+> **Dernière mise à jour** : Août 2026

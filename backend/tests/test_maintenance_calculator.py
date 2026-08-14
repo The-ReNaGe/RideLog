@@ -298,3 +298,51 @@ def test_build_last_maintenances_dict_keeps_most_recent_per_key():
     ]
     result = build_last_maintenances_dict(maintenances)
     assert result["oil_change"] == (datetime(2024, 1, 1), 15000)
+
+
+# ═══════════════════════════════════════════════════════════════════════════
+# Clé stockée vs libellé — préparation i18n
+# ═══════════════════════════════════════════════════════════════════════════
+
+class _Maintenance:
+    """Maintenance minimale, façon ligne ORM."""
+
+    def __init__(self, intervention_type, execution_date, mileage,
+                 intervention_key=None, sub_interventions=None):
+        self.intervention_type = intervention_type
+        self.intervention_key = intervention_key
+        self.execution_date = execution_date
+        self.mileage_at_intervention = mileage
+        self.sub_interventions = sub_interventions
+
+
+def test_stored_key_wins_over_the_displayed_label():
+    """C'est tout l'intérêt de la colonne : le libellé peut être renommé — ou
+    traduit — sans détacher la ligne de son historique."""
+    m = _Maintenance("Libellé renommé entre-temps", datetime(2024, 1, 1), 15000,
+                     intervention_key="oil_change")
+    assert build_last_maintenances_dict([m]) == {"oil_change": (datetime(2024, 1, 1), 15000)}
+
+
+def test_rows_without_a_key_still_fall_back_to_the_label():
+    """Lignes antérieures à la migration 007, ou écrites par une version plus
+    ancienne : le comportement doit être exactement celui d'avant."""
+    m = _Maintenance("Vidange d'huile", datetime(2024, 1, 1), 15000)
+    assert build_last_maintenances_dict([m]) == {"oil_change": (datetime(2024, 1, 1), 15000)}
+
+
+def test_sub_intervention_key_is_read_not_rederived():
+    """Les sous-interventions stockent déjà {key, name}. On lit la clé : la
+    redériver depuis un nom renommé la ferait diverger de l'enregistrement."""
+    m = _Maintenance("Entretien annuel", datetime(2024, 3, 1), 20000,
+                     intervention_key="annual_service",
+                     sub_interventions=[{"key": "brake_pads", "name": "Nom qui a changé depuis"}])
+    result = build_last_maintenances_dict([m])
+    assert result["brake_pads"] == (datetime(2024, 3, 1), 20000)
+    assert result["annual_service"] == (datetime(2024, 3, 1), 20000)
+
+
+def test_sub_intervention_without_key_falls_back_to_its_name():
+    m = _Maintenance("Entretien annuel", datetime(2024, 3, 1), 20000,
+                     sub_interventions=[{"name": "Remplacement plaquettes de frein"}])
+    assert build_last_maintenances_dict([m])["brake_pads"] == (datetime(2024, 3, 1), 20000)
