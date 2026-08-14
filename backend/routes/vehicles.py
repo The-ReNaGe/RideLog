@@ -15,7 +15,7 @@ from models import Vehicle, Maintenance, FuelLog, User, VehicleMaintenanceOverri
 from security import get_current_user
 from routes import secure_delete
 from schemas import VehicleCreate, VehicleUpdate
-from maintenance_calculator import MaintenanceCalculator, get_intervention_key
+from maintenance_calculator import MaintenanceCalculator, build_last_maintenances_dict
 
 PHOTO_STORAGE_DIR = Path(os.getenv("PHOTO_STORAGE_DIR", "/data/photos"))
 ALLOWED_PHOTO_MIME = {"image/jpeg", "image/png", "image/webp"}
@@ -220,13 +220,12 @@ def get_planning(
 
     all_items = []
     for vehicle in vehicles:
-        last_maintenances = {}
         all_maintenances = db.query(Maintenance).filter(Maintenance.vehicle_id == vehicle.id).all()
-        for m in all_maintenances:
-            key = get_intervention_key(m.intervention_type)
-            current_last = last_maintenances.get(key)
-            if current_last is None or m.execution_date > current_last[0]:
-                last_maintenances[key] = (m.execution_date, m.mileage_at_intervention)
+        # Cette boucle était recopiée à la main ici, sans le traitement des
+        # sous-interventions : un remplacement de freins enregistré à
+        # l'intérieur d'une révision comptait comme fait dans « À venir » mais
+        # pas dans le planning global, qui l'affichait encore comme dû.
+        last_maintenances = build_last_maintenances_dict(all_maintenances)
 
         vehicle_overrides = overrides_by_vehicle.get(vehicle.id, {})
 

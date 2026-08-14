@@ -276,7 +276,7 @@ async def create_maintenance(
     vehicle.updated_at = datetime.now(timezone.utc)
     db.commit()
     db.refresh(maintenance)
-    clear_notification_logs_for(vehicle_id, maintenance.intervention_type, db, maintenance.sub_interventions)
+    clear_notification_logs_for(vehicle_id, maintenance, db)
     try:
         await _check_vehicle_reminders(vehicle, db)
     except Exception:
@@ -376,7 +376,7 @@ async def update_maintenance(
     maintenance.updated_at = datetime.now(timezone.utc)
     db.commit()
     db.refresh(maintenance)
-    clear_notification_logs_for(vehicle_id, maintenance.intervention_type, db, maintenance.sub_interventions)
+    clear_notification_logs_for(vehicle_id, maintenance, db)
     try:
         await _check_vehicle_reminders(vehicle, db)
     except Exception:
@@ -402,7 +402,7 @@ def delete_maintenance(
     for invoice in maintenance.invoices:
         if invoice.file_path:
             secure_delete(invoice.file_path)
-    clear_notification_logs_for(vehicle_id, maintenance.intervention_type, db, maintenance.sub_interventions)
+    clear_notification_logs_for(vehicle_id, maintenance, db)
     db.delete(maintenance)
     db.commit()
     return {"detail": "Maintenance deleted"}

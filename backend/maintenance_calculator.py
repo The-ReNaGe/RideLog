@@ -173,6 +173,33 @@ def get_intervention_key(name: str) -> str:
     return lowered.replace(" ", "_")
 
 
+def resolve_intervention_key(maintenance) -> str:
+    """Clé technique d'une maintenance enregistrée.
+
+    Priorité à la clé stockée en base (`intervention_key`, migration 007).
+    C'est elle qui fait foi : le libellé n'est plus qu'un texte d'affichage,
+    qu'on doit pouvoir renommer — ou traduire — sans détacher la ligne de son
+    historique.
+
+    Repli sur la traduction du libellé quand la clé est absente : lignes
+    antérieures à la migration, ou écrites par une version plus ancienne. C'est
+    ce repli qui garantit qu'aucune base existante ne change de comportement.
+    """
+    stored = getattr(maintenance, "intervention_key", None)
+    if stored:
+        return stored
+    return get_intervention_key(getattr(maintenance, "intervention_type", None))
+
+
+def resolve_sub_intervention_key(sub: dict) -> Optional[str]:
+    """Idem pour une sous-intervention de checklist, stockée en {key, name}."""
+    stored = sub.get("key")
+    if stored:
+        return stored
+    name = sub.get("name")
+    return get_intervention_key(name) if name else None
+
+
 class MaintenanceCalculator:
     """Calculate maintenance status and forecasts based on intervals and history."""
 
@@ -683,23 +710,26 @@ def build_last_maintenances_dict(all_maintenances: List) -> Dict[str, Tuple[Opti
     Cette fonction est partagée entre routes/maintenances.py et reminder_scheduler.py
     pour éviter la duplication de logique.
     """
-    last_maintenances = {}
-    for maintenance in all_maintenances:
-        # Traiter l'intervention principale
-        key = get_intervention_key(maintenance.intervention_type)
-        current_last = last_maintenances.get(key)
-        if current_last is None or maintenance.execution_date > current_last[0]:
-            last_maintenances[key] = (maintenance.execution_date, maintenance.mileage_at_intervention)
+    last_maintenances: Dict[str, Tuple[Optional[datetime], Optional[int]]] = {}
 
-        # Traiter les sous-interventions (checklist révision)
-        if maintenance.sub_interventions:
-            for sub in maintenance.sub_interventions:
-                sub_name = sub.get("name") if isinstance(sub, dict) else None
-                if sub_name:
-                    sub_key = get_intervention_key(sub_name)
-                    if sub_key:
-                        current_last = last_maintenances.get(sub_key)
-                        if current_last is None or maintenance.execution_date > current_last[0]:
-                            last_maintenances[sub_key] = (maintenance.execution_date, maintenance.mileage_at_intervention)
+    def remember(key: Optional[str], maintenance) -> None:
+        if not key:
+            return
+        current = last_maintenances.get(key)
+        if current is None or maintenance.execution_date > current[0]:
+            last_maintenances[key] = (
+                maintenance.execution_date, maintenance.mileage_at_intervention
+            )
+
+    for maintenance in all_maintenances:
+        remember(resolve_intervention_key(maintenance), maintenance)
+
+        # Sous-interventions (checklist révision) : elles stockent déjà
+        # {key, name}, la clé est donc lue directement. La redériver depuis le
+        # nom, comme on le faisait, la faisait diverger de la clé enregistrée
+        # au premier renommage de libellé.
+        for sub in maintenance.sub_interventions or []:
+            if isinstance(sub, dict):
+                remember(resolve_sub_intervention_key(sub), maintenance)
 
     return last_maintenances
