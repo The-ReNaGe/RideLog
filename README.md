@@ -53,8 +53,12 @@ Ouvrez `.env` et renseignez au minimum :
 Puis lancez :
 
 ```bash
-docker compose up -d --build
+docker compose pull
+docker compose up -d
 ```
+
+Les images sont téléchargées depuis GitHub Container Registry — plus rien à
+construire. Comptez quelques dizaines de secondes au lieu de plusieurs minutes.
 
 **Interface** : [http://localhost:3100](http://localhost:3100)
 
@@ -81,7 +85,27 @@ cp .env.example .env   # à faire une seule fois à l'installation
 | `REMINDER_INTERVAL` | `3600` | Intervalle du scheduler de rappels en secondes |
 | `REMINDER_ENABLED` | `true` | Active/désactive les rappels automatiques |
 | `LOG_LEVEL` | `INFO` | Niveau de log (`DEBUG`, `INFO`, `WARNING`, `ERROR`) |
-| `CORS_ORIGINS` | `*` | Origines CORS autorisées |
+| `CORS_ORIGINS` | *(vide)* | Origines CORS autorisées. Laisser vide en déploiement standard |
+| `RIDELOG_TAG` | `stable` | Canal de mise à jour — voir ci-dessous |
+
+### Choisir son canal de mise à jour
+
+`RIDELOG_TAG` dans `.env` décide de l'image téléchargée :
+
+| Valeur | Contenu | Pour qui |
+|---|---|---|
+| `stable` | Version validée à la main | **Recommandé.** Le canal sur lequel on peut rester sans surprise |
+| `latest` | Reconstruit à chaque modification du projet | Ceux qui veulent les nouveautés tôt et acceptent le risque |
+| `1.9.0` | Une version précise, figée | Ceux qui veulent maîtriser exactement quand ils changent |
+
+> ⚠️ `latest` n'est **pas** synonyme de « dernière version stable ». C'est le
+> code le plus récent, non validé. Si vous ne savez pas lequel choisir, gardez
+> `stable`.
+
+**Architectures publiées** : `linux/amd64` et `linux/arm64` (Raspberry Pi
+64 bits, NAS ARM). Un seul tag fonctionne partout, Docker sélectionne l'image
+correspondant à votre machine. Sur une autre architecture, voir
+[Construire depuis les sources](#construire-depuis-les-sources).
 
 ### Changer le port
 
@@ -192,12 +216,14 @@ Prérequis HACS : [Mushroom Cards](https://github.com/piitaya/lovelace-mushroom)
 ```bash
 cd RideLog
 git pull origin main
-docker compose up -d --build
+docker compose pull
+docker compose up -d
 ```
 
-Les migrations de base de données sont appliquées automatiquement au redémarrage du backend.
+Les migrations de base de données sont appliquées automatiquement au redémarrage
+du backend, après une sauvegarde déposée dans `./data/backups/`.
 
-> ⚠️ **Première mise à jour depuis une version sans `.env`** : créez le fichier avant de rebuild, sinon le backend refusera de démarrer.
+> ⚠️ **Première mise à jour depuis une version sans `.env`** : créez le fichier avant de lancer, sinon le backend refusera de démarrer.
 > ```bash
 > cp .env.example .env
 > # Remplir JWT_SECRET et HA_INIT_KEY dans .env
@@ -205,18 +231,119 @@ Les migrations de base de données sont appliquées automatiquement au redémarr
 
 ---
 
-## Sauvegarde et restauration
+## ⚠️ Migration depuis une version antérieure à la 2.0
+
+**À partir de la 2.0, RideLog ne se construit plus chez vous : il se
+télécharge.** Les images sont publiées sur GitHub Container Registry.
+
+### Pourquoi ce changement
+
+`python:3.11-slim` et `node:18-alpine` sont des **tags mobiles** : ils sont
+reconstruits régulièrement en amont. Deux personnes installant « la même
+version » de RideLog à quinze jours d'intervalle n'obtenaient donc pas la même
+image. Un bug n'apparaissant que chez l'une devenait impossible à diagnostiquer
+— on ne savait pas si la différence venait du code ou du socle.
+
+Une image publiée une fois fixe le contenu : tout le monde exécute exactement
+les mêmes octets.
+
+### La migration, en pratique
 
 ```bash
-# Sauvegarde
-cp ./data/ridelog.db ./backup_ridelog_$(date +%Y%m%d).db
+cd RideLog
+git pull origin main
 
-# Restauration
-cp ./backup_ridelog.db ./data/ridelog.db
-docker compose restart backend
+# 1. Renseigner le canal souhaité (stable est le défaut)
+grep -q '^RIDELOG_TAG=' .env || echo 'RIDELOG_TAG=stable' >> .env
+
+# 2. Télécharger les images
+docker compose pull
+
+# 3. Redémarrer
+docker compose up -d
+
+# 4. (facultatif) récupérer l'espace des anciennes images construites localement
+docker image prune
 ```
 
-Les données sont stockées dans `./data/` : base de données SQLite, photos et factures.
+Vos données ne sont pas touchées : elles vivent dans `./data/`, en dehors des
+images. Le backend applique ses migrations au démarrage, après sauvegarde.
+
+### Ce qui change pour vous
+
+| | Avant | Après |
+|---|---|---|
+| Mise à jour | `docker compose up -d --build` | `docker compose pull && docker compose up -d` |
+| Durée | plusieurs minutes | quelques dizaines de secondes |
+| Reproductibilité | dépend de la date du build | identique pour tout le monde |
+| Modifications locales du code | prises en compte | **ignorées** — voir ci-dessous |
+
+### Si vous modifiez le code
+
+Un fichier modifié localement n'a plus aucun effet : vous exécutez une image
+téléchargée. Pour retrouver l'ancien comportement :
+
+```bash
+docker compose -f docker-compose.yml -f docker-compose.dev.yml up -d --build
+```
+
+### Construire depuis les sources
+
+Ce même fichier de surcharge sert à toute architecture non couverte par les
+images publiées (`linux/amd64` et `linux/arm64`) — par exemple un Raspberry Pi
+en système 32 bits :
+
+```bash
+docker compose -f docker-compose.yml -f docker-compose.dev.yml up -d --build
+```
+
+### Revenir en arrière
+
+Pour retrouver une version antérieure, **deux choses doivent revenir ensemble** :
+
+```bash
+# 1. l'image
+RIDELOG_TAG=1.9.0   # dans .env
+docker compose pull && docker compose up -d
+```
+
+```bash
+# 2. la base de données, SI la version récente avait migré le schéma
+docker compose stop backend
+cp ./data/backups/ridelog-<horodatage>.db ./data/ridelog.db
+docker compose start backend
+```
+
+> Si vous ne restaurez que l'image, **le backend refusera de démarrer**. Ce
+> n'est pas une panne : c'est une protection. Une base migrée par une version
+> récente contient un schéma que l'ancienne ne sait pas lire, et la laisser
+> écrire dedans corromprait vos données. Le message de log indique la version
+> de schéma attendue.
+
+---
+
+## Sauvegarde et restauration
+
+**Sauvegardes automatiques** : le backend dépose une copie de la base dans
+`./data/backups/` avant toute migration de schéma, et conserve les 5 plus
+récentes (`DB_BACKUP_KEEP`). C'est cette copie qu'il faut restaurer pour revenir
+à une version antérieure.
+
+```bash
+# Sauvegarde manuelle — arrêter le backend d'abord, une copie à chaud peut
+# capturer un fichier au milieu d'une écriture
+docker compose stop backend
+cp ./data/ridelog.db ./backup_ridelog_$(date +%Y%m%d).db
+docker compose start backend
+
+# Restauration
+docker compose stop backend
+cp ./backup_ridelog.db ./data/ridelog.db
+docker compose start backend
+```
+
+Les données sont stockées dans `./data/` : base de données SQLite, sauvegardes,
+photos et factures. Rien n'est dans les images.
 
 ---
 
