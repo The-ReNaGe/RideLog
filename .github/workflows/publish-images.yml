@@ -76,10 +76,14 @@ jobs:
       - name: Récupérer le dépôt
         uses: actions/checkout@v4
 
+      - name: Préparer l'émulation ARM
+        # Le runner est x86. QEMU lui permet d'exécuter des binaires arm64, ce
+        # dont buildx a besoin pour produire l'image ARM.
+        uses: docker/setup-qemu-action@v3
+
       - name: Préparer buildx
         # Le builder Docker par défaut ne sait pas pousser plusieurs
-        # architectures dans un même manifeste. buildx si — c'est lui qui
-        # rendra l'ajout d'arm64 possible plus tard sans rien réécrire.
+        # architectures dans un même manifeste. buildx si.
         uses: docker/setup-buildx-action@v3
 
       - name: S'authentifier auprès de ghcr.io
@@ -117,10 +121,17 @@ jobs:
           context: ${{ matrix.context }}
           push: true
           tags: ${{ steps.meta.outputs.tags }}
-          # amd64 seul pour l'instant. arm64 (Raspberry Pi, NAS ARM) passera
-          # par une émulation QEMU dont le coût doit être mesuré avant d'être
-          # imposé à chaque release. Voir #13.
-          platforms: linux/amd64
+          # Un seul tag qui fonctionne partout : Docker publie un index de
+          # manifestes, et le client tire l'image correspondant à SA machine.
+          # L'utilisateur sur Raspberry Pi écrit exactement la même ligne dans
+          # son compose que celui sur x86.
+          #
+          # Coût mesuré localement, sans cache, sur ce projet :
+          #   backend   amd64 15 s, arm64 67 s — aucune compilation : bcrypt
+          #             et pydantic-core publient des wheels aarch64
+          #   frontend  arm64 144 s avec npm sous émulation, 17 s une fois
+          #             l'étage de build épinglé à $BUILDPLATFORM
+          platforms: linux/amd64,linux/arm64
           # Cache conservé entre exécutions : sans lui, chaque build
           # réinstalle toutes les dépendances depuis zéro.
           cache-from: type=gha
