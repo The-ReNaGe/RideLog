@@ -1,5 +1,13 @@
 # Changelog
 
+## [1.8.0](https://github.com/The-ReNaGe/RideLog/compare/v1.7.4...v1.8.0) (2026-08-14)
+
+
+### Features
+
+* versionne les migrations de schéma et vérifie leur intégrité ([dcad773](https://github.com/The-ReNaGe/RideLog/commit/dcad77303cacb3ee83ea884826361ef8c703dda9))
+* versionne les migrations de schéma et vérifie leur intégrité ([a0dedba](https://github.com/The-ReNaGe/RideLog/commit/a0dedba99cd0473a14ff4233de5abf97ab07f958))
+
 ## [1.7.4](https://github.com/The-ReNaGe/RideLog/compare/v1.7.3...v1.7.4) (2026-08-13)
 
 
