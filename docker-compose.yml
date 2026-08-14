@@ -1,8 +1,20 @@
 services:
   backend:
-    build:
-      context: ./backend
-      dockerfile: Dockerfile
+    # ══════════════════════════════════════════════════════════════════════
+    # IMAGE PUBLIÉE — plus de build local
+    # ══════════════════════════════════════════════════════════════════════
+    # Auparavant chaque installation fabriquait son image. Le code venait de
+    # git, mais la base (python:3.11-slim) est un TAG MOBILE reconstruit en
+    # amont : deux personnes sur la même version de RideLog n'avaient pas la
+    # même image si elles avaient buildé à quelques semaines d'intervalle.
+    #
+    # Canaux disponibles via RIDELOG_TAG dans .env :
+    #   stable  (défaut)  version validée à la main — recommandé
+    #   latest            chaque merge sur main, non validé
+    #   1.9.0             version figée, pour maîtriser ses mises à jour
+    #
+    # Pour développer sur le code du dépôt, voir docker-compose.dev.yml.
+    image: ghcr.io/the-renage/ridelog-backend:${RIDELOG_TAG:-stable}
     container_name: ridelog-backend
     restart: unless-stopped
     volumes:
@@ -71,9 +83,9 @@ services:
           memory: 256M
 
   frontend:
-    build:
-      context: ./frontend
-      dockerfile: Dockerfile
+    # Même canal que le backend — les deux images sont publiées ensemble et
+    # doivent rester à la même version.
+    image: ghcr.io/the-renage/ridelog-frontend:${RIDELOG_TAG:-stable}
     container_name: ridelog-frontend
     restart: unless-stopped
     ports:
