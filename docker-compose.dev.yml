@@ -1,0 +1,31 @@
+# ══════════════════════════════════════════════════════════════════════════
+# SURCHARGE DE DÉVELOPPEMENT — construire le code local
+# ══════════════════════════════════════════════════════════════════════════
+#
+# docker-compose.yml distribue les images publiées sur ghcr.io. Ce fichier
+# rétablit la construction depuis les sources du dépôt.
+#
+# À utiliser dès qu'on veut voir l'effet d'une modification du code : sans lui,
+# on teste l'image publiée, c'est-à-dire une version antérieure.
+#
+#   docker compose -f docker-compose.yml -f docker-compose.dev.yml up -d --build
+#
+# Le `image:` du fichier principal est conservé : il sert alors de NOM à
+# l'image construite localement, sans rien télécharger. C'est ce qui permet de
+# revenir aux images publiées d'un simple `docker compose pull`.
+#
+# Cas d'usage secondaire : une architecture pour laquelle aucune image n'est
+# publiée. Les images couvrent linux/amd64 et linux/arm64 — au-delà (arm/v7
+# d'un Raspberry Pi 32 bits, par exemple), ce fichier est le chemin de repli.
+# ══════════════════════════════════════════════════════════════════════════
+
+services:
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile

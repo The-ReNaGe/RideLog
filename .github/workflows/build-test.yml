@@ -37,7 +37,14 @@ jobs:
         run: docker compose config --quiet
 
       - name: Build & démarrage des containers
-        run: docker compose up -d --build
+        # La surcharge dev est INDISPENSABLE ici. docker-compose.yml distribue
+        # désormais les images publiées : sans elle, ce job téléchargerait la
+        # dernière image stable et validerait la version PRÉCÉDENTE, pendant
+        # que le code de la PR ne serait jamais construit. Une CI verte qui ne
+        # teste rien est pire que pas de CI.
+        run: |
+          docker compose -f docker-compose.yml -f docker-compose.dev.yml \
+            up -d --build
 
       - name: Attendre que le backend soit prêt (/health)
         run: |
