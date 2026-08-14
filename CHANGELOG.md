@@ -1,5 +1,13 @@
 # Changelog
 
+## [2.0.1](https://github.com/The-ReNaGe/RideLog/compare/v2.0.0...v2.0.1) (2026-08-14)
+
+
+### Bug Fixes
+
+* publie l'image de version, que release-please n'arrivait pas à déclencher ([c64a6dd](https://github.com/The-ReNaGe/RideLog/commit/c64a6ddad4b3b7d9e6b1f3be0924e83cb7e51ad1))
+* publie l'image de version, que release-please n'arrivait pas à déclencher ([ae313ea](https://github.com/The-ReNaGe/RideLog/commit/ae313ea094d3bff4f3756e75d0731cc4fb6148a8))
+
 ## [2.0.0](https://github.com/The-ReNaGe/RideLog/compare/v1.9.0...v2.0.0) (2026-08-14)
 
 
