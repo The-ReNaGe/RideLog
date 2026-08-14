@@ -13,4 +13,9 @@ jobs:
       - uses: webiny/action-conventional-commits@v1.4.2
         with:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          allowed-commit-types: "feat,fix,docs,refactor,chore,merge"
+          # Types standards de la spécification Conventional Commits.
+          # `ci` et `test` manquaient : faute de quoi un ajout de workflow ou
+          # une suite de tests devait se déguiser en `chore`, ce qui rend
+          # l'historique moins lisible sans rien apporter. Ni l'un ni l'autre
+          # n'apparaît dans le CHANGELOG — seuls `feat` et `fix` y figurent.
+          allowed-commit-types: "feat,fix,docs,refactor,perf,test,ci,chore,merge"
