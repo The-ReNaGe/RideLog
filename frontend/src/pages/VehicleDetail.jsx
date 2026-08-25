@@ -26,7 +26,7 @@ const CAT_MAP = {
   modification: { icon: '🔨', label: 'Modification',  bg: '#8b5cf6',        bgLight: 'rgba(139,92,246,0.12)' },
 };
 
-export default function VehicleDetail({ vehicleId, onBack }) {
+export default function VehicleDetail({ vehicleId, onBack, currentUser }) {
   const [vehicle, setVehicle] = useState(null);
   const [upcoming, setUpcoming] = useState(null);
   const [recommendations, setRecommendations] = useState(null);
@@ -129,6 +129,7 @@ export default function VehicleDetail({ vehicleId, onBack }) {
       current_mileage: vehicle.current_mileage,
       purchase_price: vehicle.purchase_price || '',
       notes: vehicle.notes || '',
+      is_private: !!vehicle.is_private,
     });
     setIsEditing(true);
   };
@@ -143,6 +144,7 @@ export default function VehicleDetail({ vehicleId, onBack }) {
         current_mileage: editedVehicle.current_mileage ? parseInt(editedVehicle.current_mileage, 10) : 0,
         purchase_price: editedVehicle.purchase_price ? parseFloat(editedVehicle.purchase_price) : null,
         notes: editedVehicle.notes || null,
+        is_private: !!editedVehicle.is_private,
       });
       setIsEditing(false);
       fetchData();
@@ -206,6 +208,15 @@ export default function VehicleDetail({ vehicleId, onBack }) {
 
   const vehicleAge = new Date().getFullYear() - vehicle.year;
 
+  // Un véhicule consulté via le groupe famille est en lecture seule : le
+  // backend refuse toute écriture (404). On masque donc les commandes plutôt
+  // que de laisser l'utilisateur les découvrir en échouant.
+  // Repli sur « modifiable » si l'information manque — une réponse d'API
+  // ancienne ne doit pas figer l'interface de son propre véhicule ; c'est le
+  // backend qui fait autorité, pas cet indice d'affichage.
+  const canEdit =
+    !vehicle.owner_id || !currentUser?.id || vehicle.owner_id === currentUser.id;
+
   return (
     <div style={{ maxWidth: '100%', overflowX: 'hidden' }}>
 
@@ -241,6 +252,22 @@ export default function VehicleDetail({ vehicleId, onBack }) {
                   className="w-full px-3 py-2 mt-1 rounded input-field" rows="3"
                 />
               </div>
+              <div>
+                <label className="flex items-start gap-2 cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={!!editedVehicle.is_private}
+                    onChange={e => setEditedVehicle({ ...editedVehicle, is_private: e.target.checked })}
+                    className="mt-1"
+                  />
+                  <span>
+                    <span style={{ color: 'var(--text-1)' }}>🔒 Véhicule privé</span>
+                    <span className="block text-xs" style={{ color: 'var(--text-3)' }}>
+                      Exclu du partage avec votre groupe famille. Vous continuez à le voir.
+                    </span>
+                  </span>
+                </label>
+              </div>
             </div>
             <div className="flex gap-2 mt-6">
               <button onClick={() => setIsEditing(false)} disabled={editSaving} className="flex-1 px-4 py-2 rounded disabled:opacity-50" style={{ background: 'var(--bg-surface)', border: '1px solid var(--border)', color: 'var(--text-1)' }}>
@@ -258,12 +285,24 @@ export default function VehicleDetail({ vehicleId, onBack }) {
         ← Retour aux véhicules
       </button>
 
+      {/* Véhicule consulté via le groupe famille : le backend refuserait toute
+          écriture en 404. Mieux vaut retirer les commandes que laisser
+          l'utilisateur buter dessus. */}
+      {!canEdit && (
+        <div className="card p-3 mb-4 text-sm" style={{ background: 'var(--accent-light)', color: 'var(--text-1)' }}>
+          👁️ Véhicule de <strong>{vehicle.owner_display_name || 'un autre membre'}</strong>,
+          partagé avec votre groupe famille. Consultation seule.
+        </div>
+      )}
+
       {/* Vehicle Header */}
       <div className="card overflow-hidden mb-6">
         {vehicle.photo_url && (
           <div className="photo-container mb-4">
             <VehiclePhoto vehicleId={vehicle.id} version={vehicle.updated_at} alt={`${vehicle.brand} ${vehicle.model}`} />
-            <button onClick={handlePhotoDelete} className="absolute top-2 right-2 rounded-full w-8 h-8 flex items-center justify-center text-sm hover:opacity-80 font-bold" style={{ background: 'var(--danger)', color: 'white' }}>✕</button>
+            {canEdit && (
+              <button onClick={handlePhotoDelete} className="absolute top-2 right-2 rounded-full w-8 h-8 flex items-center justify-center text-sm hover:opacity-80 font-bold" style={{ background: 'var(--danger)', color: 'white' }}>✕</button>
+            )}
           </div>
         )}
         <div className="p-4 sm:p-6">
@@ -285,11 +324,15 @@ export default function VehicleDetail({ vehicleId, onBack }) {
                     <button onClick={handleMileageSave} disabled={mileageSaving} className="font-bold text-xs" style={{ color: 'var(--success)' }}>✓</button>
                     <button onClick={() => setEditingMileage(false)} className="text-xs" style={{ color: 'var(--text-3)' }}>✕</button>
                   </span>
-                ) : (
+                ) : canEdit ? (
                   <button onClick={() => { setNewMileage(String(vehicle.current_mileage)); setEditingMileage(true); }}
                     className="font-bold hover:opacity-80 cursor-pointer" style={{ color: 'var(--accent)' }}>
                     {vehicle.current_mileage.toLocaleString()} km ✏️
                   </button>
+                ) : (
+                  <span className="font-bold" style={{ color: 'var(--text-1)' }}>
+                    {vehicle.current_mileage.toLocaleString()} km
+                  </span>
                 )}
                 {vehicleAge > 0 && <span>{vehicleAge} an{vehicleAge > 1 ? 's' : ''}</span>}
               </div>
@@ -297,15 +340,24 @@ export default function VehicleDetail({ vehicleId, onBack }) {
             </div>
             <div className="flex flex-row sm:flex-col items-center sm:items-end gap-2 flex-wrap">
               <span className="text-sm font-medium" style={{ color: 'var(--text-1)' }}>{categoryLabels[vehicle.range_category] || vehicle.range_category}</span>
-              <input ref={photoInputRef} type="file" accept="image/jpeg,image/png,image/webp" onChange={handlePhotoUpload} className="hidden" />
-              <button onClick={() => photoInputRef.current?.click()} disabled={photoUploading}
-                className="text-xs px-3 py-1.5 rounded-lg disabled:opacity-50"
-                style={{ background: 'var(--bg-surface)', border: '1px solid var(--border)', color: 'var(--text-2)' }}>
-                {photoUploading ? '⏳ Upload…' : vehicle.photo_url ? '📷 Changer' : '📷 Photo'}
-              </button>
-              <button onClick={handleEditStart} className="text-xs px-3 py-1.5 rounded-lg" style={{ background: 'var(--accent)', color: 'white' }}>
-                ✏️ Modifier
-              </button>
+              {canEdit && (
+                <>
+                  <input ref={photoInputRef} type="file" accept="image/jpeg,image/png,image/webp" onChange={handlePhotoUpload} className="hidden" />
+                  <button onClick={() => photoInputRef.current?.click()} disabled={photoUploading}
+                    className="text-xs px-3 py-1.5 rounded-lg disabled:opacity-50"
+                    style={{ background: 'var(--bg-surface)', border: '1px solid var(--border)', color: 'var(--text-2)' }}>
+                    {photoUploading ? '⏳ Upload…' : vehicle.photo_url ? '📷 Changer' : '📷 Photo'}
+                  </button>
+                  <button onClick={handleEditStart} className="text-xs px-3 py-1.5 rounded-lg" style={{ background: 'var(--accent)', color: 'white' }}>
+                    ✏️ Modifier
+                  </button>
+                </>
+              )}
+              {vehicle.is_private && canEdit && (
+                <span className="text-xs px-2 py-1 rounded" style={{ background: 'var(--bg-surface)', border: '1px solid var(--border)', color: 'var(--text-3)' }}>
+                  🔒 Privé
+                </span>
+              )}
             </div>
           </div>
         </div>
@@ -352,11 +404,13 @@ export default function VehicleDetail({ vehicleId, onBack }) {
 
         return (
           <div className="mb-6">
-            <div className="flex justify-end mb-3">
-              <button onClick={() => setShowMaintenanceForm(!showMaintenanceForm)} className="btn btn-primary">
-                {showMaintenanceForm ? 'Annuler' : '+ Intervention'}
-              </button>
-            </div>
+            {canEdit && (
+              <div className="flex justify-end mb-3">
+                <button onClick={() => setShowMaintenanceForm(!showMaintenanceForm)} className="btn btn-primary">
+                  {showMaintenanceForm ? 'Annuler' : '+ Intervention'}
+                </button>
+              </div>
+            )}
             <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
               <KpiCard
                 label="État"
@@ -452,10 +506,10 @@ export default function VehicleDetail({ vehicleId, onBack }) {
 
       {/* Tab Content */}
       {activeTab === 'upcoming' && upcoming && (
-        <UpcomingMaintenance data={{ ...upcoming, vehicle_type: vehicle.vehicle_type }} vehicleId={vehicleId} onRefresh={fetchData} />
+        <UpcomingMaintenance data={{ ...upcoming, vehicle_type: vehicle.vehicle_type }} vehicleId={vehicleId} onRefresh={fetchData} canEdit={canEdit} />
       )}
-      {activeTab === 'history' && <MaintenanceHistory vehicleId={vehicleId} vehicleType={vehicle.vehicle_type} motorization={vehicle.motorization} onDataChanged={fetchData} />}
-      {activeTab === 'fuel' && <FuelTracking vehicleId={vehicleId} onFuelAdded={fetchData} />}
+      {activeTab === 'history' && <MaintenanceHistory vehicleId={vehicleId} vehicleType={vehicle.vehicle_type} motorization={vehicle.motorization} onDataChanged={fetchData} canEdit={canEdit} />}
+      {activeTab === 'fuel' && <FuelTracking vehicleId={vehicleId} onFuelAdded={fetchData} canEdit={canEdit} />}
 
       {activeTab === 'recap' && (
         <div>

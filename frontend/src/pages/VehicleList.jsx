@@ -105,6 +105,7 @@ export default function VehicleList({ onSelectVehicle, currentUser }) {
               vehicle={vehicle}
               onSelect={() => onSelectVehicle(vehicle.id)}
               onDelete={() => handleDeleteVehicle(vehicle.id)}
+              currentUser={currentUser}
             />
           ))}
         </div>

@@ -202,7 +202,7 @@ function AppContent({ isAuthenticated, currentUser, onLogout }) {
       <main className="py-4 sm:py-8 flex-1 px-6 sm:px-10 lg:px-16">
         {currentPage === 'dashboard' && <Dashboard onSelectVehicle={handleSelectVehicle} currentUser={currentUser} />}
         {currentPage === 'vehicles' && <VehicleList onSelectVehicle={handleSelectVehicle} currentUser={currentUser} />}
-        {currentPage === 'vehicle-detail' && selectedVehicleId && <VehicleDetail vehicleId={selectedVehicleId} onBack={handleBack} />}
+        {currentPage === 'vehicle-detail' && selectedVehicleId && <VehicleDetail vehicleId={selectedVehicleId} onBack={handleBack} currentUser={currentUser} />}
         {currentPage === 'fuel-stations' && <FuelStations />}
         {currentPage === 'planning' && <Planning />}
         {currentPage === 'settings' && <Settings currentUser={currentUser} />}

@@ -268,7 +268,7 @@ function IntervalEditModal({ vehicleId, item, onClose, onSaved }) {
 // Composant principal
 // ─────────────────────────────────────────────────────────────────────────────
 
-export default React.memo(function UpcomingMaintenance({ data, vehicleId, onRefresh }) {
+export default React.memo(function UpcomingMaintenance({ data, vehicleId, onRefresh, canEdit = true }) {
   const { upcoming } = data;
   const [editingItem, setEditingItem] = useState(null);
 
@@ -374,8 +374,9 @@ export default React.memo(function UpcomingMaintenance({ data, vehicleId, onRefr
                     </div>
                   </div>
 
-                  {/* Bouton édition intervalle — masqué pour le contrôle technique */}
-                  {item.intervention_key &&
+                  {/* Bouton édition intervalle — masqué pour le contrôle
+                      technique, et sur un véhicule partagé qu'on ne possède pas */}
+                  {canEdit && item.intervention_key &&
                    !['inspection_technical_car', 'inspection_technical_moto'].includes(item.intervention_key) && (
                     <button
                       onClick={() => setEditingItem(item)}

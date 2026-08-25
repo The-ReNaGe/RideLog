@@ -20,7 +20,7 @@ const getCategoryDisplay = (category) => {
   return map[category] || map.scheduled;
 };
 
-export default function MaintenanceHistory({ vehicleId, vehicleType, motorization, onDataChanged }) {
+export default function MaintenanceHistory({ vehicleId, vehicleType, motorization, onDataChanged, canEdit = true }) {
   const [maintenances, setMaintenances] = useState([]);
   const [loading, setLoading] = useState(true);
   const [editingId, setEditingId] = useState(null);
@@ -284,14 +284,16 @@ export default function MaintenanceHistory({ vehicleId, vehicleType, motorizatio
                     </div>
                   </div>
 
-                  <div className="flex flex-col items-end gap-1 flex-shrink-0">
-                    <button onClick={() => handleEdit(maintenance)} className="text-xs font-semibold hover:opacity-70" style={{ color: 'var(--accent)' }}>
-                      ✏️ Modifier
-                    </button>
-                    <button onClick={() => handleDelete(maintenance.id)} className="text-xs font-semibold hover:opacity-70" style={{ color: 'var(--danger)' }}>
-                      🗑 Supprimer
-                    </button>
-                  </div>
+                  {canEdit && (
+                    <div className="flex flex-col items-end gap-1 flex-shrink-0">
+                      <button onClick={() => handleEdit(maintenance)} className="text-xs font-semibold hover:opacity-70" style={{ color: 'var(--accent)' }}>
+                        ✏️ Modifier
+                      </button>
+                      <button onClick={() => handleDelete(maintenance.id)} className="text-xs font-semibold hover:opacity-70" style={{ color: 'var(--danger)' }}>
+                        🗑 Supprimer
+                      </button>
+                    </div>
+                  )}
                 </div>
 
                 <div className="flex gap-4 text-sm">

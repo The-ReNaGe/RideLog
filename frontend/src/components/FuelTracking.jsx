@@ -146,7 +146,7 @@ function MiniLineChart({ points, valueKey, color, unit, formatValue, avgValue })
 	);
 }
 
-export default function FuelTracking({ vehicleId, onFuelAdded }) {
+export default function FuelTracking({ vehicleId, onFuelAdded, canEdit = true }) {
 	const [logs, setLogs] = useState([]);
 	const [stats, setStats] = useState(null);
 	const [loading, setLoading] = useState(true);
@@ -322,9 +322,11 @@ export default function FuelTracking({ vehicleId, onFuelAdded }) {
 
 			{/* Add / Edit fuel form */}
 			{!showForm ? (
-				<button onClick={() => { resetForm(); setShowForm(true); }} className="btn btn-primary">
-					⛽ Ajouter un plein
-				</button>
+				canEdit && (
+					<button onClick={() => { resetForm(); setShowForm(true); }} className="btn btn-primary">
+						⛽ Ajouter un plein
+					</button>
+				)
 			) : (
 				<div className="card p-5">
 					<div className="flex items-center justify-between mb-4">
@@ -584,21 +586,23 @@ export default function FuelTracking({ vehicleId, onFuelAdded }) {
 												{log.price_per_liter > 0 && <span style={{ color: 'var(--text-3)' }}>{log.price_per_liter.toFixed(3)} €/L</span>}
 												{log.station && <span style={{ color: 'var(--text-3)', fontStyle: 'italic' }}>{log.station}</span>}
 											</div>
-											<div style={{ display: 'flex', gap: 4, flexShrink: 0 }}>
-												<button
-													onClick={() => handleEditLog(log)}
-													style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 14, color: 'var(--accent)', padding: 4 }}
-													title="Modifier">
-													✏️
-												</button>
-												<button
-													onClick={() => handleDeleteLog(log.id)}
-													disabled={deletingId === log.id}
-													style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 14, color: deletingId === log.id ? 'var(--text-3)' : 'var(--danger)', padding: 4 }}
-													title="Supprimer">
-													{deletingId === log.id ? '⏳' : '🗑️'}
-												</button>
-											</div>
+											{canEdit && (
+												<div style={{ display: 'flex', gap: 4, flexShrink: 0 }}>
+													<button
+														onClick={() => handleEditLog(log)}
+														style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 14, color: 'var(--accent)', padding: 4 }}
+														title="Modifier">
+														✏️
+													</button>
+													<button
+														onClick={() => handleDeleteLog(log.id)}
+														disabled={deletingId === log.id}
+														style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 14, color: deletingId === log.id ? 'var(--text-3)' : 'var(--danger)', padding: 4 }}
+														title="Supprimer">
+														{deletingId === log.id ? '⏳' : '🗑️'}
+													</button>
+												</div>
+											)}
 										</div>
 									)}
 								</div>

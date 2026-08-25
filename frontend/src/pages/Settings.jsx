@@ -3,6 +3,7 @@ import { api } from '../lib/api';
 import DiscordIntegration from '../components/integrations/DiscordIntegration';
 import HomeAssistantIntegration from '../components/integrations/HomeAssistantIntegration';
 import APIDocumentation from '../components/APIDocumentation';
+import FamilySettings from '../components/FamilySettings';
 import { copyToClipboard } from '../lib/clipboard';
 
 export default function Settings({ currentUser }) {
@@ -43,6 +44,16 @@ export default function Settings({ currentUser }) {
           }}
         >
           🔔 Rappels
+        </button>
+        <button
+          onClick={() => setActiveTab('famille')}
+          className="px-4 py-3 font-medium transition-colors border-b-2 whitespace-nowrap"
+          style={{
+            borderColor: activeTab === 'famille' ? 'var(--accent)' : 'transparent',
+            color: activeTab === 'famille' ? 'var(--accent)' : 'var(--text-2)',
+          }}
+        >
+          👨‍👩‍👧 Famille
         </button>
         <button
           onClick={() => setActiveTab('compte')}
@@ -86,6 +97,9 @@ export default function Settings({ currentUser }) {
 
       {/* REMINDERS TAB */}
       {activeTab === 'reminders' && <ReminderSettings />}
+
+      {/* FAMILLE TAB */}
+      {activeTab === 'famille' && <FamilySettings currentUser={currentUser} />}
 
       {/* COMPTE TAB */}
       {activeTab === 'compte' && <AccountSettings />}

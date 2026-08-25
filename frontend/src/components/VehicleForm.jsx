@@ -20,6 +20,7 @@ export default function VehicleForm({ onSubmit, onCancel }) {
     notes: '',
     service_interval_km: '',
     service_interval_months: '',
+    is_private: false,
   });
   const [vin, setVin] = useState('');
   const [licensePlate, setLicensePlate] = useState('');
@@ -822,6 +823,26 @@ export default function VehicleForm({ onSubmit, onCancel }) {
           rows="3"
           className="input-field"
         />
+      </div>
+
+      <div className="mt-4">
+        {/* handleChange lit e.target.value : inadapté à une case à cocher,
+            d'où ce gestionnaire dédié. */}
+        <label className="flex items-start gap-2 cursor-pointer">
+          <input
+            type="checkbox"
+            checked={formData.is_private}
+            onChange={(e) => setFormData((prev) => ({ ...prev, is_private: e.target.checked }))}
+            className="mt-1"
+          />
+          <span className="text-sm">
+            <span className="font-medium">🔒 Véhicule privé</span>
+            <span className="block text-xs" style={{ color: 'var(--text-3)' }}>
+              Exclu du partage avec votre groupe famille, si vous en avez un.
+              Vous continuez à le voir normalement.
+            </span>
+          </span>
+        </label>
       </div>
 
       <div className="mt-4">

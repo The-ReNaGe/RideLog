@@ -14,6 +14,7 @@ export default function AuthPage({ onLoginSuccess }) {
   const [registrationMode, setRegistrationMode] = useState(null); // null = loading, 'open'/'invite'/'closed'
   const [isFirstUser, setIsFirstUser] = useState(false);
   const [inviteValid, setInviteValid] = useState(null); // null = not checked, true/false
+  const [inviteFamily, setInviteFamily] = useState(null); // groupe famille rejoint via ce lien, si c'en est un
 
   // Form state - Login
   const [loginUsername, setLoginUsername] = useState('');
@@ -41,7 +42,12 @@ export default function AuthPage({ onLoginSuccess }) {
       setIsRegister(true);
       // Validate the token
       api.checkInvite(token)
-        .then(() => setInviteValid(true))
+        .then((res) => {
+          setInviteValid(true);
+          // Lien de groupe famille : on annonce ce que l'invité rejoint plutôt
+          // que de le rattacher en silence.
+          setInviteFamily(res.data?.family || null);
+        })
         .catch((err) => {
           setInviteValid(false);
           setError(err.response?.data?.detail || "Lien d'invitation invalide");
@@ -451,6 +457,13 @@ export default function AuthPage({ onLoginSuccess }) {
                 ) : registrationMode === 'invite' && inviteToken && inviteValid ? (
                   <>
                     ✅ <strong>Invitation valide</strong> — Créez votre compte ci-dessus
+                    {inviteFamily && (
+                      <>
+                        <br />
+                        👨‍👩‍👧 Vous rejoindrez le groupe <strong>{inviteFamily.name}</strong> et
+                        pourrez consulter les véhicules de ses membres.
+                      </>
+                    )}
                   </>
                 ) : registrationMode === 'invite' && inviteToken && inviteValid === false ? (
                   <>

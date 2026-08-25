@@ -15,9 +15,15 @@ const categoryLabels = {
   premium: '👑 Premium',
 };
 
-export default React.memo(function VehicleCard({ vehicle, onSelect, onDelete }) {
+export default React.memo(function VehicleCard({ vehicle, onSelect, onDelete, currentUser }) {
   const age = new Date().getFullYear() - vehicle.year;
   const icon = vehicle.vehicle_type === 'car' ? '🚗' : '🏍️';
+
+  // Véhicule d'un autre membre du groupe famille : consultable, pas modifiable.
+  // Repli sur « à moi » si l'information manque — c'est le backend qui décide,
+  // cet indice ne sert qu'à ne pas afficher un bouton voué à échouer.
+  const isMine =
+    !vehicle.owner_id || !currentUser?.id || vehicle.owner_id === currentUser.id;
 
   return (
     <div className="card cursor-pointer transition-all" onClick={onSelect}>
@@ -38,6 +44,25 @@ export default React.memo(function VehicleCard({ vehicle, onSelect, onDelete }) 
             {vehicle.brand} {vehicle.model}
           </h3>
           <p className="text-sm" style={{ color: 'var(--text-3)' }}>{vehicle.name}</p>
+          <div className="flex flex-wrap gap-1 mt-1">
+            {!isMine && (
+              <span
+                className="inline-block px-2 py-0.5 rounded text-xs font-semibold"
+                style={{ background: 'var(--accent-light)', color: 'var(--accent)' }}
+              >
+                👁️ {vehicle.owner_display_name || 'Partagé'}
+              </span>
+            )}
+            {isMine && vehicle.is_private && (
+              <span
+                className="inline-block px-2 py-0.5 rounded text-xs font-semibold"
+                style={{ background: 'var(--bg-surface)', border: '1px solid var(--border)', color: 'var(--text-3)' }}
+                title="Exclu du partage avec votre groupe famille"
+              >
+                🔒 Privé
+              </span>
+            )}
+          </div>
         </div>
       </div>
 
@@ -66,13 +91,15 @@ export default React.memo(function VehicleCard({ vehicle, onSelect, onDelete }) 
         <button className="btn btn-primary flex-1" style={{ fontSize: '13px' }}>
           Détails
         </button>
-        <button
-          onClick={(e) => { e.stopPropagation(); onDelete(); }}
-          className="btn btn-danger px-3"
-          style={{ fontSize: '13px' }}
-        >
-          🗑
-        </button>
+        {isMine && (
+          <button
+            onClick={(e) => { e.stopPropagation(); onDelete(); }}
+            className="btn btn-danger px-3"
+            style={{ fontSize: '13px' }}
+          >
+            🗑
+          </button>
+        )}
       </div>
     </div>
   );
