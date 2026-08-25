@@ -22,6 +22,12 @@ FROM nginx:alpine
 # Copy custom nginx config
 COPY nginx.conf /etc/nginx/conf.d/default.conf
 
+# Détection du resolveur DNS au démarrage — voir le script pour le pourquoi.
+# L'entrypoint de l'image nginx exécute tout /docker-entrypoint.d/*.sh avant
+# de lancer nginx.
+COPY docker-entrypoint.d/10-resolver.sh /docker-entrypoint.d/10-resolver.sh
+RUN chmod +x /docker-entrypoint.d/10-resolver.sh
+
 # Copy built assets
 COPY --from=build /app/dist /usr/share/nginx/html
 
