@@ -244,7 +244,11 @@ function AccountSettings() {
   };
 
   return (
-    <div>
+    // Colonne centrée : le formulaire gardait une largeur de lecture correcte
+    // mais restait collé au bord gauche d'une page pleine largeur, ce qui le
+    // faisait paraître tassé dans un coin. La bannière et la carte partagent
+    // désormais la même largeur.
+    <div className="max-w-2xl mx-auto">
       <div className="card p-4 text-sm mb-6" style={{ background: 'var(--accent-light)', border: '1px solid var(--accent)', color: 'var(--text-1)' }}>
         <p className="font-bold mb-1">🔑 Sécurité du compte</p>
         <p style={{ color: 'var(--text-2)' }}>
@@ -253,7 +257,7 @@ function AccountSettings() {
         </p>
       </div>
 
-      <div className="card p-6 gap-section max-w-lg">
+      <div className="card p-6 gap-section">
         <h3 className="text-lg font-semibold mb-4" style={{ color: 'var(--text-1)' }}>Changer mon mot de passe</h3>
 
         {error && (

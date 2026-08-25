@@ -816,23 +816,28 @@ export default function VehicleForm({ onSubmit, onCancel }) {
       {/* Encadré plutôt qu'une case nue : au milieu de champs de saisie, une
           case à cocher isolée se lit mal et passe pour un reste de formulaire.
           handleChange lit e.target.value, inadapté ici — gestionnaire dédié. */}
-      <div
-        className="mt-4 p-3 rounded-lg"
-        style={{ background: 'var(--bg-surface)', border: '1px solid var(--border)' }}
-      >
-        <label className="flex items-start gap-3 cursor-pointer">
+      {/* Largeur ajustée au contenu : étirée sur toute la ligne pour trois mots,
+          la boîte paraissait vide et cassait l'alignement des champs au-dessus. */}
+      <div className="mt-4">
+        <label
+          className="inline-flex items-center gap-2.5 px-3 py-2 rounded-lg cursor-pointer transition-colors"
+          style={{
+            background: formData.is_private ? 'var(--accent-light)' : 'var(--bg-surface)',
+            border: `1px solid ${formData.is_private ? 'var(--accent)' : 'var(--border)'}`,
+          }}
+          title="Un véhicule privé reste invisible aux autres membres de votre groupe famille"
+        >
           <input
             type="checkbox"
             checked={formData.is_private}
             onChange={(e) => setFormData((prev) => ({ ...prev, is_private: e.target.checked }))}
-            className="mt-0.5"
-            style={{ width: 16, height: 16, flexShrink: 0 }}
+            style={{ width: 15, height: 15, flexShrink: 0 }}
           />
-          <span className="text-sm">
-            <span className="font-medium" style={{ color: 'var(--text-1)' }}>🔒 Véhicule privé</span>
-            <span className="block text-xs mt-0.5" style={{ color: 'var(--text-3)' }}>
-              Exclu du partage avec votre groupe famille. Vous continuez à le voir normalement.
-            </span>
+          <span className="text-sm font-medium" style={{ color: 'var(--text-1)' }}>
+            🔒 Véhicule privé
+          </span>
+          <span className="text-xs" style={{ color: 'var(--text-3)' }}>
+            non partagé avec la famille
           </span>
         </label>
       </div>

@@ -154,19 +154,22 @@ export default function VehicleList({ onSelectVehicle, currentUser }) {
           {/* Un garage par membre du groupe famille */}
           {sharedGarages.map((garage) => (
             <div key={garage.ownerId} className="mt-10">
-              <div
-                className="flex items-baseline gap-3 mb-4 pb-2"
-                style={{ borderBottom: '1px solid var(--border)' }}
-              >
-                <h3 className="text-xl font-bold" style={{ color: 'var(--text-1)' }}>
-                  Garage de {garage.name || 'un membre du groupe'}
-                </h3>
-                <span
-                  className="text-xs px-2 py-0.5 rounded font-semibold"
-                  style={{ background: 'var(--accent-light)', color: 'var(--accent)' }}
-                >
-                  👁️ consultation
-                </span>
+              <div className="mb-4 pb-2" style={{ borderBottom: '1px solid var(--border)' }}>
+                <div className="flex items-center gap-3 flex-wrap">
+                  <h3 className="text-xl font-bold" style={{ color: 'var(--text-1)' }}>
+                    Garage de {garage.name || 'un membre du groupe'}
+                  </h3>
+                  <span
+                    className="text-xs px-2 py-1 rounded font-semibold"
+                    style={{ background: 'var(--accent-light)', color: 'var(--accent)' }}
+                  >
+                    Lecture seule
+                  </span>
+                </div>
+                <p className="text-sm mt-1" style={{ color: 'var(--text-2)' }}>
+                  Partagé avec vous — vous pouvez tout consulter, mais seul{' '}
+                  {garage.name || 'son propriétaire'} peut y enregistrer un entretien ou un plein.
+                </p>
               </div>
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
                 {garage.vehicles.map((vehicle) => (
