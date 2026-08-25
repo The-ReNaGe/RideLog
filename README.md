@@ -252,7 +252,31 @@ les mêmes octets.
 ```bash
 cd RideLog
 git pull origin main
+```
 
+> ⚠️ **`git pull` refuse avec « vos modifications locales... seraient écrasées »** :
+> fréquent si vous aviez modifié `docker-compose.yml` à la main sous l'ancien
+> mode « build local » (port codé en dur, `container_name`, etc.). Vérifiez
+> d'abord ce qui a été changé — la plupart de ces réglages sont désormais pilotés
+> par `.env` (`BACKEND_PORT`, `FRONTEND_PORT`, `RIDELOG_TAG`) et n'ont plus besoin
+> d'être édités dans le compose :
+> ```bash
+> git diff docker-compose.yml
+> ```
+> Si le diff ne contient que ce type de réglage, l'ancien fichier peut être
+> abandonné sans perte (aucune donnée n'y vit) :
+> ```bash
+> git checkout -- docker-compose.yml
+> git pull origin main
+> ```
+> Sinon, remisez-le pour ne rien perdre et fusionnez à la main :
+> ```bash
+> git stash push -- docker-compose.yml
+> git pull origin main
+> git stash pop
+> ```
+
+```bash
 # 1. Renseigner le canal souhaité (stable est le défaut)
 grep -q '^RIDELOG_TAG=' .env || echo 'RIDELOG_TAG=stable' >> .env
 
