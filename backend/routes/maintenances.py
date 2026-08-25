@@ -15,6 +15,12 @@ from models import User, Vehicle, Maintenance, MaintenanceInvoice, VehicleMainte
 from schemas import IntervalOverrideUpdate
 from security import get_current_user
 from routes import secure_delete
+from routes.access import (
+    get_owned_vehicle,
+    get_readable_vehicle,
+    require_owned_vehicle,
+    require_readable_vehicle,
+)
 from reminder_scheduler import clear_notification_logs_for, _check_vehicle_reminders
 
 logger = logging.getLogger("ridelog.maintenances")
@@ -121,12 +127,7 @@ def get_available_interventions(
     vehicle_id: int, vehicle_type: str, displacement: int = None,
     current_user: User = Depends(get_current_user), db: Session = Depends(get_db)
 ):
-    if current_user.is_integration_account:
-        vehicle = db.query(Vehicle).filter(Vehicle.id == vehicle_id).first()
-    else:
-        vehicle = db.query(Vehicle).filter(Vehicle.id == vehicle_id, Vehicle.user_id == current_user.id).first()
-    if not vehicle:
-        raise HTTPException(status_code=404, detail="Vehicle not found")
+    vehicle = get_readable_vehicle(vehicle_id, current_user, db)
 
     intervals = calculator.get_intervals_for_vehicle(
         vehicle_type, displacement, brand=vehicle.brand,
@@ -156,12 +157,7 @@ def get_available_interventions(
 def get_maintenances(
     vehicle_id: int, current_user: User = Depends(get_current_user), db: Session = Depends(get_db)
 ):
-    if current_user.is_integration_account:
-        vehicle = db.query(Vehicle).filter(Vehicle.id == vehicle_id).first()
-    else:
-        vehicle = db.query(Vehicle).filter(Vehicle.id == vehicle_id, Vehicle.user_id == current_user.id).first()
-    if not vehicle:
-        raise HTTPException(status_code=404, detail="Vehicle not found")
+    require_readable_vehicle(vehicle_id, current_user, db)
 
     maintenances = db.query(Maintenance).filter(Maintenance.vehicle_id == vehicle_id).order_by(
         Maintenance.execution_date.desc()
@@ -181,9 +177,7 @@ async def create_maintenance(
     current_user: User = Depends(get_current_user), db: Session = Depends(get_db)
 ):
     """Enregistre une intervention. Le kilométrage est optionnel — estimé par interpolation si absent."""
-    vehicle = db.query(Vehicle).filter(Vehicle.id == vehicle_id, Vehicle.user_id == current_user.id).first()
-    if not vehicle:
-        raise HTTPException(status_code=404, detail="Vehicle not found")
+    vehicle = get_owned_vehicle(vehicle_id, current_user, db)
 
     content_type = request.headers.get("content-type", "")
     data = {}
@@ -296,9 +290,7 @@ async def update_maintenance(
     vehicle_id: int, maintenance_id: int, request: Request,
     current_user: User = Depends(get_current_user), db: Session = Depends(get_db)
 ):
-    vehicle = db.query(Vehicle).filter(Vehicle.id == vehicle_id, Vehicle.user_id == current_user.id).first()
-    if not vehicle:
-        raise HTTPException(status_code=404, detail="Vehicle not found")
+    vehicle = get_owned_vehicle(vehicle_id, current_user, db)
     maintenance = db.query(Maintenance).filter(Maintenance.id == maintenance_id, Maintenance.vehicle_id == vehicle_id).first()
     if not maintenance:
         raise HTTPException(status_code=404, detail="Maintenance not found")
@@ -393,9 +385,7 @@ def delete_maintenance(
     vehicle_id: int, maintenance_id: int,
     current_user: User = Depends(get_current_user), db: Session = Depends(get_db),
 ):
-    vehicle = db.query(Vehicle).filter(Vehicle.id == vehicle_id, Vehicle.user_id == current_user.id).first()
-    if not vehicle:
-        raise HTTPException(status_code=404, detail="Vehicle not found")
+    require_owned_vehicle(vehicle_id, current_user, db)
     maintenance = db.query(Maintenance).filter(Maintenance.id == maintenance_id, Maintenance.vehicle_id == vehicle_id).first()
     if not maintenance:
         raise HTTPException(status_code=404, detail="Maintenance not found")
@@ -413,12 +403,7 @@ def download_maintenance_invoice(
     vehicle_id: int, maintenance_id: int, invoice_id: int,
     current_user: User = Depends(get_current_user), db: Session = Depends(get_db)
 ):
-    if current_user.is_integration_account:
-        vehicle = db.query(Vehicle).filter(Vehicle.id == vehicle_id).first()
-    else:
-        vehicle = db.query(Vehicle).filter(Vehicle.id == vehicle_id, Vehicle.user_id == current_user.id).first()
-    if not vehicle:
-        raise HTTPException(status_code=404, detail="Vehicle not found")
+    require_readable_vehicle(vehicle_id, current_user, db)
     maintenance = db.query(Maintenance).filter(Maintenance.id == maintenance_id, Maintenance.vehicle_id == vehicle_id).first()
     if not maintenance:
         raise HTTPException(status_code=404, detail="Maintenance not found")
@@ -433,9 +418,7 @@ def download_maintenance_invoice(
 
 @router.get("/{vehicle_id}/interval-overrides")
 def get_interval_overrides(vehicle_id: int, current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
-    vehicle = db.query(Vehicle).filter(Vehicle.id == vehicle_id, Vehicle.user_id == current_user.id).first()
-    if not vehicle:
-        raise HTTPException(status_code=404, detail="Vehicle not found")
+    require_owned_vehicle(vehicle_id, current_user, db)
     overrides = db.query(VehicleMaintenanceOverride).filter(VehicleMaintenanceOverride.vehicle_id == vehicle_id).all()
     return [o.to_dict() for o in overrides]
 
@@ -445,9 +428,7 @@ def upsert_interval_override(
     vehicle_id: int, intervention_key: str, body: IntervalOverrideUpdate,
     current_user: User = Depends(get_current_user), db: Session = Depends(get_db),
 ):
-    vehicle = db.query(Vehicle).filter(Vehicle.id == vehicle_id, Vehicle.user_id == current_user.id).first()
-    if not vehicle:
-        raise HTTPException(status_code=404, detail="Vehicle not found")
+    require_owned_vehicle(vehicle_id, current_user, db)
     override = db.query(VehicleMaintenanceOverride).filter(
         VehicleMaintenanceOverride.vehicle_id == vehicle_id,
         VehicleMaintenanceOverride.intervention_key == intervention_key,
@@ -470,9 +451,7 @@ def delete_interval_override(
     vehicle_id: int, intervention_key: str,
     current_user: User = Depends(get_current_user), db: Session = Depends(get_db),
 ):
-    vehicle = db.query(Vehicle).filter(Vehicle.id == vehicle_id, Vehicle.user_id == current_user.id).first()
-    if not vehicle:
-        raise HTTPException(status_code=404, detail="Vehicle not found")
+    require_owned_vehicle(vehicle_id, current_user, db)
     override = db.query(VehicleMaintenanceOverride).filter(
         VehicleMaintenanceOverride.vehicle_id == vehicle_id,
         VehicleMaintenanceOverride.intervention_key == intervention_key,
@@ -510,23 +489,13 @@ def _compute_upcoming(vehicle: Vehicle, db: Session) -> dict:
 
 @router.get("/{vehicle_id}/upcoming")
 def get_upcoming_maintenances(vehicle_id: int, current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
-    if current_user.is_integration_account:
-        vehicle = db.query(Vehicle).filter(Vehicle.id == vehicle_id).first()
-    else:
-        vehicle = db.query(Vehicle).filter(Vehicle.id == vehicle_id, Vehicle.user_id == current_user.id).first()
-    if not vehicle:
-        raise HTTPException(status_code=404, detail="Vehicle not found")
+    vehicle = get_readable_vehicle(vehicle_id, current_user, db)
     return _compute_upcoming(vehicle, db)
 
 
 @router.get("/{vehicle_id}/recommendations")
 def get_recommendations(vehicle_id: int, current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
-    if current_user.is_integration_account:
-        vehicle = db.query(Vehicle).filter(Vehicle.id == vehicle_id).first()
-    else:
-        vehicle = db.query(Vehicle).filter(Vehicle.id == vehicle_id, Vehicle.user_id == current_user.id).first()
-    if not vehicle:
-        raise HTTPException(status_code=404, detail="Vehicle not found")
+    vehicle = get_readable_vehicle(vehicle_id, current_user, db)
 
     recommendations = []
     vehicle_age = datetime.now(timezone.utc).year - vehicle.year
@@ -550,12 +519,7 @@ def get_recommendations(vehicle_id: int, current_user: User = Depends(get_curren
 
 @router.get("/{vehicle_id}/cost-forecast")
 def get_cost_forecast(vehicle_id: int, current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
-    if current_user.is_integration_account:
-        vehicle = db.query(Vehicle).filter(Vehicle.id == vehicle_id).first()
-    else:
-        vehicle = db.query(Vehicle).filter(Vehicle.id == vehicle_id, Vehicle.user_id == current_user.id).first()
-    if not vehicle:
-        raise HTTPException(status_code=404, detail="Vehicle not found")
+    vehicle = get_readable_vehicle(vehicle_id, current_user, db)
     upcoming = _compute_upcoming(vehicle, db)["upcoming"]
     return {
         "vehicle_id": vehicle_id,

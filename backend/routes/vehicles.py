@@ -14,6 +14,12 @@ import httpx
 from models import Vehicle, Maintenance, FuelLog, User, VehicleMaintenanceOverride, get_db
 from security import get_current_user
 from routes import secure_delete
+from routes.access import (
+    get_owned_vehicle,
+    get_readable_vehicle,
+    list_owned_vehicles,
+    list_readable_vehicles,
+)
 from schemas import VehicleCreate, VehicleUpdate
 from maintenance_calculator import MaintenanceCalculator, build_last_maintenances_dict
 from regions import format_model_text, get_region
@@ -48,7 +54,7 @@ def get_planning(
     db: Session = Depends(get_db)
 ):
     """Get upcoming and overdue maintenances for all user vehicles."""
-    vehicles = db.query(Vehicle).filter(Vehicle.user_id == current_user.id).all()
+    vehicles = list_owned_vehicles(current_user, db)
 
     # Charger tous les overrides en une seule requête
     vehicle_ids = [v.id for v in vehicles]
@@ -124,10 +130,7 @@ def list_vehicles(
     db: Session = Depends(get_db),
     authorization: str = None
 ):
-    if current_user.is_integration_account:
-        vehicles = db.query(Vehicle).all()
-    else:
-        vehicles = db.query(Vehicle).filter(Vehicle.user_id == current_user.id).all()
+    vehicles = list_readable_vehicles(current_user, db)
     return [v.to_dict() for v in vehicles]
 
 
@@ -405,16 +408,7 @@ def get_vehicle(
     db: Session = Depends(get_db),
     authorization: str = None
 ):
-    if current_user.is_integration_account:
-        vehicle = db.query(Vehicle).filter(Vehicle.id == vehicle_id).first()
-    else:
-        vehicle = db.query(Vehicle).filter(
-            Vehicle.id == vehicle_id,
-            Vehicle.user_id == current_user.id
-        ).first()
-    
-    if not vehicle:
-        raise HTTPException(status_code=404, detail="Vehicle not found")
+    vehicle = get_readable_vehicle(vehicle_id, current_user, db)
     return vehicle.to_dict()
 
 
@@ -426,13 +420,7 @@ def update_vehicle(
     db: Session = Depends(get_db),
     authorization: str = None
 ):
-    vehicle = db.query(Vehicle).filter(
-        Vehicle.id == vehicle_id,
-        Vehicle.user_id == current_user.id
-    ).first()
-    
-    if not vehicle:
-        raise HTTPException(status_code=404, detail="Vehicle not found")
+    vehicle = get_owned_vehicle(vehicle_id, current_user, db)
 
     if data.name is not None:
         vehicle.name = data.name
@@ -489,13 +477,7 @@ def delete_vehicle(
     db: Session = Depends(get_db),
     authorization: str = None
 ):
-    vehicle = db.query(Vehicle).filter(
-        Vehicle.id == vehicle_id,
-        Vehicle.user_id == current_user.id
-    ).first()
-    
-    if not vehicle:
-        raise HTTPException(status_code=404, detail="Vehicle not found")
+    vehicle = get_owned_vehicle(vehicle_id, current_user, db)
 
     if vehicle.photo_path:
         secure_delete(vehicle.photo_path)
@@ -518,12 +500,7 @@ async def upload_vehicle_photo(
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
-    vehicle = db.query(Vehicle).filter(
-        Vehicle.id == vehicle_id,
-        Vehicle.user_id == current_user.id
-    ).first()
-    if not vehicle:
-        raise HTTPException(status_code=404, detail="Vehicle not found")
+    vehicle = get_owned_vehicle(vehicle_id, current_user, db)
 
     mime = (file.content_type or "").lower()
     if mime not in ALLOWED_PHOTO_MIME:
@@ -568,16 +545,7 @@ def get_vehicle_photo(
     plus l'utiliser dans un ``<img src>`` et passe par le composant
     ``VehiclePhoto`` qui charge l'image via le client authentifié.
     """
-    if current_user.is_integration_account:
-        vehicle = db.query(Vehicle).filter(Vehicle.id == vehicle_id).first()
-    else:
-        vehicle = db.query(Vehicle).filter(
-            Vehicle.id == vehicle_id,
-            Vehicle.user_id == current_user.id,
-        ).first()
-
-    if not vehicle:
-        raise HTTPException(status_code=404, detail="Vehicle not found")
+    vehicle = get_readable_vehicle(vehicle_id, current_user, db)
     if not vehicle.photo_path:
         raise HTTPException(status_code=404, detail="Aucune photo pour ce véhicule")
 
@@ -597,12 +565,7 @@ def delete_vehicle_photo(
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
-    vehicle = db.query(Vehicle).filter(
-        Vehicle.id == vehicle_id,
-        Vehicle.user_id == current_user.id
-    ).first()
-    if not vehicle:
-        raise HTTPException(status_code=404, detail="Vehicle not found")
+    vehicle = get_owned_vehicle(vehicle_id, current_user, db)
     if not vehicle.photo_path:
         raise HTTPException(status_code=404, detail="Aucune photo pour ce véhicule")
 

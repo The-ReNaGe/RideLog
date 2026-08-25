@@ -1,8 +1,9 @@
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends
 from fastapi.responses import StreamingResponse
 from sqlalchemy.orm import Session
-from models import Vehicle, Maintenance, User, get_db
+from models import Maintenance, User, get_db
 from security import get_current_user
+from routes.access import get_readable_vehicle
 from datetime import datetime, timezone
 from typing import Dict
 import csv
@@ -12,20 +13,6 @@ import zipfile
 from pathlib import Path
 
 router = APIRouter(prefix="/vehicles", tags=["exports"])
-
-
-def _get_vehicle_for_user(vehicle_id: int, current_user: User, db: Session) -> Vehicle:
-    """Récupère un véhicule en vérifiant que l'utilisateur en est propriétaire."""
-    if current_user.is_integration_account:
-        vehicle = db.query(Vehicle).filter(Vehicle.id == vehicle_id).first()
-    else:
-        vehicle = db.query(Vehicle).filter(
-            Vehicle.id == vehicle_id,
-            Vehicle.user_id == current_user.id
-        ).first()
-    if not vehicle:
-        raise HTTPException(status_code=404, detail="Vehicle not found")
-    return vehicle
 
 
 
@@ -43,7 +30,7 @@ def get_vehicle_value_estimate(
     Basée sur: prix d'achat ou catégorie, âge, kilométrage,
     motorisation, historique d'entretien.
     """
-    vehicle = _get_vehicle_for_user(vehicle_id, current_user, db)
+    vehicle = get_readable_vehicle(vehicle_id, current_user, db)
 
     if not vehicle.purchase_price:
         return {
@@ -68,7 +55,7 @@ def get_maintenance_recap(
     db: Session = Depends(get_db),
 ):
     """Full maintenance history recap with document information."""
-    vehicle = _get_vehicle_for_user(vehicle_id, current_user, db)
+    vehicle = get_readable_vehicle(vehicle_id, current_user, db)
 
     maintenances = (
         db.query(Maintenance)
@@ -132,7 +119,7 @@ def download_maintenance_recap_zip(
     db: Session = Depends(get_db),
 ):
     """Download a ZIP with the CSV recap + all attached invoices organized by type and date."""
-    vehicle = _get_vehicle_for_user(vehicle_id, current_user, db)
+    vehicle = get_readable_vehicle(vehicle_id, current_user, db)
 
     maintenances = (
         db.query(Maintenance)
@@ -239,7 +226,7 @@ def generate_ha_dashboard_card(
     Uses Mushroom cards with card_mod for a polished maintenance dashboard.
     Requires: mushroom cards + card_mod installed via HACS.
     """
-    vehicle = _get_vehicle_for_user(vehicle_id, current_user, db)
+    vehicle = get_readable_vehicle(vehicle_id, current_user, db)
 
     slug = _slugify_ha(vehicle.name)
     icon = "mdi:motorbike" if vehicle.vehicle_type == "motorcycle" else "mdi:car"

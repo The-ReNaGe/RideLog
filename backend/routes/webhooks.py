@@ -19,6 +19,7 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
 
 from models import User, Webhook, get_db
+from routes.access import list_owned_vehicles
 from security import get_current_user, get_current_admin
 from schemas import WebhookCreate, WebhookToggle
 
@@ -132,9 +133,9 @@ async def check_reminders_now(
     Efface d'abord les anciens logs pour forcer un envoi frais.
     """
     from reminder_scheduler import _check_vehicle_reminders
-    from models import Vehicle, NotificationLog
+    from models import NotificationLog
 
-    vehicles = db.query(Vehicle).filter(Vehicle.user_id == current_user.id).all()
+    vehicles = list_owned_vehicles(current_user, db)
     vehicle_ids = [v.id for v in vehicles]
 
     # Clear all notification logs for this user's vehicles to force re-send
