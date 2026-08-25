@@ -122,13 +122,17 @@ def test_joining_puts_both_members_in_the_group(client, household):
     assert {m["username"] for m in res.json()["family"]["members"]} == {"alice", "bob"}
 
 
-def test_only_the_owner_can_rename_the_group(client, household):
+def test_any_member_can_rename_the_group(client, household):
+    """
+    Le nom du foyer est un bien commun, et le groupe survit au départ de son
+    créateur : le renommage n'est pas un pouvoir sur les autres.
+    """
     assert client.patch(
-        "/api/family", headers=household["bob"], json={"name": "Renommé"}
-    ).status_code == 403
-    assert client.patch(
-        "/api/family", headers=household["alice"], json={"name": "Renommé"}
+        "/api/family", headers=household["bob"], json={"name": "Renommé par Bob"}
     ).status_code == 200
+    assert client.get(
+        "/api/family", headers=household["alice"]
+    ).json()["family"]["name"] == "Renommé par Bob"
 
 
 def test_only_the_owner_can_remove_a_member(client, household):
@@ -186,37 +190,52 @@ def test_a_member_of_another_group_cannot_revoke_your_invitation(client, househo
     assert res.status_code == 404
 
 
-def test_registering_through_a_group_link_joins_the_group(client, household):
-    """Le lien sert aussi à qui n'a pas encore de compte."""
+def test_a_group_link_can_never_be_used_to_register(client, household):
+    """
+    Le point clé du cloisonnement : faire entrer quelqu'un de NOUVEAU sur
+    l'instance reste le privilège d'un administrateur. Un membre ordinaire
+    constitue son foyer sans jamais pouvoir ouvrir l'instance à un inconnu.
+    """
     token = client.post("/api/family/invitations", headers=household["alice"]).json()["token"]
 
     app_config.REGISTRATION_MODE = "invite"
-    res = register(client, "erin", invite_token=token)
-    assert res.status_code == 201
+    res = register(client, "mallory", invite_token=token)
+    assert res.status_code == 403
 
-    erin = auth_headers(token_of(client, "erin"))
-    assert client.get("/api/family", headers=erin).json()["family"]["name"] == "Foyer"
+
+def test_a_group_link_is_indistinguishable_from_an_unknown_one(client, household):
+    """
+    Refuser avec un message distinct apprendrait à un inconnu qu'un groupe
+    existe derrière ce jeton.
+    """
+    token = client.post("/api/family/invitations", headers=household["alice"]).json()["token"]
+    app_config.REGISTRATION_MODE = "invite"
+
+    with_group = register(client, "mallory", invite_token=token)
+    with_garbage = register(client, "mallory", invite_token="jeton-inexistant")
+
+    assert with_group.status_code == with_garbage.status_code == 403
+    assert with_group.json()["detail"] == with_garbage.json()["detail"]
+
+
+def test_an_admin_invitation_still_allows_registration(client, household):
+    """Le durcissement ne doit pas casser le flux d'invitation d'origine."""
+    # alice est le premier compte enregistré, donc administratrice.
+    token = client.post("/api/admin/invitations", headers=household["alice"]).json()["token"]
+
+    app_config.REGISTRATION_MODE = "invite"
+    assert register(client, "newcomer", invite_token=token).status_code == 201
+    # …et sans rattachement à un groupe, puisque ce n'est pas un lien famille.
+    newcomer = auth_headers(token_of(client, "newcomer"))
+    assert client.get("/api/family", headers=newcomer).json()["family"] is None
 
 
 def test_check_invite_announces_the_group(client, household):
-    """La page d'inscription doit pouvoir dire ce qu'on rejoint."""
+    """Permet à l'écran de connexion de dire quel foyer on s'apprête à rejoindre."""
     token = client.post("/api/family/invitations", headers=household["alice"]).json()["token"]
     res = client.get(f"/api/auth/check-invite/{token}")
     assert res.status_code == 200
     assert res.json()["family"]["name"] == "Foyer"
-
-
-def test_a_closed_instance_still_refuses_registration_through_a_group_link(client, household):
-    """
-    Un lien de groupe ne doit pas ouvrir une inscription là où l'administrateur
-    l'a fermée. Le contrôle vient de REGISTRATION_MODE, que le rattachement
-    famille ne court-circuite pas.
-    """
-    token = client.post("/api/family/invitations", headers=household["alice"]).json()["token"]
-
-    app_config.REGISTRATION_MODE = "closed"
-    res = register(client, "mallory", invite_token=token)
-    assert res.status_code == 403
 
 
 def test_pending_invitations_are_capped(client, household):

@@ -324,12 +324,34 @@ function ForcePasswordChange({ currentUser, onDone, onLogout }) {
   );
 }
 
+/**
+ * Lien de rattachement à un groupe famille : /rejoindre/<token>.
+ *
+ * Distinct de /invite/<token>, qui crée un compte : celui-ci n'en crée jamais,
+ * il rattache un compte existant. Le jeton est mis de côté dans sessionStorage
+ * pour survivre à la connexion — l'invité arrive souvent déconnecté, et lui
+ * redemander le lien après login serait une façon sûre de le perdre.
+ */
+const PENDING_FAMILY_TOKEN = 'ridelog.pendingFamilyToken';
+
+function readFamilyTokenFromUrl() {
+  const match = window.location.pathname.match(/^\/rejoindre\/(.+)$/);
+  if (!match) return null;
+  const token = match[1];
+  try { sessionStorage.setItem(PENDING_FAMILY_TOKEN, token); } catch { /* navigation privée */ }
+  window.history.replaceState({}, '', '/');
+  return token;
+}
+
 export default function App() {
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [currentUser, setCurrentUser] = useState(null);
   const [loading, setLoading] = useState(true);
+  const [familyJoin, setFamilyJoin] = useState(null); // { status, name?, message? }
 
   useEffect(() => {
+    readFamilyTokenFromUrl();
+
     const token = localStorage.getItem('access_token');
     const user = localStorage.getItem('user');
     if (token && user) {
@@ -364,6 +386,38 @@ export default function App() {
     setCurrentUser(null);
   };
 
+  // Jeton de groupe en attente : consommé dès que l'utilisateur est connecté,
+  // qu'il l'ait ouvert déjà connecté ou qu'il vienne de se connecter pour lui.
+  const pendingFamilyToken = (() => {
+    try { return sessionStorage.getItem(PENDING_FAMILY_TOKEN); } catch { return null; }
+  })();
+
+  useEffect(() => {
+    if (!isAuthenticated || !pendingFamilyToken) return;
+
+    let cancelled = false;
+    setFamilyJoin({ status: 'pending' });
+    api.joinFamily(pendingFamilyToken)
+      .then((res) => {
+        if (!cancelled) setFamilyJoin({ status: 'ok', name: res.data?.family?.name });
+      })
+      .catch((err) => {
+        if (!cancelled) {
+          setFamilyJoin({
+            status: 'error',
+            message: err.response?.data?.detail || 'Impossible de rejoindre ce groupe',
+          });
+        }
+      })
+      .finally(() => {
+        // Consommé dans tous les cas : réessayer en boucle un jeton expiré
+        // afficherait la même erreur à chaque rechargement.
+        try { sessionStorage.removeItem(PENDING_FAMILY_TOKEN); } catch { /* ignore */ }
+      });
+
+    return () => { cancelled = true; };
+  }, [isAuthenticated, pendingFamilyToken]);
+
   if (loading) {
     return (
       <div className="min-h-screen flex items-center justify-center" style={{ background: 'var(--bg-base)' }}>
@@ -372,7 +426,13 @@ export default function App() {
     );
   }
 
-  if (!isAuthenticated) return <ErrorBoundary><AuthPage onLoginSuccess={handleLoginSuccess} /></ErrorBoundary>;
+  if (!isAuthenticated) {
+    return (
+      <ErrorBoundary>
+        <AuthPage onLoginSuccess={handleLoginSuccess} pendingFamilyToken={pendingFamilyToken} />
+      </ErrorBoundary>
+    );
+  }
 
   if (currentUser?.must_change_password) {
     return (
@@ -384,6 +444,30 @@ export default function App() {
 
   return (
     <ErrorBoundary>
+      {familyJoin && familyJoin.status !== 'pending' && (
+        <div
+          className="fixed top-2 left-1/2 z-50 px-4 py-3 rounded-lg shadow-lg text-sm flex items-center gap-3"
+          style={{
+            transform: 'translateX(-50%)',
+            maxWidth: 'calc(100vw - 1rem)',
+            background: familyJoin.status === 'ok' ? 'var(--success)' : 'var(--danger)',
+            color: '#fff',
+          }}
+        >
+          <span>
+            {familyJoin.status === 'ok'
+              ? `👨‍👩‍👧 Vous avez rejoint le groupe ${familyJoin.name || ''}`.trim()
+              : `⚠️ ${familyJoin.message}`}
+          </span>
+          <button
+            onClick={() => setFamilyJoin(null)}
+            style={{ background: 'none', border: 'none', color: '#fff', cursor: 'pointer', fontWeight: 700 }}
+            aria-label="Fermer"
+          >
+            ✕
+          </button>
+        </div>
+      )}
       <AppContent isAuthenticated={isAuthenticated} currentUser={currentUser} onLogout={handleLogout} />
     </ErrorBoundary>
   );

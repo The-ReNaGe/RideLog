@@ -1797,16 +1797,49 @@ Vérifié par `test_without_any_group_nothing_changes`.
 
 ### 22.3 Invitations de groupe
 
-Un même lien sert les deux cas : la personne a déjà un compte et rejoint via
-`POST /family/join`, ou elle n'en a pas et s'inscrit normalement, le
-rattachement suivant dans `register()`.
+> ⚠️ **Un lien de groupe ne permet PAS de s'inscrire.** `register()` écarte
+> explicitement les invitations portant un `family_id` (filtre
+> `Invitation.family_id.is_(None)` dans la requête). Faire entrer quelqu'un de
+> **nouveau** sur l'instance reste le privilège d'un administrateur, quel que
+> soit `REGISTRATION_MODE`. Un utilisateur ordinaire constitue son foyer sans
+> jamais pouvoir ouvrir l'instance à un inconnu.
 
-> ⚠️ **Élargissement assumé** : en mode `invite`, faire entrer quelqu'un sur
-> l'instance était réservé à un administrateur. Un utilisateur ordinaire peut
-> désormais émettre un lien qui le permet, pour son groupe. Le mode `closed`
-> reste respecté — `register()` refuse, donc le lien n'y sert qu'à un compte
-> existant. Plafond de `MAX_PENDING_INVITATIONS` (10) par groupe pour borner ce
-> que peut faire un compte compromis.
+Le filtre est posé **dans la requête** plutôt qu'en test après coup pour que le
+refus soit indiscernable d'un jeton inconnu — un message distinct apprendrait à
+un inconnu qu'un groupe existe derrière ce jeton. Verrouillé par
+`test_a_group_link_is_indistinguishable_from_an_unknown_one`.
+
+Accueillir une personne sans compte se fait donc **en deux temps** : un
+administrateur lui crée un compte (ou lui envoie une invitation d'inscription),
+puis elle rejoint le groupe avec le lien famille.
+
+Deux chemins d'URL distincts, à ne pas confondre :
+
+| Chemin | Émis par | Effet |
+|---|---|---|
+| `/invite/<token>` | admin | crée un compte |
+| `/rejoindre/<token>` | tout membre | rattache un compte **existant** |
+
+Le jeton de `/rejoindre/` est mis de côté dans `sessionStorage` par `App.jsx`
+pour survivre à la connexion : l'invité arrive souvent déconnecté, et lui
+redemander le lien après login serait une façon sûre de le perdre. Il est
+consommé dans tous les cas — succès comme échec — pour ne pas rejouer en
+boucle un jeton expiré à chaque rechargement.
+
+Plafond de `MAX_PENDING_INVITATIONS` (10) par groupe.
+
+**Qui peut quoi** :
+
+| Action | Créateur | Membre |
+|---|:--:|:--:|
+| Renommer le groupe | ✅ | ✅ |
+| Inviter / révoquer | ✅ | ✅ |
+| Retirer un membre | ✅ | ❌ |
+| Quitter | ✅ | ✅ |
+
+Le renommage est ouvert à tous : le nom du foyer est un bien commun et le
+groupe survit au départ de celui qui l'a créé. Retirer un membre reste au
+créateur — c'est un pouvoir sur les autres.
 
 **Départ du créateur** : la propriété passe au plus ancien membre restant. Un
 groupe sans propriétaire ne pourrait plus être ni renommé ni dissous. Le

@@ -63,7 +63,10 @@ export default function FamilySettings({ currentUser }) {
 
   const copyLink = async (token) => {
     setCopyError(null);
-    const link = `${window.location.origin}/invite/${token}`;
+    // Chemin distinct de /invite/ : ce lien ne crée PAS de compte, il rattache
+    // un compte existant. Les confondre enverrait l'invité sur un formulaire
+    // d'inscription que le backend refuserait.
+    const link = `${window.location.origin}/rejoindre/${token}`;
     if (await copyToClipboard(link)) {
       setCopiedToken(token);
       setTimeout(() => setCopiedToken(null), 2000);
@@ -166,7 +169,7 @@ export default function FamilySettings({ currentUser }) {
                 </p>
               </div>
               <div className="flex gap-2">
-                {isOwner && !renaming && (
+                {!renaming && (
                   <button
                     onClick={() => { setRenameValue(family.name); setRenaming(true); }}
                     className="btn btn-secondary text-xs"
@@ -270,9 +273,14 @@ export default function FamilySettings({ currentUser }) {
             <h3 className="font-semibold mb-3" style={{ color: 'var(--text-1)' }}>
               📨 Inviter quelqu'un
             </h3>
-            <p className="text-sm mb-3" style={{ color: 'var(--text-2)' }}>
-              Le lien fonctionne dans les deux cas : si la personne a déjà un compte RideLog, elle
-              rejoint le groupe ; sinon elle crée son compte et le rejoint dans la foulée.
+            <p className="text-sm mb-2" style={{ color: 'var(--text-2)' }}>
+              Transmettez ce lien à une personne qui a <strong>déjà un compte</strong> sur cette
+              instance : elle rejoindra votre groupe en l'ouvrant.
+            </p>
+            <p className="text-xs mb-3 p-2 rounded" style={{ background: 'var(--warning-light)', color: 'var(--text-1)' }}>
+              ℹ️ Ce lien ne crée pas de compte. Si la personne n'en a pas encore, demandez à un
+              administrateur de lui en créer un d'abord — ouvrir l'instance à quelqu'un de nouveau
+              reste une décision d'administrateur.
             </p>
 
             {copyError && (

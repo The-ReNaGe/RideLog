@@ -18,7 +18,7 @@ import hmac
 import os
 from pathlib import Path
 
-from models import User, Vehicle, Maintenance, MaintenanceInvoice, Invitation, Family, FamilyMember, SessionLocal, get_db
+from models import User, Vehicle, Maintenance, MaintenanceInvoice, Invitation, Family, SessionLocal, get_db
 from security import (
     hash_password,
     verify_password,
@@ -146,7 +146,19 @@ async def register(data: RegisterRequest, db: Session = Depends(get_db)):
         elif reg_mode == 'invite':
             if not data.invite_token:
                 raise HTTPException(status_code=403, detail="Une invitation est requise pour créer un compte")
-            invitation = db.query(Invitation).filter(Invitation.token == data.invite_token).first()
+            invitation = db.query(Invitation).filter(
+                Invitation.token == data.invite_token,
+                # Une invitation de GROUPE FAMILLE ne vaut pas droit
+                # d'inscription : faire entrer quelqu'un sur l'instance reste
+                # réservé à un administrateur. Un lien de groupe ne sert qu'à
+                # rattacher un compte DÉJÀ existant, via POST /family/join.
+                #
+                # Le filtre est posé dans la requête plutôt qu'en test après
+                # coup pour que le refus soit indiscernable d'un jeton inconnu :
+                # un message distinct apprendrait à un inconnu qu'un groupe
+                # existe derrière ce jeton.
+                Invitation.family_id.is_(None),
+            ).first()
             if not invitation:
                 raise HTTPException(status_code=403, detail="Lien d'invitation invalide")
             if invitation.used_by is not None:
@@ -178,29 +190,6 @@ async def register(data: RegisterRequest, db: Session = Depends(get_db)):
             from datetime import datetime
             invitation.used_by = user.id
             invitation.used_at = datetime.utcnow()
-
-            # Invitation de groupe famille : on rattache au passage. Le droit
-            # de s'inscrire vient d'être vérifié plus haut, REGISTRATION_MODE
-            # compris — un lien de groupe n'ouvre donc pas d'inscription là où
-            # elle est fermée.
-            if invitation.family_id is not None:
-                family_exists = db.query(Family).filter(
-                    Family.id == invitation.family_id
-                ).first() is not None
-                if family_exists:
-                    db.add(FamilyMember(
-                        family_id=invitation.family_id,
-                        user_id=user.id,
-                        role="member",
-                    ))
-                else:
-                    # Groupe dissous entre l'émission du lien et son usage : le
-                    # compte est créé quand même. Refuser l'inscription pour un
-                    # groupe disparu serait incompréhensible pour l'invité.
-                    logger.warning(
-                        "Invitation vers un groupe disparu (family=%d) — compte %s créé sans rattachement",
-                        invitation.family_id, user.username,
-                    )
 
         db.commit()
         db.refresh(user)

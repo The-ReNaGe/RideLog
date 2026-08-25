@@ -9,21 +9,18 @@ une règle de visibilité écrite à deux endroits finit toujours par diverger.
 Sur les invitations
 ───────────────────
 Une invitation de groupe réutilise la table `invitations` existante, avec
-`family_id` renseigné. Elle sert deux cas d'un même lien :
+`family_id` renseigné. Elle ne sert QU'À rattacher un compte **déjà existant**,
+via POST /family/join.
 
-  - la personne a déjà un compte  → POST /family/join
-  - la personne n'en a pas encore → inscription ordinaire, puis rattachement
-                                     automatique au groupe
+⚠️ Un lien de groupe ne permet PAS de s'inscrire sur l'instance. `register()`
+écarte explicitement les invitations portant un `family_id` : faire entrer
+quelqu'un de nouveau reste le privilège d'un administrateur, quel que soit
+`REGISTRATION_MODE`. Un utilisateur ordinaire peut donc constituer son foyer
+sans jamais pouvoir ouvrir l'instance à un inconnu.
 
-Le second cas passe par `register()`, qui applique déjà `REGISTRATION_MODE`
-sans que ce module ait à s'en mêler : en mode `closed` l'inscription est
-refusée, donc un lien de groupe n'y sert qu'à un compte existant.
-
-⚠️ Conséquence à connaître : en mode `invite`, créer un compte sur l'instance
-n'était possible qu'à un administrateur. Un utilisateur ordinaire peut
-désormais émettre un lien qui le permet, pour son groupe. C'est le sens même
-d'« inviter sa famille », mais c'est bien un élargissement de qui peut faire
-entrer quelqu'un — d'où le plafond ci-dessous.
+Conséquence pratique : accueillir une personne sans compte se fait en deux
+temps — l'administrateur lui crée un compte (ou lui envoie une invitation
+d'inscription), puis elle rejoint le groupe avec le lien famille.
 """
 
 import logging
@@ -190,7 +187,11 @@ def rename_family(
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
-    membership = _require_ownership(current_user, db)
+    # Renommer est ouvert à TOUS les membres, pas au seul créateur : le nom du
+    # foyer est un bien commun, et le groupe survit au départ de celui qui l'a
+    # créé. Retirer un membre reste en revanche réservé au créateur — ça, c'est
+    # un pouvoir sur les autres.
+    membership = _require_membership(current_user, db)
     family = db.query(Family).filter(Family.id == membership.family_id).first()
     family.name = data.name.strip()
     db.commit()
