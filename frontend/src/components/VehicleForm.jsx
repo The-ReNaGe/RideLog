@@ -813,6 +813,30 @@ export default function VehicleForm({ onSubmit, onCancel }) {
         </div>
       </div>
 
+      {/* Encadré plutôt qu'une case nue : au milieu de champs de saisie, une
+          case à cocher isolée se lit mal et passe pour un reste de formulaire.
+          handleChange lit e.target.value, inadapté ici — gestionnaire dédié. */}
+      <div
+        className="mt-4 p-3 rounded-lg"
+        style={{ background: 'var(--bg-surface)', border: '1px solid var(--border)' }}
+      >
+        <label className="flex items-start gap-3 cursor-pointer">
+          <input
+            type="checkbox"
+            checked={formData.is_private}
+            onChange={(e) => setFormData((prev) => ({ ...prev, is_private: e.target.checked }))}
+            className="mt-0.5"
+            style={{ width: 16, height: 16, flexShrink: 0 }}
+          />
+          <span className="text-sm">
+            <span className="font-medium" style={{ color: 'var(--text-1)' }}>🔒 Véhicule privé</span>
+            <span className="block text-xs mt-0.5" style={{ color: 'var(--text-3)' }}>
+              Exclu du partage avec votre groupe famille. Vous continuez à le voir normalement.
+            </span>
+          </span>
+        </label>
+      </div>
+
       <div className="mt-4">
         <label className="block text-sm font-medium mb-1">Remarques</label>
         <textarea
@@ -825,25 +849,6 @@ export default function VehicleForm({ onSubmit, onCancel }) {
         />
       </div>
 
-      <div className="mt-4">
-        {/* handleChange lit e.target.value : inadapté à une case à cocher,
-            d'où ce gestionnaire dédié. */}
-        <label className="flex items-start gap-2 cursor-pointer">
-          <input
-            type="checkbox"
-            checked={formData.is_private}
-            onChange={(e) => setFormData((prev) => ({ ...prev, is_private: e.target.checked }))}
-            className="mt-1"
-          />
-          <span className="text-sm">
-            <span className="font-medium">🔒 Véhicule privé</span>
-            <span className="block text-xs" style={{ color: 'var(--text-3)' }}>
-              Exclu du partage avec votre groupe famille, si vous en avez un.
-              Vous continuez à le voir normalement.
-            </span>
-          </span>
-        </label>
-      </div>
 
       <div className="mt-4">
         <label className="block text-sm font-medium mb-2">📸 Photo du véhicule (optionnel)</label>

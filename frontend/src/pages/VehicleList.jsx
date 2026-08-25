@@ -49,6 +49,34 @@ export default function VehicleList({ onSelectVehicle, currentUser }) {
     ? `Garage de ${currentUser.display_name}`
     : 'Mes véhicules';
 
+  // Séparation par propriétaire : ses véhicules d'abord, puis un garage par
+  // membre du groupe famille. Mélangés dans une seule grille, on ne sait plus
+  // à qui appartient quoi — et c'est justement la question que pose une vue
+  // partagée.
+  const { myVehicles, sharedGarages } = React.useMemo(() => {
+    const mine = [];
+    const byOwner = new Map();
+
+    for (const v of vehicles) {
+      const isMine = !v.owner_id || !currentUser?.id || v.owner_id === currentUser.id;
+      if (isMine) {
+        mine.push(v);
+        continue;
+      }
+      if (!byOwner.has(v.owner_id)) {
+        byOwner.set(v.owner_id, { ownerId: v.owner_id, name: v.owner_display_name, vehicles: [] });
+      }
+      byOwner.get(v.owner_id).vehicles.push(v);
+    }
+
+    return {
+      myVehicles: mine,
+      sharedGarages: [...byOwner.values()].sort((a, b) =>
+        (a.name || '').localeCompare(b.name || '', 'fr')
+      ),
+    };
+  }, [vehicles, currentUser]);
+
   if (loading && vehicles.length === 0) {
     return (
       <div className="text-center py-16">
@@ -98,17 +126,62 @@ export default function VehicleList({ onSelectVehicle, currentUser }) {
           </button>
         </div>
       ) : (
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-          {vehicles.map((vehicle) => (
-            <VehicleCard
-              key={vehicle.id}
-              vehicle={vehicle}
-              onSelect={() => onSelectVehicle(vehicle.id)}
-              onDelete={() => handleDeleteVehicle(vehicle.id)}
-              currentUser={currentUser}
-            />
+        <>
+          {/* Ses propres véhicules */}
+          {myVehicles.length > 0 ? (
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+              {myVehicles.map((vehicle) => (
+                <VehicleCard
+                  key={vehicle.id}
+                  vehicle={vehicle}
+                  onSelect={() => onSelectVehicle(vehicle.id)}
+                  onDelete={() => handleDeleteVehicle(vehicle.id)}
+                  currentUser={currentUser}
+                />
+              ))}
+            </div>
+          ) : (
+            // Le cas existe dès qu'on rejoint un groupe avant d'avoir créé son
+            // premier véhicule : sans ce message, la page s'ouvre directement
+            // sur le garage de quelqu'un d'autre.
+            <div className="card text-center py-8">
+              <p className="text-sm" style={{ color: 'var(--text-2)' }}>
+                Vous n'avez pas encore de véhicule.
+              </p>
+            </div>
+          )}
+
+          {/* Un garage par membre du groupe famille */}
+          {sharedGarages.map((garage) => (
+            <div key={garage.ownerId} className="mt-10">
+              <div
+                className="flex items-baseline gap-3 mb-4 pb-2"
+                style={{ borderBottom: '1px solid var(--border)' }}
+              >
+                <h3 className="text-xl font-bold" style={{ color: 'var(--text-1)' }}>
+                  Garage de {garage.name || 'un membre du groupe'}
+                </h3>
+                <span
+                  className="text-xs px-2 py-0.5 rounded font-semibold"
+                  style={{ background: 'var(--accent-light)', color: 'var(--accent)' }}
+                >
+                  👁️ consultation
+                </span>
+              </div>
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                {garage.vehicles.map((vehicle) => (
+                  <VehicleCard
+                    key={vehicle.id}
+                    vehicle={vehicle}
+                    onSelect={() => onSelectVehicle(vehicle.id)}
+                    onDelete={() => handleDeleteVehicle(vehicle.id)}
+                    currentUser={currentUser}
+                  />
+                ))}
+              </div>
+            </div>
           ))}
-        </div>
+        </>
       )}
     </div>
   );

@@ -44,25 +44,17 @@ export default React.memo(function VehicleCard({ vehicle, onSelect, onDelete, cu
             {vehicle.brand} {vehicle.model}
           </h3>
           <p className="text-sm" style={{ color: 'var(--text-3)' }}>{vehicle.name}</p>
-          <div className="flex flex-wrap gap-1 mt-1">
-            {!isMine && (
-              <span
-                className="inline-block px-2 py-0.5 rounded text-xs font-semibold"
-                style={{ background: 'var(--accent-light)', color: 'var(--accent)' }}
-              >
-                👁️ {vehicle.owner_display_name || 'Partagé'}
-              </span>
-            )}
-            {isMine && vehicle.is_private && (
-              <span
-                className="inline-block px-2 py-0.5 rounded text-xs font-semibold"
-                style={{ background: 'var(--bg-surface)', border: '1px solid var(--border)', color: 'var(--text-3)' }}
-                title="Exclu du partage avec votre groupe famille"
-              >
-                🔒 Privé
-              </span>
-            )}
-          </div>
+          {/* Le propriétaire n'est pas répété ici : les véhicules d'autrui sont
+              déjà regroupés sous un titre « Garage de … » dans VehicleList. */}
+          {isMine && vehicle.is_private && (
+            <span
+              className="inline-block px-2 py-0.5 rounded text-xs font-semibold mt-1"
+              style={{ background: 'var(--bg-surface)', border: '1px solid var(--border)', color: 'var(--text-3)' }}
+              title="Exclu du partage avec votre groupe famille"
+            >
+              🔒 Privé
+            </span>
+          )}
         </div>
       </div>
 
