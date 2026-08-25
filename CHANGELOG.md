@@ -1,5 +1,13 @@
 # Changelog
 
+## [2.0.2](https://github.com/The-ReNaGe/RideLog/compare/v2.0.1...v2.0.2) (2026-08-25)
+
+
+### Bug Fixes
+
+* re-résout le backend au lieu de figer son IP au démarrage de nginx ([892364f](https://github.com/The-ReNaGe/RideLog/commit/892364f42e5f0693315d3098405ea1b76ce6881f))
+* re-résout le backend au lieu de figer son IP au démarrage de nginx ([4cdc102](https://github.com/The-ReNaGe/RideLog/commit/4cdc10244d0bb7948039dabb21c542f9edbcaef5))
+
 ## [2.0.1](https://github.com/The-ReNaGe/RideLog/compare/v2.0.0...v2.0.1) (2026-08-14)
 
 
