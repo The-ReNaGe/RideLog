@@ -17,7 +17,7 @@ Deux propriétés méritent une attention particulière :
 import pytest
 from fastapi import HTTPException
 
-from models import User, Vehicle
+from models import Family, FamilyMember, User, Vehicle
 from routes.access import (
     get_owned_vehicle,
     get_readable_vehicle,
@@ -156,3 +156,138 @@ def test_readable_list_spans_every_user_for_the_integration_account(cast):
         cast["alice_vehicle"].id,
         cast["bob_vehicle"].id,
     }
+
+
+# ════════════════════════════════════════════════════════════════════════════
+# Partage famille
+# ════════════════════════════════════════════════════════════════════════════
+
+def _make_family(db, name, owner, *members):
+    family = Family(name=name, created_by=owner.id)
+    db.add(family)
+    db.commit()
+    db.refresh(family)
+
+    db.add(FamilyMember(family_id=family.id, user_id=owner.id, role="owner"))
+    for member in members:
+        db.add(FamilyMember(family_id=family.id, user_id=member.id, role="member"))
+    db.commit()
+    return family
+
+
+def test_a_member_can_read_another_members_vehicle(cast):
+    _make_family(cast["db"], "Foyer", cast["alice"], cast["bob"])
+
+    found = get_readable_vehicle(cast["alice_vehicle"].id, cast["bob"], cast["db"])
+    assert found.id == cast["alice_vehicle"].id
+
+
+def test_a_member_still_cannot_write_another_members_vehicle(cast):
+    """
+    Le partage est en lecture seule. Un entretien saisi par erreur sur le
+    véhicule d'un autre fausserait durablement ses échéances.
+    """
+    _make_family(cast["db"], "Foyer", cast["alice"], cast["bob"])
+
+    with pytest.raises(HTTPException) as exc:
+        get_owned_vehicle(cast["alice_vehicle"].id, cast["bob"], cast["db"])
+    assert exc.value.status_code == 404
+
+
+def test_a_private_vehicle_stays_hidden_from_the_group(cast):
+    _make_family(cast["db"], "Foyer", cast["alice"], cast["bob"])
+    cast["alice_vehicle"].is_private = True
+    cast["db"].commit()
+
+    with pytest.raises(HTTPException) as exc:
+        get_readable_vehicle(cast["alice_vehicle"].id, cast["bob"], cast["db"])
+    assert exc.value.status_code == 404
+
+
+def test_a_private_vehicle_remains_visible_to_its_own_owner(cast):
+    """« Privé » veut dire caché du groupe, jamais caché de soi."""
+    _make_family(cast["db"], "Foyer", cast["alice"], cast["bob"])
+    cast["alice_vehicle"].is_private = True
+    cast["db"].commit()
+
+    found = get_readable_vehicle(cast["alice_vehicle"].id, cast["alice"], cast["db"])
+    assert found.id == cast["alice_vehicle"].id
+
+    # Alice appartient au groupe : sa liste contient aussi le véhicule de Bob.
+    # Ce qui compte ici, c'est que le sien, pourtant privé, n'en soit pas sorti.
+    readable_ids = {v.id for v in list_readable_vehicles(cast["alice"], cast["db"])}
+    assert cast["alice_vehicle"].id in readable_ids
+
+
+def test_a_vehicle_predating_the_migration_is_shared_not_hidden(cast):
+    """
+    Les lignes antérieures à la migration 008 peuvent porter NULL plutôt que 0.
+    Une égalité stricte à False les rendrait invisibles au groupe sans que
+    personne ne l'ait demandé.
+    """
+    _make_family(cast["db"], "Foyer", cast["alice"], cast["bob"])
+    cast["alice_vehicle"].is_private = None
+    cast["db"].commit()
+
+    found = get_readable_vehicle(cast["alice_vehicle"].id, cast["bob"], cast["db"])
+    assert found.id == cast["alice_vehicle"].id
+
+
+def test_the_shared_list_holds_both_ones_own_and_the_groups_vehicles(cast):
+    _make_family(cast["db"], "Foyer", cast["alice"], cast["bob"])
+
+    readable = list_readable_vehicles(cast["bob"], cast["db"])
+    assert {v.id for v in readable} == {
+        cast["bob_vehicle"].id,
+        cast["alice_vehicle"].id,
+    }
+
+
+def test_sharing_never_widens_what_one_owns(cast):
+    """`list_owned_vehicles` alimente le dashboard et le planning : le partage
+    ne doit pas y faire entrer les véhicules des autres."""
+    _make_family(cast["db"], "Foyer", cast["alice"], cast["bob"])
+
+    assert [v.id for v in list_owned_vehicles(cast["bob"], cast["db"])] == [
+        cast["bob_vehicle"].id
+    ]
+
+
+def test_two_separate_groups_never_see_each_other(cast):
+    db = cast["db"]
+    carol = _make_user(db, "carol")
+    carol_vehicle = _make_vehicle(db, carol, "Moto de Carol")
+
+    _make_family(db, "Foyer A", cast["alice"], cast["bob"])
+    _make_family(db, "Foyer B", carol)
+
+    with pytest.raises(HTTPException):
+        get_readable_vehicle(carol_vehicle.id, cast["bob"], db)
+    with pytest.raises(HTTPException):
+        get_readable_vehicle(cast["alice_vehicle"].id, carol, db)
+
+
+def test_leaving_the_group_withdraws_visibility_at_once(cast):
+    db = cast["db"]
+    _make_family(db, "Foyer", cast["alice"], cast["bob"])
+    assert get_readable_vehicle(cast["alice_vehicle"].id, cast["bob"], db)
+
+    db.query(FamilyMember).filter(FamilyMember.user_id == cast["bob"].id).delete()
+    db.commit()
+
+    with pytest.raises(HTTPException) as exc:
+        get_readable_vehicle(cast["alice_vehicle"].id, cast["bob"], db)
+    assert exc.value.status_code == 404
+
+
+def test_without_any_group_nothing_changes(cast):
+    """
+    Le comportement d'une instance qui ne crée aucun groupe doit être
+    identique à celui d'avant la fonctionnalité — c'est la garantie que le
+    partage est une addition et non une modification.
+    """
+    assert [v.id for v in list_readable_vehicles(cast["alice"], cast["db"])] == [
+        cast["alice_vehicle"].id
+    ]
+    with pytest.raises(HTTPException):
+        get_readable_vehicle(cast["bob_vehicle"].id, cast["alice"], cast["db"])
