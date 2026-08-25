@@ -18,7 +18,7 @@ import hmac
 import os
 from pathlib import Path
 
-from models import User, Vehicle, Maintenance, MaintenanceInvoice, Invitation, SessionLocal, get_db
+from models import User, Vehicle, Maintenance, MaintenanceInvoice, Invitation, Family, FamilyMember, SessionLocal, get_db
 from security import (
     hash_password,
     verify_password,
@@ -178,6 +178,29 @@ async def register(data: RegisterRequest, db: Session = Depends(get_db)):
             from datetime import datetime
             invitation.used_by = user.id
             invitation.used_at = datetime.utcnow()
+
+            # Invitation de groupe famille : on rattache au passage. Le droit
+            # de s'inscrire vient d'être vérifié plus haut, REGISTRATION_MODE
+            # compris — un lien de groupe n'ouvre donc pas d'inscription là où
+            # elle est fermée.
+            if invitation.family_id is not None:
+                family_exists = db.query(Family).filter(
+                    Family.id == invitation.family_id
+                ).first() is not None
+                if family_exists:
+                    db.add(FamilyMember(
+                        family_id=invitation.family_id,
+                        user_id=user.id,
+                        role="member",
+                    ))
+                else:
+                    # Groupe dissous entre l'émission du lien et son usage : le
+                    # compte est créé quand même. Refuser l'inscription pour un
+                    # groupe disparu serait incompréhensible pour l'invité.
+                    logger.warning(
+                        "Invitation vers un groupe disparu (family=%d) — compte %s créé sans rattachement",
+                        invitation.family_id, user.username,
+                    )
 
         db.commit()
         db.refresh(user)
@@ -858,7 +881,16 @@ async def check_invitation(token: str, db: Session = Depends(get_db)):
     expires = invitation.expires_at if invitation.expires_at.tzinfo is None else invitation.expires_at.replace(tzinfo=None)
     if now_utc > expires:
         raise HTTPException(status_code=410, detail="Invitation expirée")
-    return {"valid": True, "expires_at": invitation.expires_at.isoformat()}
+
+    payload = {"valid": True, "expires_at": invitation.expires_at.isoformat()}
+
+    # Lien de groupe famille : le nom permet à la page d'inscription d'annoncer
+    # ce que l'invité rejoint, plutôt que de le rattacher en silence.
+    if invitation.family_id is not None:
+        family = db.query(Family).filter(Family.id == invitation.family_id).first()
+        payload["family"] = {"id": family.id, "name": family.name} if family else None
+
+    return payload
 
 
 @router.get("/auth/registration-status")

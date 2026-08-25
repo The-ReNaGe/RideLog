@@ -10,7 +10,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from sqlalchemy import text
 from models import init_db, SessionLocal
-from routes import vehicles, maintenances, exports, webhooks, fuels, fuel_stations, auth, dashboard
+from routes import vehicles, maintenances, exports, webhooks, fuels, fuel_stations, auth, dashboard, families
 from reminder_scheduler import scheduler_loop
 from security import validate_jwt_secret
 
@@ -136,6 +136,7 @@ async def global_exception_handler(request: Request, exc: Exception):
 # Routes – all under /api prefix
 # ---------------------------------------------------------------------------
 app.include_router(auth.router, prefix="/api")
+app.include_router(families.router, prefix="/api")
 app.include_router(dashboard.router, prefix="/api")
 app.include_router(vehicles.router, prefix="/api")
 app.include_router(maintenances.router, prefix="/api")

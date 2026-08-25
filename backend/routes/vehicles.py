@@ -156,6 +156,7 @@ def create_vehicle(
         service_interval_km=data.service_interval_km,
         service_interval_months=data.service_interval_months,
         notes=data.notes,
+        is_private=data.is_private,
         user_id=current_user.id
     )
     db.add(vehicle)
@@ -426,6 +427,8 @@ def update_vehicle(
         vehicle.name = data.name
     if data.year is not None:
         vehicle.year = data.year
+    if data.is_private is not None:
+        vehicle.is_private = data.is_private
     if data.registration_date is not None:
         vehicle.registration_date = data.registration_date
     if data.current_mileage is not None and data.current_mileage != vehicle.current_mileage:
