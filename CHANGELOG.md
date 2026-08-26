@@ -5,8 +5,19 @@
 
 ### Features
 
-* refond l'interface autour d'un jeu d'icônes et de blocs délimités ([d59a9ca](https://github.com/The-ReNaGe/RideLog/commit/d59a9ca076162579a2e755ea3136d196d84d5683))
-* refond l'interface autour d'un jeu d'icônes et de blocs délimités ([754c60e](https://github.com/The-ReNaGe/RideLog/commit/754c60eff855a7c6a2998882ced85309205196ba))
+* remplace les émojis de l'interface par un jeu d'icônes SVG ([754c60e](https://github.com/The-ReNaGe/RideLog/commit/754c60eff855a7c6a2998882ced85309205196ba))
+* regroupe chaque garage dans un bloc délimité, en-tête et décompte compris ([754c60e](https://github.com/The-ReNaGe/RideLog/commit/754c60eff855a7c6a2998882ced85309205196ba))
+* affiche les photos de véhicule en entier, dans des cadres au format 3/2 ([754c60e](https://github.com/The-ReNaGe/RideLog/commit/754c60eff855a7c6a2998882ced85309205196ba))
+* réaligne l'interface sur les codes macOS : palette, barre translucide, sélecteur de section centré ([754c60e](https://github.com/The-ReNaGe/RideLog/commit/754c60eff855a7c6a2998882ced85309205196ba))
+* déplace la suppression d'un véhicule de la liste vers sa fiche, pour éviter les clics involontaires ([754c60e](https://github.com/The-ReNaGe/RideLog/commit/754c60eff855a7c6a2998882ced85309205196ba))
+
+
+### Bug Fixes
+
+* rétablit sept jetons CSS jamais définis, dont les encarts s'affichaient sans fond ([754c60e](https://github.com/The-ReNaGe/RideLog/commit/754c60eff855a7c6a2998882ced85309205196ba))
+* rétablit le chevron des listes déroulantes en thème sombre ([754c60e](https://github.com/The-ReNaGe/RideLog/commit/754c60eff855a7c6a2998882ced85309205196ba))
+* charge les photos du tableau de bord avec le jeton d'authentification ([754c60e](https://github.com/The-ReNaGe/RideLog/commit/754c60eff855a7c6a2998882ced85309205196ba))
+* retire les couleurs Tailwind figées, illisibles en thème sombre ([754c60e](https://github.com/The-ReNaGe/RideLog/commit/754c60eff855a7c6a2998882ced85309205196ba))
 
 ## [2.1.0](https://github.com/The-ReNaGe/RideLog/compare/v2.0.2...v2.1.0) (2026-08-26)
 
