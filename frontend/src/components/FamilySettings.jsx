@@ -1,6 +1,8 @@
 import React, { useEffect, useState } from 'react';
 import { api } from '../lib/api';
 import { copyToClipboard } from '../lib/clipboard';
+import Icon from './Icon';
+import Notice from './Notice';
 
 /**
  * Gestion du groupe famille — création, membres, invitations.
@@ -81,17 +83,14 @@ export default function FamilySettings({ currentUser }) {
 
   return (
     <div className="space-y-4">
-      {error && (
-        <div className="card p-3 text-sm" style={{ background: 'var(--danger)', color: '#fff' }}>
-          {error}
-        </div>
-      )}
+      {error && <Notice tone="danger">{error}</Notice>}
 
       {!family ? (
         <>
           <div className="card p-4">
-            <h3 className="font-semibold mb-2" style={{ color: 'var(--text-1)' }}>
-              👨‍👩‍👧 Groupe famille
+            <h3 className="section-title flex items-center gap-2 mb-2">
+              <Icon name="users" size={17} style={{ color: 'var(--text-3)' }} />
+              Groupe famille
             </h3>
             <p className="text-sm mb-4" style={{ color: 'var(--text-2)' }}>
               Un groupe famille permet aux membres d'un même foyer de <strong>consulter</strong> les
@@ -100,7 +99,7 @@ export default function FamilySettings({ currentUser }) {
             </p>
             <div className="flex flex-wrap gap-2 items-end">
               <div>
-                <label className="block text-xs mb-1" style={{ color: 'var(--text-3)' }}>
+                <label className="field-label">
                   Nom du groupe
                 </label>
                 <input
@@ -108,23 +107,24 @@ export default function FamilySettings({ currentUser }) {
                   value={newName}
                   onChange={(e) => setNewName(e.target.value)}
                   placeholder="Foyer Dupont"
-                  className="input-field"
                   maxLength={100}
                 />
               </div>
               <button
                 onClick={() => run(() => api.createFamily(newName.trim()), 'Erreur lors de la création')}
                 disabled={busy || !newName.trim()}
-                className="btn btn-primary text-sm"
+                className="btn btn-primary"
               >
-                ➕ Créer le groupe
+                <Icon name="plus" size={16} strokeWidth={2} />
+                Créer le groupe
               </button>
             </div>
           </div>
 
           <div className="card p-4">
-            <h3 className="font-semibold mb-2" style={{ color: 'var(--text-1)' }}>
-              🔗 Rejoindre un groupe existant
+            <h3 className="section-title flex items-center gap-2 mb-2">
+              <Icon name="link" size={17} style={{ color: 'var(--text-3)' }} />
+              Rejoindre un groupe existant
             </h3>
             <p className="text-sm mb-3" style={{ color: 'var(--text-2)' }}>
               Collez ici le lien d'invitation qu'on vous a transmis.
@@ -136,7 +136,7 @@ export default function FamilySettings({ currentUser }) {
                   value={joinToken}
                   onChange={(e) => setJoinToken(e.target.value)}
                   placeholder="https://…/invite/xxxxx  ou  le code seul"
-                  className="input-field w-full"
+                  className="w-full"
                 />
               </div>
               <button
@@ -148,7 +148,7 @@ export default function FamilySettings({ currentUser }) {
                   return run(() => api.joinFamily(token), 'Invitation invalide ou expirée');
                 }}
                 disabled={busy || !joinToken.trim()}
-                className="btn btn-primary text-sm"
+                className="btn btn-primary"
               >
                 Rejoindre
               </button>
@@ -160,8 +160,9 @@ export default function FamilySettings({ currentUser }) {
           <div className="card p-4">
             <div className="flex items-start justify-between gap-3 flex-wrap">
               <div>
-                <h3 className="font-semibold" style={{ color: 'var(--text-1)' }}>
-                  👨‍👩‍👧 {family.name}
+                <h3 className="section-title flex items-center gap-2">
+                  <Icon name="users" size={17} style={{ color: 'var(--text-3)' }} />
+                  {family.name}
                 </h3>
                 <p className="text-xs mt-1" style={{ color: 'var(--text-3)' }}>
                   {family.members.length} membre{family.members.length > 1 ? 's' : ''}
@@ -172,9 +173,10 @@ export default function FamilySettings({ currentUser }) {
                 {!renaming && (
                   <button
                     onClick={() => { setRenameValue(family.name); setRenaming(true); }}
-                    className="btn btn-secondary text-xs"
+                    className="btn btn-secondary btn-sm"
                   >
-                    ✏️ Renommer
+                    <Icon name="pencil" size={14} />
+                    Renommer
                   </button>
                 )}
                 <button
@@ -186,9 +188,11 @@ export default function FamilySettings({ currentUser }) {
                     return run(() => api.leaveFamily(), 'Erreur lors du départ du groupe');
                   }}
                   disabled={busy}
-                  className="btn btn-danger text-xs"
+                  className="btn btn-secondary btn-sm"
+                  style={{ color: 'var(--danger)' }}
                 >
-                  🚪 Quitter
+                  <Icon name="logout" size={14} />
+                  Quitter
                 </button>
               </div>
             </div>
@@ -199,7 +203,6 @@ export default function FamilySettings({ currentUser }) {
                   type="text"
                   value={renameValue}
                   onChange={(e) => setRenameValue(e.target.value)}
-                  className="input-field"
                   maxLength={100}
                 />
                 <button
@@ -208,11 +211,11 @@ export default function FamilySettings({ currentUser }) {
                     'Erreur lors du renommage'
                   )}
                   disabled={busy || !renameValue.trim()}
-                  className="btn btn-primary text-xs"
+                  className="btn btn-primary btn-sm"
                 >
                   Enregistrer
                 </button>
-                <button onClick={() => setRenaming(false)} className="btn btn-secondary text-xs">
+                <button onClick={() => setRenaming(false)} className="btn btn-secondary btn-sm">
                   Annuler
                 </button>
               </div>
@@ -220,18 +223,15 @@ export default function FamilySettings({ currentUser }) {
 
             {/* max-w-prose : une explication de trois lignes lue sur toute la
                 largeur de la carte fatigue à chaque retour à la ligne. */}
-            <p
-              className="text-sm mt-3 p-3 rounded max-w-prose"
-              style={{ background: 'var(--accent-light)', color: 'var(--text-2)' }}
-            >
+            <Notice tone="info" icon="eye" className="mt-3 max-w-prose">
               Les membres <strong>consultent</strong> les véhicules du groupe. Seul le propriétaire
               d'un véhicule peut y enregistrer un entretien ou un plein, et un véhicule marqué
-              <strong> 🔒 Privé</strong> reste invisible aux autres.
-            </p>
+              <strong> Privé</strong> reste invisible aux autres.
+            </Notice>
           </div>
 
           <div className="card p-4">
-            <h3 className="font-semibold mb-3" style={{ color: 'var(--text-1)' }}>
+            <h3 className="section-title mb-3">
               Membres <span className="text-sm font-normal" style={{ color: 'var(--text-3)' }}>
                 · {family.members.length}
               </span>
@@ -248,13 +248,8 @@ export default function FamilySettings({ currentUser }) {
                     borderTop: index === 0 ? 'none' : '1px solid var(--border-light)',
                   }}
                 >
-                  <span
-                    className="icon-box"
-                    // min-width est fixé à 40px sur .icon-box : sans le
-                    // neutraliser ici, la vignette resterait large.
-                    style={{ width: 32, minWidth: 32, height: 32, fontSize: 13, flexShrink: 0 }}
-                  >
-                    {(m.display_name || m.username || '?').charAt(0).toUpperCase()}
+                  <span className="avatar" style={{ width: 30, minWidth: 30, height: 30, fontSize: 13 }}>
+                    {(m.display_name || m.username || '?').charAt(0)}
                   </span>
 
                   <div className="flex items-baseline gap-2 flex-wrap min-w-0 flex-1">
@@ -278,8 +273,8 @@ export default function FamilySettings({ currentUser }) {
                         );
                       }}
                       disabled={busy}
-                      className="btn btn-danger text-xs"
-                      style={{ flexShrink: 0 }}
+                      className="btn btn-secondary btn-sm"
+                      style={{ flexShrink: 0, color: 'var(--danger)' }}
                     >
                       Retirer
                     </button>
@@ -290,36 +285,29 @@ export default function FamilySettings({ currentUser }) {
           </div>
 
           <div className="card p-4">
-            <h3 className="font-semibold mb-3" style={{ color: 'var(--text-1)' }}>
-              📨 Inviter quelqu'un
+            <h3 className="section-title flex items-center gap-2 mb-2">
+              <Icon name="mail" size={17} style={{ color: 'var(--text-3)' }} />
+              Inviter quelqu'un
             </h3>
             <p className="text-sm mb-3 max-w-prose" style={{ color: 'var(--text-2)' }}>
               Transmettez ce lien à une personne qui a <strong>déjà un compte</strong> sur cette
               instance : elle rejoindra votre groupe en l'ouvrant.
             </p>
-            <p
-              className="text-sm mb-4 p-3 rounded max-w-prose"
-              style={{ background: 'var(--warning-light)', color: 'var(--text-1)' }}
-            >
-              ⚠️ Ce lien <strong>ne crée pas de compte</strong>. Si la personne n'en a pas encore,
-              demandez à un administrateur de lui en créer un d'abord.
-            </p>
+            <Notice tone="warning" className="mb-4 max-w-prose">
+              Ce lien <strong>ne crée pas de compte</strong>. Si la personne n'en a pas encore,
+              demandez d'abord à un administrateur de lui en créer un.
+            </Notice>
 
-            {copyError && (
-              <div className="text-xs mb-2 p-2 rounded" style={{ background: 'var(--warning-light)', color: 'var(--text-1)' }}>
-                {copyError}
-              </div>
-            )}
+            {copyError && <Notice tone="warning" className="mb-2">{copyError}</Notice>}
 
             <div className="flex flex-wrap gap-2 items-end mb-4">
               <div>
-                <label className="block text-xs mb-1" style={{ color: 'var(--text-3)' }}>
+                <label className="field-label">
                   Durée de validité
                 </label>
                 <select
                   value={expiresHours}
                   onChange={(e) => setExpiresHours(Number(e.target.value))}
-                  className="input-field"
                 >
                   <option value={24}>24 heures</option>
                   <option value={168}>7 jours</option>
@@ -332,9 +320,10 @@ export default function FamilySettings({ currentUser }) {
                   "Erreur lors de la création de l'invitation"
                 )}
                 disabled={busy}
-                className="btn btn-primary text-sm"
+                className="btn btn-primary"
               >
-                ➕ Créer un lien d'invitation
+                <Icon name="plus" size={16} strokeWidth={2} />
+                Créer un lien d'invitation
               </button>
             </div>
 
@@ -357,8 +346,9 @@ export default function FamilySettings({ currentUser }) {
                       })}
                     </span>
                     <div className="flex gap-2">
-                      <button onClick={() => copyLink(inv.token)} className="btn btn-secondary text-xs">
-                        {copiedToken === inv.token ? '✅ Copié !' : '📋 Copier le lien'}
+                      <button onClick={() => copyLink(inv.token)} className="btn btn-secondary btn-sm">
+                        <Icon name={copiedToken === inv.token ? 'check' : 'copy'} size={14} strokeWidth={copiedToken === inv.token ? 2.4 : 1.75} />
+                        {copiedToken === inv.token ? 'Copié' : 'Copier le lien'}
                       </button>
                       <button
                         onClick={() => run(
@@ -366,9 +356,11 @@ export default function FamilySettings({ currentUser }) {
                           'Erreur lors de la révocation'
                         )}
                         disabled={busy}
-                        className="btn btn-danger text-xs"
+                        className="btn-icon danger"
+                        title="Révoquer ce lien"
+                        aria-label="Révoquer ce lien"
                       >
-                        🗑️
+                        <Icon name="trash" size={15} />
                       </button>
                     </div>
                   </div>

@@ -2,77 +2,127 @@
 @import 'tailwindcss/components';
 @import 'tailwindcss/utilities';
 
-@import url('https://fonts.googleapis.com/css2?family=Nunito:wght@400;600;700&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Nunito:wght@400;500;600;700;800&display=swap');
 
 /* ============================================
-   CSS VARIABLES - Hyper Dashboard
+   JETONS — thème clair
+   ============================================
+   Aucune couleur n'est écrite en dur ailleurs que dans ce bloc et son
+   pendant sombre. Une valeur littérale posée dans un composant devient
+   illisible dans l'autre thème — c'est le seul défaut de style que
+   l'utilisateur voit à coup sûr.
    ============================================ */
 :root {
-  --bg-base: #f3f4f8;
+  /* Fonds : base (page) < inset (zone creusée) < surface (carte).
+     Gris repris du système d'Apple — plus neutres et plus doux que les gris
+     bleutés d'origine, qui tiraient vers le violet sur écran calibré. */
+  --bg-base: #f5f5f7;
+  --bg-inset: #fafafb;
   --bg-surface: #ffffff;
-  --bg-topbar: #ffffff;
-  --bg-hover: #f9fafc;
+  /* Barre supérieure translucide : elle laisse deviner le contenu qui passe
+     dessous au défilement, comme une barre d'outils macOS. */
+  --bg-topbar: rgba(255, 255, 255, 0.72);
+  --bg-hover: #f0f0f2;
   --bg-primary: #ffffff;
-  --bg-secondary: #f9fafc;
-  --accent: #6c8af7;
-  --accent-light: #eef2ff;
-  --accent-dim: #4262e3;
-  --success: #1abc9c;
-  --success-light: rgba(26, 188, 156, 0.15);
-  --danger: #ff5b5b;
-  --danger-light: rgba(255, 91, 91, 0.15);
-  --warning: #f7b84b;
-  --warning-light: rgba(247, 184, 75, 0.15);
-  --text-1: #313a46;
-  --text-2: #6c757d;
-  --text-3: #98a6ad;
-  --border: #dee2e6;
-  --border-light: #e9ecef;
+  --bg-secondary: #fafafb;
+
+  --accent: #007aff;
+  --accent-light: rgba(0, 122, 255, 0.10);
+  --accent-dim: #0062cc;
+  --accent-contrast: #ffffff;
+
+  --success: #17a34a;
+  --success-light: rgba(23, 163, 74, 0.12);
+  --danger: #d70015;
+  --danger-light: rgba(215, 0, 21, 0.10);
+  --warning: #b26a00;
+  --warning-light: rgba(178, 106, 0, 0.12);
+  /* Quatrième teinte, réservée à la catégorie « modification » : elle doit se
+     distinguer d'un état (succès/alerte/danger) sans en emprunter la couleur. */
+  --purple: #8944ab;
+  --purple-light: rgba(137, 68, 171, 0.12);
+
+  --text-1: #1d1d1f;
+  --text-2: #515154;
+  --text-3: #86868b;
+
+  --border: #e5e5e7;
+  --border-strong: #d2d2d7;
+  --border-light: #efeff1;
+
+  /* Rayons — trois valeurs, pas une de plus */
+  --radius-sm: 8px;
+  --radius: 12px;
+  --radius-lg: 16px;
+
+  /* Ombres discrètes : une carte se pose sur la page, elle n'y flotte pas */
+  --shadow-xs: 0 1px 2px rgba(0, 0, 0, 0.04);
+  --shadow-sm: 0 1px 3px rgba(0, 0, 0, 0.06), 0 1px 2px rgba(0, 0, 0, 0.03);
+  --shadow-md: 0 8px 24px rgba(0, 0, 0, 0.08), 0 2px 6px rgba(0, 0, 0, 0.04);
+  --shadow-lg: 0 20px 48px rgba(0, 0, 0, 0.16);
+
+  --focus-ring: 0 0 0 3.5px rgba(0, 122, 255, 0.25);
+
+  /* Fond de la plaque du logo : clair dans les deux thèmes (voir .logo-plate). */
+  --plate: #ffffff;
 }
 
 /* ============================================
-   DARK MODE
+   JETONS — thème sombre
    ============================================ */
 [data-theme="dark"] {
-  --bg-base: #1a1d23;
-  --bg-surface: #22262e;
-  --bg-topbar: #1e2128;
-  --bg-hover: #2a2e36;
-  --bg-primary: #22262e;
-  --bg-secondary: #2a2e36;
-  --accent: #7c9aff;
-  --accent-light: rgba(124, 154, 255, 0.15);
-  --accent-dim: #5a7de8;
-  --success: #2dd4a8;
-  --success-light: rgba(45, 212, 168, 0.15);
-  --danger: #ff6b6b;
-  --danger-light: rgba(255, 107, 107, 0.15);
-  --warning: #ffc857;
-  --warning-light: rgba(255, 200, 87, 0.15);
-  --text-1: #e1e4e8;
-  --text-2: #9ca3af;
-  --text-3: #6b7280;
-  --border: #374151;
-  --border-light: #2d3748;
+  --bg-base: #1c1c1e;
+  --bg-inset: #242426;
+  --bg-surface: #2c2c2e;
+  --bg-topbar: rgba(28, 28, 30, 0.72);
+  --bg-hover: #3a3a3c;
+  --bg-primary: #2c2c2e;
+  --bg-secondary: #242426;
+
+  --accent: #0a84ff;
+  --accent-light: rgba(10, 132, 255, 0.20);
+  --accent-dim: #409cff;
+  --accent-contrast: #ffffff;
+
+  --success: #30d158;
+  --success-light: rgba(48, 209, 88, 0.16);
+  --danger: #ff453a;
+  --danger-light: rgba(255, 69, 58, 0.16);
+  --warning: #ff9f0a;
+  --warning-light: rgba(255, 159, 10, 0.16);
+  --purple: #bf5af2;
+  --purple-light: rgba(191, 90, 242, 0.18);
+
+  --text-1: #f5f5f7;
+  --text-2: #a1a1a6;
+  --text-3: #86868b;
+
+  --border: #38383a;
+  --border-strong: #48484a;
+  --border-light: #2f2f31;
+
+  --shadow-xs: 0 1px 2px rgba(0, 0, 0, 0.4);
+  --shadow-sm: 0 1px 3px rgba(0, 0, 0, 0.45);
+  --shadow-md: 0 8px 24px rgba(0, 0, 0, 0.5);
+  --shadow-lg: 0 20px 48px rgba(0, 0, 0, 0.6);
+
+  --focus-ring: 0 0 0 3.5px rgba(10, 132, 255, 0.3);
+
+  --plate: #ffffff;
 }
 
 /* ============================================
-   GLOBAL STYLES
+   BASE
    ============================================ */
-* {
-  @apply antialiased;
-}
-
-html {
-  @apply scroll-smooth;
-}
+* { @apply antialiased; }
+html { @apply scroll-smooth; }
 
 body {
   background-color: var(--bg-base);
   color: var(--text-1);
   font-family: 'Nunito', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
   font-weight: 400;
-  font-size: 16px;
+  font-size: 15px;
   line-height: 1.6;
 }
 
@@ -80,108 +130,154 @@ h1, h2, h3, h4, h5, h6 {
   font-family: 'Nunito', sans-serif;
   font-weight: 700;
   color: var(--text-1);
-  line-height: 1.2;
+  line-height: 1.25;
+  letter-spacing: -0.01em;
 }
 
-h1 { @apply text-4xl; }
-h2 { @apply text-3xl; }
-h3 { @apply text-xl; }
-h4 { @apply text-lg; }
+h1 { font-size: 1.75rem; }
+h2 { font-size: 1.4rem; }
+h3 { font-size: 1.15rem; }
+h4 { font-size: 1rem; }
 
 a {
   color: var(--accent);
   text-decoration: none;
-  transition: color 0.2s ease;
+  transition: color 0.15s ease;
 }
+a:hover { color: var(--accent-dim); }
 
-a:hover {
-  color: var(--accent-dim);
-}
+/* Les chiffres d'une colonne doivent s'aligner verticalement. */
+.tabular,
+.stat-number,
+td,
+th { font-variant-numeric: tabular-nums; }
 
 /* ============================================
-   CARDS - SIGNATURE HYPER STYLE
+   CARTES
    ============================================ */
 .card {
   background: var(--bg-surface);
-  border-radius: 6px;
-  border: none;
-  box-shadow: 0 0 35px 0 rgba(154, 161, 171, 0.15);
-  padding: 24px;
-  transition: box-shadow 0.3s ease;
-}
-
-.card:hover {
-  box-shadow: 0 0 45px 0 rgba(154, 161, 171, 0.25);
-}
-
-.card.no-shadow {
-  box-shadow: none;
   border: 1px solid var(--border);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow-xs);
+  padding: 20px;
+}
+
+/* Réservé aux cartes réellement cliquables — une carte inerte qui réagit au
+   survol promet une action qui n'existe pas. */
+.card-interactive {
+  cursor: pointer;
+  transition: border-color 0.15s ease, box-shadow 0.15s ease, transform 0.15s ease;
+}
+.card-interactive:hover {
+  border-color: var(--border-strong);
+  box-shadow: var(--shadow-md);
+  transform: translateY(-2px);
+}
+
+.card.no-shadow { box-shadow: none; }
+
+/* Zone creusée dans une carte (résumé, encart secondaire). */
+.inset {
+  background: var(--bg-inset);
+  border: 1px solid var(--border-light);
+  border-radius: var(--radius-sm);
 }
 
 /* ============================================
-   BUTTONS
+   PANNEAU — bloc de section délimité
+   ============================================
+   Sert aux regroupements qui doivent montrer où ils commencent et où ils
+   s'arrêtent (un garage, un groupe de réglages). Un titre suivi de cartes
+   flottantes ne délimite rien : on ne sait pas ce qui appartient au groupe.
+   ============================================ */
+.panel {
+  background: var(--bg-surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  overflow: hidden;
+}
+
+.panel-header {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+  padding: 14px 18px;
+  background: var(--bg-surface);
+  border-bottom: 1px solid var(--border);
+}
+
+.panel-body {
+  padding: 18px;
+  background: var(--bg-inset);
+}
+
+.panel-footer {
+  padding: 12px 18px;
+  background: var(--bg-surface);
+  border-top: 1px solid var(--border);
+}
+
+/* ============================================
+   BOUTONS
    ============================================ */
 .btn {
-  @apply px-5 py-2 rounded font-semibold text-sm inline-flex items-center justify-center gap-2 transition-all duration-200 cursor-pointer border-none;
+  @apply inline-flex items-center justify-center gap-2 cursor-pointer;
   font-family: 'Nunito', sans-serif;
-}
-
-.btn:disabled {
-  @apply opacity-50 cursor-not-allowed;
-}
-
-.btn-primary {
-  background: var(--accent);
-  color: #fff;
+  font-size: 14px;
   font-weight: 600;
+  line-height: 1;
+  padding: 0 16px;
+  min-height: 36px;
+  border-radius: var(--radius-sm);
+  border: 1px solid transparent;
+  transition: background-color 0.15s ease, border-color 0.15s ease, color 0.15s ease;
+  white-space: nowrap;
 }
 
-.btn-primary:hover:not(:disabled) {
-  background: var(--accent-dim);
-  box-shadow: 0 4px 12px rgba(108, 138, 247, 0.3);
-  transform: translateY(-1px);
-}
+.btn:focus-visible { outline: none; box-shadow: var(--focus-ring); }
+.btn:disabled { @apply opacity-50 cursor-not-allowed; }
 
-.btn-secondary {
+.btn-sm { min-height: 30px; padding: 0 10px; font-size: 13px; }
+.btn-lg { min-height: 42px; padding: 0 22px; font-size: 15px; }
+
+.btn-primary { background: var(--accent); border-color: var(--accent); color: var(--accent-contrast); }
+.btn-primary:hover:not(:disabled) { background: var(--accent-dim); border-color: var(--accent-dim); }
+
+.btn-secondary { background: var(--bg-surface); border-color: var(--border); color: var(--text-1); }
+.btn-secondary:hover:not(:disabled) { background: var(--bg-hover); border-color: var(--border-strong); }
+
+.btn-ghost { background: transparent; border-color: transparent; color: var(--text-2); }
+.btn-ghost:hover:not(:disabled) { background: var(--bg-hover); color: var(--text-1); }
+
+.btn-danger { background: var(--danger); border-color: var(--danger); color: #fff; }
+.btn-danger:hover:not(:disabled) { filter: brightness(0.92); }
+
+.btn-success { background: var(--success); border-color: var(--success); color: #fff; }
+.btn-success:hover:not(:disabled) { filter: brightness(0.92); }
+
+/* Bouton carré ne portant qu'une icône. */
+.btn-icon {
+  min-height: 32px;
+  width: 32px;
+  padding: 0;
+  border-radius: var(--radius-sm);
   background: transparent;
-  border: 1px solid var(--border);
+  border: 1px solid transparent;
   color: var(--text-2);
-  font-weight: 600;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: background-color 0.15s ease, color 0.15s ease, border-color 0.15s ease;
 }
-
-.btn-secondary:hover:not(:disabled) {
-  background: var(--bg-hover);
-  border-color: var(--accent);
-  color: var(--accent);
-}
-
-.btn-danger {
-  background: var(--danger);
-  color: #fff;
-  font-weight: 600;
-}
-
-.btn-danger:hover:not(:disabled) {
-  background: #e34545;
-  box-shadow: 0 4px 12px rgba(255, 91, 91, 0.3);
-  transform: translateY(-1px);
-}
-
-.btn-success {
-  background: var(--success);
-  color: #fff;
-  font-weight: 600;
-}
-
-.btn-success:hover:not(:disabled) {
-  background: #159186;
-  box-shadow: 0 4px 12px rgba(26, 188, 156, 0.3);
-  transform: translateY(-1px);
-}
+.btn-icon:hover:not(:disabled) { background: var(--bg-hover); color: var(--text-1); }
+.btn-icon.danger:hover:not(:disabled) { background: var(--danger-light); color: var(--danger); }
+.btn-icon:disabled { opacity: 0.4; cursor: not-allowed; }
 
 /* ============================================
-   INPUTS & FORMS
+   CHAMPS
    ============================================ */
 input,
 select,
@@ -190,13 +286,31 @@ textarea {
   min-width: 0;           /* fix débordement mobile */
   box-sizing: border-box; /* fix débordement mobile */
   border: 1px solid var(--border);
-  border-radius: 4px;
-  padding: 8px 14px;
+  border-radius: var(--radius-sm);
+  padding: 8px 12px;
   color: var(--text-1);
   background: var(--bg-surface);
   font-family: 'Nunito', sans-serif;
   font-size: 14px;
-  transition: border-color 0.2s ease, box-shadow 0.2s ease;
+  transition: border-color 0.15s ease, box-shadow 0.15s ease;
+}
+
+select {
+  appearance: none;
+  padding-right: 34px;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%238b94a3' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 10px center;
+  background-size: 16px;
+}
+[data-theme="dark"] select {
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23737c8b' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E");
+}
+
+input[type="checkbox"],
+input[type="radio"] {
+  width: auto;
+  accent-color: var(--accent);
 }
 
 /* Fix Safari iOS — inputs date ne dépassent pas */
@@ -208,70 +322,147 @@ input[type="datetime-local"] {
 }
 
 input::placeholder,
-textarea::placeholder {
-  color: var(--text-3);
-}
+textarea::placeholder { color: var(--text-3); }
 
 input:focus,
 select:focus,
 textarea:focus {
   outline: none;
   border-color: var(--accent);
-  box-shadow: 0 0 0 3px rgba(108, 138, 247, 0.15);
+  box-shadow: var(--focus-ring);
+}
+
+.field-label {
+  display: block;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text-2);
+  margin-bottom: 5px;
+}
+
+.field-hint {
+  font-size: 12px;
+  color: var(--text-3);
+  margin-top: 4px;
 }
 
 /* ============================================
-   BADGES
+   BADGES & PASTILLES
    ============================================ */
 .badge {
   display: inline-flex;
   align-items: center;
-  border-radius: 4px;
-  font-size: 11px;
+  gap: 4px;
+  border-radius: 999px;
+  font-size: 11.5px;
   font-weight: 700;
-  padding: 3px 8px;
-  text-transform: uppercase;
-  letter-spacing: 0.05em;
+  padding: 2px 9px;
+  letter-spacing: 0.02em;
+  border: 1px solid transparent;
+  white-space: nowrap;
 }
 
 .badge-success { background: var(--success-light); color: var(--success); }
 .badge-danger  { background: var(--danger-light);  color: var(--danger); }
 .badge-warning { background: var(--warning-light); color: var(--warning); }
-.badge-info    { background: rgba(108, 138, 247, 0.15); color: var(--accent); }
+.badge-info    { background: var(--accent-light);  color: var(--accent); }
+.badge-neutral { background: var(--bg-inset); color: var(--text-2); border-color: var(--border); }
+
+/* Étiquette de métadonnée : discrète, sans fond. */
+.chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 13px;
+  color: var(--text-2);
+  white-space: nowrap;
+}
+
+.chip-sep { color: var(--border-strong); }
 
 /* ============================================
-   ICON BOXES
+   VIGNETTES D'ICÔNE
    ============================================ */
 .icon-box {
-  width: 40px; height: 40px; min-width: 40px;
-  border-radius: 6px;
+  width: 36px; height: 36px; min-width: 36px;
+  border-radius: var(--radius-sm);
   background: var(--accent-light);
   color: var(--accent);
   display: flex; align-items: center; justify-content: center;
-  font-size: 18px; font-weight: 600;
 }
+
+.icon-box.lg { width: 44px; height: 44px; min-width: 44px; border-radius: var(--radius); }
+.icon-box.sm { width: 28px; height: 28px; min-width: 28px; }
 
 .icon-box.success { background: var(--success-light); color: var(--success); }
 .icon-box.danger  { background: var(--danger-light);  color: var(--danger); }
 .icon-box.warning { background: var(--warning-light); color: var(--warning); }
+.icon-box.neutral { background: var(--bg-inset); color: var(--text-2); border: 1px solid var(--border); }
+
+/* Plaque du logo.
+   Fond clair assumé dans les deux thèmes : `RideLog.png` est un tracé sombre
+   sur fond transparent, il disparaît sur une surface sombre. La teinte vient
+   d'un calque d'accent posé par-dessus, ce qui évite une seconde valeur
+   littérale et suit la couleur du thème. */
+.logo-plate {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  width: 34px; height: 34px;
+  border-radius: var(--radius-sm);
+  /* Fond clair assumé dans les deux thèmes : `RideLog.png` est un tracé sombre
+     sur fond transparent, il disparaît sur une surface sombre. */
+  background: var(--plate);
+  border: 1px solid var(--border);
+  box-shadow: var(--shadow-xs);
+}
+
+/* Pastille ronde portant une initiale (garage, membre). */
+.avatar {
+  width: 34px; height: 34px; min-width: 34px;
+  border-radius: 999px;
+  background: var(--accent-light);
+  color: var(--accent);
+  display: flex; align-items: center; justify-content: center;
+  font-weight: 700;
+  font-size: 14px;
+  text-transform: uppercase;
+}
 
 /* ============================================
-   TYPOGRAPHY HELPERS
+   TYPOGRAPHIE UTILITAIRE
    ============================================ */
 .stat-number {
-  font-size: 28px;
+  font-size: 26px;
   font-weight: 700;
   color: var(--text-1);
-  line-height: 1.2;
+  line-height: 1.15;
+  letter-spacing: -0.02em;
 }
 
 .card-label {
-  font-size: 13px;
-  color: var(--text-2);
-  font-weight: 600;
+  font-size: 11px;
+  color: var(--text-3);
+  font-weight: 700;
   text-transform: uppercase;
-  letter-spacing: 0.05em;
-  margin-bottom: 6px;
+  letter-spacing: 0.06em;
+  margin-bottom: 4px;
+}
+
+.section-title {
+  font-size: 1.05rem;
+  font-weight: 700;
+  color: var(--text-1);
+  letter-spacing: -0.01em;
+}
+
+.eyebrow {
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--text-3);
 }
 
 .trend-up   { font-size: 12px; color: var(--success); font-weight: 600; }
@@ -280,38 +471,40 @@ textarea:focus {
 .text-muted     { color: var(--text-3); }
 
 /* ============================================
-   TABLES
+   TABLEAUX
    ============================================ */
 table { width: 100%; border-collapse: collapse; }
 
 th {
-  font-size: 12px;
+  font-size: 11px;
   text-transform: uppercase;
-  letter-spacing: 0.05em;
+  letter-spacing: 0.06em;
   color: var(--text-3);
   font-weight: 700;
-  padding: 10px 16px;
+  padding: 9px 14px;
   border-bottom: 1px solid var(--border);
   text-align: left;
-  background: var(--bg-hover);
+  background: var(--bg-inset);
 }
 
 td {
-  padding: 12px 16px;
-  border-bottom: 1px solid var(--bg-base);
+  padding: 11px 14px;
+  border-bottom: 1px solid var(--border-light);
   color: var(--text-1);
   font-size: 14px;
 }
 
+tbody tr:last-child td { border-bottom: none; }
 tbody tr:hover td { background: var(--bg-hover); }
 
 /* ============================================
-   PHOTO CONTAINERS
+   PHOTOS
    ============================================ */
 .photo-container {
   aspect-ratio: 16 / 9;
-  background: var(--bg-base);
-  border-radius: 6px;
+  width: 100%;
+  background: var(--bg-inset);
+  border-radius: var(--radius-sm);
   overflow: hidden;
   display: flex;
   align-items: center;
@@ -320,21 +513,71 @@ tbody tr:hover td { background: var(--bg-hover); }
 }
 
 .photo-container img {
-  max-width: 100%; max-height: 100%;
-  object-fit: contain;
   width: 100%; height: 100%;
+  /* La photo est montrée ENTIÈRE : `cover` recadrait dans le tas et coupait
+     l'avant ou l'arrière du véhicule. Le vide laissé sur les côtés est comblé
+     par le fond flouté ci-dessous, pas par une bande grise. */
+  object-fit: contain;
+  display: block;
+  position: relative;
+}
+
+.photo-container.cover img { object-fit: cover; }
+
+/* Doublure floutée de la même image, en fond : elle habille les côtés d'une
+   photo qui n'a pas le format du bandeau, au lieu de laisser deux aplats.
+   Sélecteur à deux classes : `.photo-container img` est plus spécifique qu'une
+   classe seule et remettrait la doublure dans le flux. */
+.photo-container .photo-backdrop {
+  position: absolute;
+  inset: 0;
+  width: 100%; height: 100%;
+  object-fit: cover !important;
+  filter: blur(22px) saturate(140%);
+  transform: scale(1.2);
+  opacity: 0.55;
+  pointer-events: none;
+}
+
+[data-theme="dark"] .photo-container .photo-backdrop { opacity: 0.4; }
+
+/* Bandeau d'une carte de liste.
+   Le 3/2 n'est pas arbitraire : les photos de véhicule tournent autour de 4/3
+   et de 16/10. Dans un bandeau plus large que ça, une photo affichée entière
+   laissait de larges marges floutées de chaque côté et prenait des airs de
+   vignette. En 3/2, elle occupe la quasi-totalité du cadre. */
+.photo-band {
+  aspect-ratio: 3 / 2;
+  border-radius: 0;
+}
+
+/* Visuel de la fiche véhicule : pleine largeur au téléphone (la fiche passe
+   en colonne), colonne bornée à partir de la tablette. Une largeur maximale
+   appliquée aux deux laisserait, sur mobile, un bandeau étroit calé à gauche
+   avec du vide à sa droite. */
+.hero-media {
+  aspect-ratio: 3 / 2;
+  width: 100%;
+  border-radius: 0;
+}
+
+@media (min-width: 640px) {
+  .hero-media { max-width: 320px; flex-shrink: 0; }
+}
+
+/* Vignette de liste (tableau de bord) : même format, pour la même raison. */
+.photo-thumb {
+  aspect-ratio: 3 / 2;
+  width: 96px;
+  border-radius: var(--radius-sm);
 }
 
 /* ============================================
-   LAYOUT
+   MISE EN PAGE
    ============================================ */
-.container {
-  @apply max-w-6xl mx-auto px-4 sm:px-6 lg:px-8;
-}
+.container { @apply max-w-6xl mx-auto px-4 sm:px-6 lg:px-8; }
 
-main {
-  animation: fadeIn 0.2s ease-out;
-}
+main { animation: fadeIn 0.18s ease-out; }
 
 @keyframes fadeIn {
   from { opacity: 0; }
@@ -342,11 +585,11 @@ main {
 }
 
 /* ============================================
-   UTILITIES
+   DIVERS
    ============================================ */
-.shadow-sm    { box-shadow: 0 0 35px 0 rgba(154, 161, 171, 0.15); }
-.gap-section  { margin-bottom: 32px; }
-.divider      { border-top: 1px solid var(--border); margin: 16px 0; }
+.shadow-sm     { box-shadow: var(--shadow-sm); }
+.gap-section   { margin-bottom: 28px; }
+.divider       { border-top: 1px solid var(--border); margin: 16px 0; }
 .text-ellipsis { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 
 .spinner {
@@ -359,32 +602,186 @@ main {
 @keyframes spin { to { transform: rotate(360deg); } }
 
 /* ============================================
-   RESPONSIVE OVERRIDES — mobile
+   BARRE SUPÉRIEURE
+   ============================================
+   Translucide et floutée, comme une barre d'outils macOS : le contenu qui
+   passe dessous au défilement reste deviné, ce qui donne une profondeur que
+   l'aplat blanc n'avait pas.
+   ============================================ */
+.app-bar {
+  background-color: var(--bg-topbar);
+  border-bottom: 1px solid var(--border);
+  -webkit-backdrop-filter: saturate(180%) blur(20px);
+  backdrop-filter: saturate(180%) blur(20px);
+}
+
+/* Repli pour les navigateurs sans backdrop-filter : sans opacité, la barre
+   laisserait passer le texte de la page au défilement. */
+@supports not ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
+  .app-bar { background: var(--bg-surface); }
+}
+
+/* Trois zones, comme une barre d'outils : marque à gauche, sélecteur de
+   section au centre, session à droite. La colonne du milieu est en `auto`
+   entre deux `1fr` : le sélecteur reste centré sur la fenêtre quelle que soit
+   la largeur des deux autres zones — tout aligner à gauche entassait la barre
+   dans un coin et laissait la moitié droite vide. */
+.app-bar-inner {
+  display: grid;
+  grid-template-columns: 1fr auto 1fr;
+  align-items: center;
+  gap: 16px;
+  height: 60px;
+  min-width: 0;
+}
+
+/* Onglets — pastille teintée sur l'onglet actif. */
+.tabs {
+  display: flex;
+  gap: 2px;
+  overflow-x: auto;
+  scrollbar-width: none;
+  border-bottom: 1px solid var(--border);
+}
+.tabs::-webkit-scrollbar { display: none; }
+
+.tab {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  padding: 10px 14px;
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--text-2);
+  background: none;
+  border: none;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: color 0.15s ease;
+}
+.tab:hover { color: var(--text-1); }
+.tab.active { color: var(--accent); }
+.tab.active::after {
+  content: '';
+  position: absolute;
+  left: 10px; right: 10px; bottom: -1px;
+  height: 2px;
+  border-radius: 2px 2px 0 0;
+  background: var(--accent);
+}
+
+/* ============================================
+   SÉLECTEUR DE SECTION
+   ============================================
+   Contrôle segmenté façon macOS : une piste creusée, et un seul segment
+   plein — l'actif. Une seule couleur dans toute la barre : une vignette
+   colorée par section virait à l'arc-en-ciel et l'onglet actif ne ressortait
+   plus.
+   ============================================ */
+.segmented {
+  display: inline-flex;
+  gap: 3px;
+  padding: 4px;
+  max-width: 100%;
+  background: var(--bg-inset);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+.segmented::-webkit-scrollbar { display: none; }
+
+.segment {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  padding: 6px 13px;
+  border-radius: var(--radius-sm);
+  font-size: 13.5px;
+  font-weight: 600;
+  color: var(--text-2);
+  background: none;
+  border: none;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: background-color 0.15s ease, color 0.15s ease;
+}
+.segment:hover { color: var(--text-1); background: var(--bg-hover); }
+.segment:focus-visible { outline: none; box-shadow: var(--focus-ring); }
+
+.segment.active,
+.segment.active:hover {
+  background: var(--accent);
+  color: var(--accent-contrast);
+  font-weight: 700;
+  box-shadow: var(--shadow-xs);
+}
+
+/* Barre du bas (mobile) — même retenue : la section active est en accent, les
+   autres en gris. */
+.nav-bottom-item {
+  flex: 0 0 auto;
+  min-width: 70px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 3px;
+  padding: 8px;
+  border: none;
+  background: none;
+  cursor: pointer;
+  position: relative;
+  color: var(--text-3);
+}
+
+.nav-bottom-item.active { color: var(--accent); }
+
+.nav-bottom-item.active::before {
+  content: '';
+  position: absolute;
+  top: 0; left: 22%; right: 22%;
+  height: 2px;
+  border-radius: 0 0 2px 2px;
+  background: var(--accent);
+}
+
+.nav-bottom-label {
+  font-size: 0.62rem;
+  font-weight: 600;
+  color: currentColor;
+}
+.nav-bottom-item.active .nav-bottom-label { font-weight: 700; }
+
+/* ============================================
+   MOBILE
    ============================================ */
 @media (max-width: 640px) {
   .card        { padding: 16px; }
-  .stat-number { font-size: 24px; }
-  .btn         { @apply px-4 py-2 text-xs; }
+  .panel-body  { padding: 12px; }
+  .panel-header{ padding: 12px 14px; }
+  .stat-number { font-size: 22px; }
   body         { font-size: 14px; }
 }
 
 /* ============================================
-   PLANNING CALENDAR
+   CALENDRIER PLANNING
    ============================================ */
 .calendar-cell {
   min-height: 90px; padding: 4px;
-  border: 1px solid var(--border);
-  background: var(--bg-card);
+  border: 1px solid var(--border-light);
+  background: var(--bg-surface);
   transition: background 0.15s;
   position: relative;
 }
 
-.calendar-cell:hover            { background: var(--bg-surface); }
-.calendar-cell-other            { opacity: 0.35; }
+.calendar-cell:hover            { background: var(--bg-hover); }
+.calendar-cell-other            { background: var(--bg-inset); opacity: 0.55; }
 .calendar-cell-today            { background: var(--accent-light) !important; }
 .calendar-cell-has-items        { cursor: pointer; }
 .calendar-cell-has-items:hover  { background: var(--accent-light) !important; opacity: 1; }
-.calendar-day-number { font-size: 13px; font-weight: 600; color: var(--text-2); margin-bottom: 2px; }
+.calendar-day-number { font-size: 12px; font-weight: 700; color: var(--text-2); margin-bottom: 2px; }
 .calendar-day-items  { display: flex; flex-direction: column; gap: 1px; }
 
 @media (max-width: 640px) {
@@ -393,37 +790,16 @@ main {
 }
 
 /* ============================================
-   DARK MODE OVERRIDES
+   THÈME SOMBRE — ajustements
    ============================================ */
-[data-theme="dark"] .card       { box-shadow: 0 0 35px 0 rgba(0, 0, 0, 0.3); }
-[data-theme="dark"] .card:hover { box-shadow: 0 0 45px 0 rgba(0, 0, 0, 0.4); }
-[data-theme="dark"] .shadow-sm  { box-shadow: 0 0 35px 0 rgba(0, 0, 0, 0.3); }
-
+/* `background:` (raccourci) écrasait le chevron du <select> défini plus haut :
+   la propriété remet background-image à none. Il faut viser background-color. */
 [data-theme="dark"] input,
 [data-theme="dark"] select,
 [data-theme="dark"] textarea {
-  background: var(--bg-primary);
+  background-color: var(--bg-primary);
   color: var(--text-1);
   border-color: var(--border);
 }
 
-[data-theme="dark"] th { background: var(--bg-hover); }
-
-/* Theme toggle button */
-.theme-toggle {
-  background: none;
-  border: 1px solid var(--border);
-  border-radius: 6px;
-  padding: 6px 10px;
-  cursor: pointer;
-  font-size: 16px;
-  transition: all 0.2s;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-}
-
-.theme-toggle:hover {
-  background: var(--bg-hover);
-  border-color: var(--accent);
-}
+[data-theme="dark"] th { background: var(--bg-inset); }

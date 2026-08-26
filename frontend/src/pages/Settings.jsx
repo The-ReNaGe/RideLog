@@ -5,6 +5,19 @@ import HomeAssistantIntegration from '../components/integrations/HomeAssistantIn
 import APIDocumentation from '../components/APIDocumentation';
 import FamilySettings from '../components/FamilySettings';
 import { copyToClipboard } from '../lib/clipboard';
+import Icon from '../components/Icon';
+import PageHeader from '../components/PageHeader';
+import Notice from '../components/Notice';
+
+const TABS = [
+  { key: 'discord',       icon: 'message',  label: 'Discord' },
+  { key: 'homeassistant', icon: 'home',     label: 'Home Assistant' },
+  { key: 'reminders',     icon: 'bell',     label: 'Rappels' },
+  { key: 'famille',       icon: 'users',    label: 'Famille' },
+  { key: 'compte',        icon: 'key',      label: 'Compte' },
+  { key: 'inscription',   icon: 'mail',     label: 'Inscription', adminOnly: true },
+  { key: 'api',           icon: 'plug',     label: 'API' },
+];
 
 export default function Settings({ currentUser }) {
   const [activeTab, setActiveTab] = useState('discord');
@@ -15,82 +28,21 @@ export default function Settings({ currentUser }) {
     // à la ligne. Un onglet centré et les autres pleine largeur — l'écart
     // sautait aux yeux en passant de l'un à l'autre.
     <div className="max-w-5xl mx-auto">
-      <h2 className="text-2xl font-bold mb-6" style={{ color: 'var(--text-1)' }}>⚙️ Paramètres</h2>
+      <PageHeader title="Paramètres" />
 
-      {/* Navigation Tabs */}
-      <div className="flex gap-2 mb-6 overflow-x-auto" style={{ borderBottom: '1px solid var(--border)' }}>
-        <button
-          onClick={() => setActiveTab('discord')}
-          className="px-4 py-3 font-medium transition-colors border-b-2 whitespace-nowrap"
-          style={{
-            borderColor: activeTab === 'discord' ? 'var(--accent)' : 'transparent',
-            color: activeTab === 'discord' ? 'var(--accent)' : 'var(--text-2)',
-          }}
-        >
-          💬 Discord
-        </button>
-        <button
-          onClick={() => setActiveTab('homeassistant')}
-          className="px-4 py-3 font-medium transition-colors border-b-2 whitespace-nowrap"
-          style={{
-            borderColor: activeTab === 'homeassistant' ? 'var(--accent)' : 'transparent',
-            color: activeTab === 'homeassistant' ? 'var(--accent)' : 'var(--text-2)',
-          }}
-        >
-          🏠 Home Assistant
-        </button>
-        <button
-          onClick={() => setActiveTab('reminders')}
-          className="px-4 py-3 font-medium transition-colors border-b-2 whitespace-nowrap"
-          style={{
-            borderColor: activeTab === 'reminders' ? 'var(--accent)' : 'transparent',
-            color: activeTab === 'reminders' ? 'var(--accent)' : 'var(--text-2)',
-          }}
-        >
-          🔔 Rappels
-        </button>
-        <button
-          onClick={() => setActiveTab('famille')}
-          className="px-4 py-3 font-medium transition-colors border-b-2 whitespace-nowrap"
-          style={{
-            borderColor: activeTab === 'famille' ? 'var(--accent)' : 'transparent',
-            color: activeTab === 'famille' ? 'var(--accent)' : 'var(--text-2)',
-          }}
-        >
-          👨‍👩‍👧 Famille
-        </button>
-        <button
-          onClick={() => setActiveTab('compte')}
-          className="px-4 py-3 font-medium transition-colors border-b-2 whitespace-nowrap"
-          style={{
-            borderColor: activeTab === 'compte' ? 'var(--accent)' : 'transparent',
-            color: activeTab === 'compte' ? 'var(--accent)' : 'var(--text-2)',
-          }}
-        >
-          🔑 Compte
-        </button>
-        {currentUser?.is_admin && (
+      {/* Navigation par onglets */}
+      <div className="tabs mb-5">
+        {TABS.filter(tab => !tab.adminOnly || currentUser?.is_admin).map(tab => (
           <button
-            onClick={() => setActiveTab('inscription')}
-            className="px-4 py-3 font-medium transition-colors border-b-2 whitespace-nowrap"
-            style={{
-              borderColor: activeTab === 'inscription' ? 'var(--accent)' : 'transparent',
-              color: activeTab === 'inscription' ? 'var(--accent)' : 'var(--text-2)',
-            }}
+            key={tab.key}
+            onClick={() => setActiveTab(tab.key)}
+            className={`tab ${activeTab === tab.key ? 'active' : ''}`}
+            aria-current={activeTab === tab.key ? 'true' : undefined}
           >
-            📨 Inscription
+            <Icon name={tab.icon} size={16} />
+            {tab.label}
           </button>
-        )}
-        <button
-          onClick={() => setActiveTab('api')}
-          className="px-4 py-3 font-medium transition-colors border-b-2 whitespace-nowrap"
-          style={{
-            borderColor: activeTab === 'api' ? 'var(--accent)' : 'transparent',
-            color: activeTab === 'api' ? 'var(--accent)' : 'var(--text-2)',
-          }}
-        >
-          🔌 API
-        </button>
+        ))}
       </div>
 
       {/* DISCORD TAB */}
@@ -144,35 +96,50 @@ function ReminderSettings() {
 
   return (
     <div>
-      <div className="card p-4 text-sm mb-6" style={{ background: 'var(--accent-light)', border: '1px solid var(--accent)', color: 'var(--text-1)' }}>
-        <p className="font-bold mb-2">🔔 Gestion des rappels d'entretien</p>
-        <p className="mb-2" style={{ color: 'var(--text-2)' }}>
-          Les rappels sont envoyés automatiquement via vos webhooks configurés selon 3 niveaux :
+      <Notice tone="info" icon="bell" title="Gestion des rappels d'entretien" className="mb-5">
+        <p className="mb-2">
+          Les rappels partent automatiquement vers vos webhooks, en trois niveaux :
         </p>
-        <ul className="list-disc list-inside space-y-1 text-xs" style={{ color: 'var(--text-2)' }}>
-          <li>🟡 <strong>1er rappel – À prévoir :</strong> 3 mois ou 1 500 km avant l'échéance</li>
-          <li>🔴 <strong>2e rappel – Urgent :</strong> 1 mois ou 500 km avant l'échéance</li>
-          <li>⛔ <strong>3e rappel – En retard :</strong> le jour de l'échéance ou si dépassé</li>
+        <ul className="space-y-1">
+          {[
+            { color: 'var(--accent)',  label: '1er rappel — à prévoir', detail: '3 mois ou 1 500 km avant l’échéance' },
+            { color: 'var(--warning)', label: '2e rappel — urgent',     detail: '1 mois ou 500 km avant l’échéance' },
+            { color: 'var(--danger)',  label: '3e rappel — en retard',  detail: 'le jour de l’échéance, puis au-delà' },
+          ].map(lvl => (
+            <li key={lvl.label} className="flex items-center gap-2">
+              <span aria-hidden="true" style={{ width: 7, height: 7, borderRadius: 999, background: lvl.color, flexShrink: 0 }} />
+              <span><strong style={{ color: 'var(--text-1)' }}>{lvl.label} :</strong> {lvl.detail}</span>
+            </li>
+          ))}
         </ul>
-      </div>
+      </Notice>
 
       {loading ? (
         <div className="text-center py-8"><div className="spinner mx-auto"></div></div>
       ) : !hasWebhooks ? (
-        <div className="card p-6 mb-6 text-center">
-          <p style={{ color: 'var(--text-2)' }} className="mb-4">
-            Aucun webhook configuré. Configurez Discord d'abord !
+        <div className="card text-center" style={{ padding: '32px 16px' }}>
+          <div className="icon-box lg neutral mx-auto" style={{ marginBottom: 12 }}>
+            <Icon name="webhook" size={20} />
+          </div>
+          <p style={{ color: 'var(--text-2)' }}>
+            Aucun webhook configuré — commencez par l'onglet Discord.
           </p>
         </div>
       ) : (
         <div className="card p-6 mb-6">
-          <h3 className="text-lg font-bold mb-4" style={{ color: 'var(--text-1)' }}>📌 Webhooks actifs</h3>
-          <div className="space-y-2 mb-6">
+          <h3 className="section-title mb-3">Webhooks actifs</h3>
+          <div className="space-y-2 mb-5">
             {webhooks.map((w) => (
-              <div key={w.id} className="flex items-center gap-2 p-3 rounded" style={{ background: 'var(--bg-base)' }}>
-                <span className={`inline-block w-2 h-2 rounded-full ${w.is_active ? 'bg-green-500' : 'bg-gray-400'}`}></span>
+              <div key={w.id} className="inset flex items-center gap-2" style={{ padding: '10px 12px' }}>
+                <span
+                  aria-hidden="true"
+                  style={{
+                    width: 8, height: 8, borderRadius: 999, flexShrink: 0,
+                    background: w.is_active ? 'var(--success)' : 'var(--text-3)',
+                  }}
+                />
                 <span className="text-sm" style={{ color: 'var(--text-2)' }}>
-                  {w.webhook_type.toUpperCase()} {w.is_active ? '(actif)' : '(inactif)'}
+                  {w.webhook_type.toUpperCase()} — {w.is_active ? 'actif' : 'inactif'}
                 </span>
               </div>
             ))}
@@ -183,16 +150,17 @@ function ReminderSettings() {
               setChecking(true);
               try {
                 const res = await api.checkReminders();
-                alert(`✅ Vérification terminée. ${res.data.cleared_logs} rappel(s) réinitialisé(s).`);
+                alert(`Vérification terminée. ${res.data.cleared_logs} rappel(s) réinitialisé(s).`);
               } catch (err) {
-                alert('❌ Erreur : ' + (err.response?.data?.detail || err.message));
+                alert('Erreur : ' + (err.response?.data?.detail || err.message));
               }
               setChecking(false);
             }}
             disabled={checking}
             className="btn btn-primary w-full"
           >
-            {checking ? '⏳ Vérification...' : '🔄 Re-vérifier les rappels maintenant'}
+            <Icon name="refresh" size={16} />
+            {checking ? 'Vérification…' : 'Re-vérifier les rappels maintenant'}
           </button>
           <p className="text-xs mt-2" style={{ color: 'var(--text-3)' }}>
             Relance immédiatement la vérification de tous les entretiens et envoie les rappels nécessaires.
@@ -252,31 +220,20 @@ function AccountSettings() {
     // trois champs n'a aucune raison de s'étendre sur toute la largeur
     // disponible. La bannière et la carte partagent la même largeur.
     <div className="max-w-2xl mx-auto">
-      <div className="card p-4 text-sm mb-6" style={{ background: 'var(--accent-light)', border: '1px solid var(--accent)', color: 'var(--text-1)' }}>
-        <p className="font-bold mb-1">🔑 Sécurité du compte</p>
-        <p style={{ color: 'var(--text-2)' }}>
-          Changez votre mot de passe quand vous le souhaitez, sans passer par un administrateur.
-          Ça déconnecte automatiquement vos autres sessions actives (autres appareils/navigateurs) — celle-ci reste connectée.
-        </p>
-      </div>
+      <Notice tone="info" icon="key" title="Sécurité du compte" className="mb-5">
+        Changez votre mot de passe quand vous le souhaitez, sans passer par un administrateur.
+        Vos autres sessions (autres appareils, autres navigateurs) sont déconnectées ; celle-ci reste ouverte.
+      </Notice>
 
-      <div className="card p-6 gap-section">
-        <h3 className="text-lg font-semibold mb-4" style={{ color: 'var(--text-1)' }}>Changer mon mot de passe</h3>
+      <div className="card">
+        <h3 className="section-title mb-4">Changer mon mot de passe</h3>
 
-        {error && (
-          <div className="mb-4 p-3 rounded text-sm" style={{ background: 'var(--danger-light)', border: '1px solid var(--danger)', color: 'var(--danger)' }}>
-            ⚠️ {error}
-          </div>
-        )}
-        {success && (
-          <div className="mb-4 p-3 rounded text-sm" style={{ background: 'var(--success-light)', border: '1px solid var(--success)', color: 'var(--text-1)' }}>
-            ✅ Mot de passe changé avec succès.
-          </div>
-        )}
+        {error && <Notice tone="danger" className="mb-4">{error}</Notice>}
+        {success && <Notice tone="success" className="mb-4">Mot de passe changé avec succès.</Notice>}
 
         <form onSubmit={handleSubmit} className="space-y-4">
           <div>
-            <label className="block text-sm font-medium mb-1.5" style={{ color: 'var(--text-2)' }}>Mot de passe actuel</label>
+            <label className="field-label">Mot de passe actuel</label>
             <input
               type="password"
               required
@@ -286,7 +243,7 @@ function AccountSettings() {
             />
           </div>
           <div>
-            <label className="block text-sm font-medium mb-1.5" style={{ color: 'var(--text-2)' }}>Nouveau mot de passe</label>
+            <label className="field-label">Nouveau mot de passe</label>
             <input
               type="password"
               required
@@ -295,10 +252,10 @@ function AccountSettings() {
               onChange={e => setNewPassword(e.target.value)}
               autoComplete="new-password"
             />
-            <p className="text-xs mt-1" style={{ color: 'var(--text-3)' }}>Minimum 6 caractères</p>
+            <p className="field-hint">Minimum 6 caractères</p>
           </div>
           <div>
-            <label className="block text-sm font-medium mb-1.5" style={{ color: 'var(--text-2)' }}>Confirmer le nouveau mot de passe</label>
+            <label className="field-label">Confirmer le nouveau mot de passe</label>
             <input
               type="password"
               required
@@ -310,7 +267,7 @@ function AccountSettings() {
           </div>
 
           <button type="submit" disabled={saving} className="btn btn-primary w-full mt-2">
-            {saving ? 'Changement...' : 'Changer le mot de passe'}
+            {saving ? 'Changement…' : 'Changer le mot de passe'}
           </button>
         </form>
       </div>
@@ -326,26 +283,26 @@ const MODE_OPTIONS = [
   {
     value: 'invite',
     label: 'Sur invitation',
-    icon: '📨',
-    description: 'Les nouveaux utilisateurs doivent recevoir un lien d\'invitation d\'un administrateur pour s\'inscrire.',
-    color: '#3b82f6',
-    bg: 'rgba(59, 130, 246, 0.1)',
+    icon: 'mail',
+    description: 'Une nouvelle personne doit recevoir un lien d\'invitation d\'un administrateur pour s\'inscrire.',
+    color: 'var(--accent)',
+    bg: 'var(--accent-light)',
   },
   {
     value: 'closed',
     label: 'Privé',
-    icon: '🔒',
+    icon: 'lock',
     description: 'Les inscriptions sont fermées. Seul un administrateur peut créer des comptes.',
-    color: '#ef4444',
-    bg: 'rgba(239, 68, 68, 0.1)',
+    color: 'var(--danger)',
+    bg: 'var(--danger-light)',
   },
   {
     value: 'open',
     label: 'Ouvert',
-    icon: '🌐',
-    description: 'Tout le monde peut créer un compte librement sans invitation.',
-    color: '#22c55e',
-    bg: 'rgba(34, 197, 94, 0.1)',
+    icon: 'globe',
+    description: 'Tout le monde peut créer un compte librement, sans invitation.',
+    color: 'var(--success)',
+    bg: 'var(--success-light)',
   },
 ];
 
@@ -442,27 +399,18 @@ function InscriptionSettings() {
     return (
       <div className="text-center py-8">
         <div className="spinner mx-auto mb-2"></div>
-        <p style={{ color: 'var(--text-2)' }}>Chargement...</p>
+        <p className="text-sm" style={{ color: 'var(--text-3)' }}>Chargement…</p>
       </div>
     );
   }
 
   return (
     <div>
-      {error && (
-        <div
-          className="mb-4 p-3 rounded text-sm"
-          style={{ background: 'var(--danger-light)', border: '1px solid var(--danger)', color: 'var(--danger)' }}
-        >
-          ⚠️ {error}
-        </div>
-      )}
+      {error && <Notice tone="danger" className="mb-4">{error}</Notice>}
 
-      {/* Mode selector */}
-      <div className="card p-6 mb-6">
-        <h3 className="text-lg font-semibold mb-1" style={{ color: 'var(--text-1)' }}>
-          Codes d'invitation
-        </h3>
+      {/* Mode d'inscription */}
+      <div className="card mb-5">
+        <h3 className="section-title">Qui peut s'inscrire</h3>
         <p className="text-sm mb-4" style={{ color: 'var(--text-2)' }}>
           Contrôlez comment les nouvelles personnes s'inscrivent à votre instance RideLog.
         </p>
@@ -473,30 +421,35 @@ function InscriptionSettings() {
               key={opt.value}
               onClick={() => handleSetMode(opt.value)}
               disabled={saving}
-              className="w-full text-left p-4 rounded-lg border-2 transition-all"
+              className="w-full text-left transition-all"
               style={{
+                border: '1px solid',
                 borderColor: mode === opt.value ? opt.color : 'var(--border)',
-                background: mode === opt.value ? opt.bg : 'transparent',
+                background: mode === opt.value ? opt.bg : 'var(--bg-surface)',
+                borderRadius: 'var(--radius)',
+                padding: 14,
                 opacity: saving ? 0.6 : 1,
+                cursor: 'pointer',
               }}
             >
-              <div className="flex items-center gap-3">
-                <div
-                  className="w-5 h-5 rounded-full border-2 flex items-center justify-center flex-shrink-0"
-                  style={{ borderColor: mode === opt.value ? opt.color : 'var(--text-3)' }}
+              <div className="flex items-start gap-3">
+                <span
+                  className="rounded-full flex items-center justify-center flex-shrink-0"
+                  style={{
+                    width: 18, height: 18, marginTop: 1,
+                    border: `2px solid ${mode === opt.value ? opt.color : 'var(--border-strong)'}`,
+                  }}
                 >
                   {mode === opt.value && (
-                    <div
-                      className="w-3 h-3 rounded-full"
-                      style={{ background: opt.color }}
-                    />
+                    <span style={{ width: 9, height: 9, borderRadius: 999, background: opt.color }} />
                   )}
-                </div>
-                <div>
-                  <div className="font-semibold text-sm" style={{ color: 'var(--text-1)' }}>
-                    {opt.icon} {opt.label}
+                </span>
+                <div className="min-w-0">
+                  <div className="flex items-center gap-2">
+                    <Icon name={opt.icon} size={15} style={{ color: mode === opt.value ? opt.color : 'var(--text-3)' }} />
+                    <span className="font-bold text-sm" style={{ color: 'var(--text-1)' }}>{opt.label}</span>
                   </div>
-                  <p className="text-xs mt-0.5" style={{ color: 'var(--text-3)' }}>
+                  <p style={{ fontSize: 12.5, color: 'var(--text-2)', marginTop: 2 }}>
                     {opt.description}
                   </p>
                 </div>
@@ -508,29 +461,20 @@ function InscriptionSettings() {
 
       {/* Invitations section (visible only in invite mode) */}
       {mode === 'invite' && (
-        <div className="card p-6">
-          <h3 className="text-lg font-semibold mb-1" style={{ color: 'var(--text-1)' }}>
-            📨 Liens d'invitation
-          </h3>
-          <p className="text-xs mb-4" style={{ color: 'var(--text-3)' }}>
-            Créez des liens à usage unique pour permettre à de nouvelles personnes de s'inscrire.
+        <div className="card">
+          <h3 className="section-title">Liens d'invitation</h3>
+          <p className="text-sm mb-4" style={{ color: 'var(--text-2)' }}>
+            Des liens à usage unique, pour permettre à de nouvelles personnes de créer un compte.
           </p>
 
-          {copyError && (
-            <div className="mb-3 p-2 rounded text-xs" style={{ background: 'var(--warning-light)', border: '1px solid var(--warning)', color: 'var(--warning)' }}>
-              ⚠️ {copyError}
-            </div>
-          )}
+          {copyError && <Notice tone="warning" className="mb-3">{copyError}</Notice>}
 
-          <div className="flex items-end gap-3 mb-4">
+          <div className="flex items-end gap-3 mb-4 flex-wrap">
             <div>
-              <label className="block text-xs font-medium mb-1" style={{ color: 'var(--text-2)' }}>
-                Validité
-              </label>
+              <label className="field-label">Validité</label>
               <select
                 value={expiresHours}
                 onChange={(e) => setExpiresHours(Number(e.target.value))}
-                className="input text-sm"
                 style={{ width: '160px' }}
               >
                 <option value={1}>1 heure</option>
@@ -544,9 +488,10 @@ function InscriptionSettings() {
             <button
               onClick={handleCreateInvitation}
               disabled={invCreating}
-              className="btn btn-primary text-sm"
+              className="btn btn-primary"
             >
-              {invCreating ? '...' : '➕ Créer une invitation'}
+              <Icon name="plus" size={16} strokeWidth={2} />
+              {invCreating ? 'Création…' : 'Créer une invitation'}
             </button>
           </div>
 
@@ -555,17 +500,17 @@ function InscriptionSettings() {
               <div className="spinner mx-auto mb-2"></div>
             </div>
           ) : invitations.length === 0 ? (
-            <p className="text-sm" style={{ color: 'var(--text-3)' }}>Aucune invitation créée</p>
+            <p className="text-sm" style={{ color: 'var(--text-3)' }}>Aucune invitation en cours.</p>
           ) : (
             <div className="overflow-x-auto">
-              <table className="w-full text-sm">
+              <table>
                 <thead>
-                  <tr style={{ borderBottom: '1px solid var(--border)' }}>
-                    <th className="text-left py-2 px-3" style={{ color: 'var(--text-2)' }}>Statut</th>
-                    <th className="text-left py-2 px-3" style={{ color: 'var(--text-2)' }}>Créée par</th>
-                    <th className="text-left py-2 px-3" style={{ color: 'var(--text-2)' }}>Créée le</th>
-                    <th className="text-left py-2 px-3" style={{ color: 'var(--text-2)' }}>Expire le</th>
-                    <th className="text-left py-2 px-3" style={{ color: 'var(--text-2)' }}>Actions</th>
+                  <tr>
+                    <th>Statut</th>
+                    <th>Créée par</th>
+                    <th>Créée le</th>
+                    <th>Expire le</th>
+                    <th>Actions</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -574,44 +519,44 @@ function InscriptionSettings() {
                     const isExpired = inv.is_expired;
                     const isActive = !isUsed && !isExpired;
                     return (
-                      <tr key={inv.id} style={{ borderBottom: '1px solid var(--border)', opacity: isActive ? 1 : 0.6 }}>
-                        <td className="py-2 px-3">
+                      <tr key={inv.id} style={{ opacity: isActive ? 1 : 0.65 }}>
+                        <td>
                           {isUsed ? (
-                            <span className="inline-block px-2 py-1 rounded text-xs font-semibold" style={{ background: 'var(--accent-light)', color: 'var(--accent)' }}>
-                              ✅ Utilisée
+                            <span className="badge badge-info">
+                              <Icon name="check" size={11} strokeWidth={2.5} />
+                              Utilisée
                             </span>
                           ) : isExpired ? (
-                            <span className="inline-block px-2 py-1 rounded text-xs font-semibold" style={{ background: 'var(--warning-light)', color: 'var(--warning)' }}>
-                              ⏰ Expirée
+                            <span className="badge badge-warning">
+                              <Icon name="clock" size={11} strokeWidth={2.2} />
+                              Expirée
                             </span>
                           ) : (
-                            <span className="inline-block px-2 py-1 rounded text-xs font-semibold" style={{ background: 'var(--success-light)', color: 'var(--success)' }}>
-                              🟢 Active
-                            </span>
+                            <span className="badge badge-success">Active</span>
                           )}
                         </td>
-                        <td className="py-2 px-3" style={{ color: 'var(--text-2)' }}>@{inv.creator_username}</td>
-                        <td className="py-2 px-3 text-xs" style={{ color: 'var(--text-3)' }}>
+                        <td style={{ color: 'var(--text-2)' }}>@{inv.creator_username}</td>
+                        <td className="text-xs" style={{ color: 'var(--text-3)' }}>
                           {new Date(inv.created_at).toLocaleDateString('fr-FR', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' })}
                         </td>
-                        <td className="py-2 px-3 text-xs" style={{ color: 'var(--text-3)' }}>
+                        <td className="text-xs" style={{ color: 'var(--text-3)' }}>
                           {new Date(inv.expires_at).toLocaleDateString('fr-FR', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' })}
                         </td>
-                        <td className="py-2 px-3">
-                          <div className="flex gap-2">
+                        <td>
+                          <div className="flex gap-1 items-center">
                             {isActive && (
-                              <button
-                                onClick={() => copyInviteLink(inv.token)}
-                                className="btn btn-secondary text-xs"
-                              >
-                                {copiedId === inv.token ? '✅ Copié !' : '📋 Copier le lien'}
+                              <button onClick={() => copyInviteLink(inv.token)} className="btn btn-secondary btn-sm">
+                                <Icon name={copiedId === inv.token ? 'check' : 'copy'} size={14} strokeWidth={copiedId === inv.token ? 2.4 : 1.75} />
+                                {copiedId === inv.token ? 'Copié' : 'Copier le lien'}
                               </button>
                             )}
                             <button
                               onClick={() => handleDeleteInvitation(inv.id)}
-                              className="btn btn-danger text-xs"
+                              className="btn-icon danger"
+                              title="Révoquer cette invitation"
+                              aria-label="Révoquer cette invitation"
                             >
-                              🗑️
+                              <Icon name="trash" size={15} />
                             </button>
                           </div>
                         </td>

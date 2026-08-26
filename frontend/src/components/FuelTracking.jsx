@@ -1,5 +1,6 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { api } from '../lib/api';
+import Icon from './Icon';
 
 const MONTH_SHORT = ['Jan', 'Fév', 'Mar', 'Avr', 'Mai', 'Juin', 'Juil', 'Aoû', 'Sep', 'Oct', 'Nov', 'Déc'];
 const MONTH_FULL = ['janvier', 'février', 'mars', 'avril', 'mai', 'juin', 'juillet', 'août', 'septembre', 'octobre', 'novembre', 'décembre'];
@@ -125,7 +126,7 @@ function MiniLineChart({ points, valueKey, color, unit, formatValue, avgValue })
 							x={Math.max(2, Math.min(pts[hover].x - 45, width - 92))}
 							y={Math.max(2, pts[hover].y - 38)}
 							width={90} height={28} rx={4}
-							fill="var(--bg-2, #1a1a2e)" stroke="var(--border)" strokeWidth={0.5} opacity={0.95}
+							fill="var(--bg-surface)" stroke="var(--border)" strokeWidth={0.5} opacity={0.98}
 						/>
 						<text
 							x={Math.max(2, Math.min(pts[hover].x - 45, width - 92)) + 45}
@@ -324,56 +325,59 @@ export default function FuelTracking({ vehicleId, onFuelAdded, canEdit = true })
 			{!showForm ? (
 				canEdit && (
 					<button onClick={() => { resetForm(); setShowForm(true); }} className="btn btn-primary">
-						⛽ Ajouter un plein
+						<Icon name="plus" size={16} strokeWidth={2} />
+						Ajouter un plein
 					</button>
 				)
 			) : (
 				<div className="card p-5">
 					<div className="flex items-center justify-between mb-4">
-						<h3 className="text-lg font-bold" style={{ color: 'var(--text-1)' }}>⛽ Nouveau plein</h3>
-						<button onClick={() => { setShowForm(false); resetForm(); }} style={{ background: 'none', border: 'none', fontSize: 18, cursor: 'pointer', color: 'var(--text-3)' }}>✕</button>
+						<h3 className="section-title">Nouveau plein</h3>
+						<button onClick={() => { setShowForm(false); resetForm(); }} className="btn-icon" aria-label="Fermer">
+							<Icon name="close" size={16} strokeWidth={2.2} />
+						</button>
 					</div>
 					<form onSubmit={handleSubmit}>
 						<div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-4">
 							<div>
 								<label className="block text-sm font-medium mb-1" style={{ color: 'var(--text-2)' }}>Date *</label>
-								<input type="date" name="fill_date" value={formData.fill_date} onChange={handleChange} required className="input-field" />
+								<input type="date" name="fill_date" value={formData.fill_date} onChange={handleChange} required  />
 							</div>
 							<div>
 								<label className="block text-sm font-medium mb-1" style={{ color: 'var(--text-2)' }}>Kilométrage *</label>
-								<input type="number" name="mileage_at_fill" value={formData.mileage_at_fill} onChange={handleChange} required placeholder="Ex: 32600" className="input-field" />
+								<input type="number" name="mileage_at_fill" value={formData.mileage_at_fill} onChange={handleChange} required placeholder="Ex: 32600"  />
 							</div>
 							<div>
 								<label className="block text-sm font-medium mb-1" style={{ color: 'var(--text-2)' }}>Montant payé (€) *</label>
-								<input type="number" step="0.01" name="total_cost" value={formData.total_cost} onChange={handleChange} required placeholder="Ex: 45.50" className="input-field" />
+								<input type="number" step="0.01" name="total_cost" value={formData.total_cost} onChange={handleChange} required placeholder="Ex: 45.50"  />
 							</div>
 							<div>
 								<label className="block text-sm font-medium mb-1" style={{ color: 'var(--text-2)' }}>Prix au litre (€) *</label>
-								<input type="number" step="0.001" name="price_per_liter" value={formData.price_per_liter} onChange={handleChange} required placeholder="Ex: 1.85" className="input-field" />
+								<input type="number" step="0.001" name="price_per_liter" value={formData.price_per_liter} onChange={handleChange} required placeholder="Ex: 1.85"  />
 								<p style={{ fontSize: 11, color: 'var(--text-3)', marginTop: 2 }}>Les litres seront calculés automatiquement</p>
 							</div>
 						</div>
 						<div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-4">
 							<div>
 								<label className="block text-sm font-medium mb-1" style={{ color: 'var(--text-2)' }}>Station</label>
-								<input type="text" name="station" value={formData.station} onChange={handleChange} placeholder="Ex: TotalEnergies Montpellier" className="input-field" />
+								<input type="text" name="station" value={formData.station} onChange={handleChange} placeholder="Ex: TotalEnergies Montpellier"  />
 							</div>
 							<div>
 								<label className="block text-sm font-medium mb-1" style={{ color: 'var(--text-2)' }}>Notes</label>
-								<input type="text" name="notes" value={formData.notes} onChange={handleChange} placeholder="Optionnel" className="input-field" />
+								<input type="text" name="notes" value={formData.notes} onChange={handleChange} placeholder="Optionnel"  />
 							</div>
 						</div>
 
 						{/* Auto-calculated liters preview */}
 						{formData.total_cost && formData.price_per_liter && parseFloat(formData.price_per_liter) > 0 && (
 							<div style={{ fontSize: 12, color: 'var(--text-2)', marginBottom: 12, padding: '6px 10px', background: 'var(--border)', borderRadius: 6 }}>
-								⛽ Litres estimés : <strong>{(parseFloat(formData.total_cost) / parseFloat(formData.price_per_liter)).toFixed(1)} L</strong>
+								Litres estimés : <strong>{(parseFloat(formData.total_cost) / parseFloat(formData.price_per_liter)).toFixed(1)} L</strong>
 							</div>
 						)}
 
 						<div className="flex justify-end">
 							<button type="submit" disabled={saving} className="btn btn-primary">
-								{saving ? 'Enregistrement...' : '✓ Enregistrer'}
+								{saving ? 'Enregistrement…' : 'Enregistrer'}
 							</button>
 						</div>
 					</form>
@@ -429,7 +433,7 @@ export default function FuelTracking({ vehicleId, onFuelAdded, canEdit = true })
 			{/* Monthly spending banner */}
 			{stats && (stats.current_month_cost || stats.monthly_avg_cost) && (
 				<div className="card p-4" style={{ borderLeft: '3px solid var(--accent)', display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
-					<span style={{ fontSize: 18 }}>📊</span>
+					<Icon name="chart" size={17} style={{ color: 'var(--text-3)' }} />
 					<div>
 						{stats.current_month_cost ? (
 							<div style={{ fontSize: 13, color: 'var(--text-1)', fontWeight: 600 }}>
@@ -450,7 +454,7 @@ export default function FuelTracking({ vehicleId, onFuelAdded, canEdit = true })
 				<div className="grid grid-cols-1 md:grid-cols-2 gap-4">
 					{/* Monthly cost chart */}
 					<div className="card p-5">
-						<h4 className="text-sm font-bold mb-3" style={{ color: 'var(--text-1)' }}>💰 Dépenses par mois</h4>
+						<h4 className="card-label">Dépenses par mois</h4>
 						<BarChart data={monthlyData} valueKey="total_cost" color="var(--accent)" unit=" €"
 							formatValue={v => v.toLocaleString('fr-FR', { maximumFractionDigits: 0 })}
 							avgValue={stats.monthly_avg_cost}
@@ -459,14 +463,14 @@ export default function FuelTracking({ vehicleId, onFuelAdded, canEdit = true })
 
 					{/* Monthly liters chart */}
 					<div className="card p-5">
-						<h4 className="text-sm font-bold mb-3" style={{ color: 'var(--text-1)' }}>⛽ Litres par mois</h4>
+						<h4 className="card-label">Litres par mois</h4>
 						<BarChart data={monthlyData.filter(d => d.total_liters > 0)} valueKey="total_liters" color="var(--success)" unit=" L"
 							formatValue={v => v.toFixed(1)} />
 					</div>
 
 					{/* Consumption trend */}
 					<div className="card p-5">
-						<h4 className="text-sm font-bold mb-3" style={{ color: 'var(--text-1)' }}>📉 Évolution consommation (L/100km)</h4>
+						<h4 className="card-label">Évolution de la consommation (L/100 km)</h4>
 						{consumptionPoints.length >= 2 ? (
 							<MiniLineChart points={consumptionPoints} valueKey="consumption_l_100" color="var(--success)" unit=""
 								formatValue={v => v.toFixed(1)} avgValue={stats.avg_consumption_l_100} />
@@ -477,7 +481,7 @@ export default function FuelTracking({ vehicleId, onFuelAdded, canEdit = true })
 
 					{/* Cost per 100km trend */}
 					<div className="card p-5">
-						<h4 className="text-sm font-bold mb-3" style={{ color: 'var(--text-1)' }}>📈 Évolution coût /100km (€)</h4>
+						<h4 className="card-label">Évolution du coût (€ / 100 km)</h4>
 						<MiniLineChart points={chartPoints} valueKey="cost_100km" color="var(--warning)" unit="€"
 							formatValue={v => v.toFixed(1)} avgValue={stats.avg_cost_100km} />
 					</div>
@@ -487,7 +491,7 @@ export default function FuelTracking({ vehicleId, onFuelAdded, canEdit = true })
 			{/* Station stats */}
 			{stats?.station_stats?.length > 0 && (
 				<div className="card p-5">
-					<h4 className="text-sm font-bold mb-3" style={{ color: 'var(--text-1)' }}>📍 Prix moyen par station</h4>
+					<h4 className="card-label">Prix moyen par station</h4>
 					<div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
 						{stats.station_stats.map((s, i) => (
 							<div key={i} style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '8px 12px', background: i === 0 ? 'rgba(34, 197, 94, 0.06)' : 'transparent', borderRadius: 6, border: '1px solid var(--border)' }}>
@@ -512,8 +516,8 @@ export default function FuelTracking({ vehicleId, onFuelAdded, canEdit = true })
 					<button onClick={() => setShowHistory(!showHistory)}
 						className="flex items-center justify-between w-full"
 						style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 0 }}>
-						<h4 className="text-sm font-bold" style={{ color: 'var(--text-1)' }}>📜 Historique des pleins ({logs.length})</h4>
-						<span style={{ color: 'var(--text-3)', fontSize: 14 }}>{showHistory ? '▾' : '▸'}</span>
+						<h4 className="section-title" style={{ fontSize: '0.95rem' }}>Historique des pleins ({logs.length})</h4>
+						<Icon name={showHistory ? 'chevronDown' : 'chevronRight'} size={15} style={{ color: 'var(--text-3)' }} />
 					</button>
 
 					{showHistory && (
@@ -529,37 +533,37 @@ export default function FuelTracking({ vehicleId, onFuelAdded, canEdit = true })
 													<label className="block text-xs font-medium mb-1">Date *</label>
 													<input type="date" value={formData.fill_date}
 														onChange={(e) => setFormData({ ...formData, fill_date: e.target.value })}
-														className="w-full px-2 py-1 text-sm border border-gray-300 rounded" />
+														className="w-full" />
 												</div>
 												<div>
 													<label className="block text-xs font-medium mb-1">Kilométrage *</label>
 													<input type="number" value={formData.mileage_at_fill}
 														onChange={(e) => setFormData({ ...formData, mileage_at_fill: e.target.value })}
-														className="w-full px-2 py-1 text-sm border border-gray-300 rounded" />
+														className="w-full" />
 												</div>
 												<div>
 													<label className="block text-xs font-medium mb-1">Montant (€) *</label>
 													<input type="number" step="0.01" value={formData.total_cost}
 														onChange={(e) => setFormData({ ...formData, total_cost: e.target.value })}
-														className="w-full px-2 py-1 text-sm border border-gray-300 rounded" />
+														className="w-full" />
 												</div>
 												<div>
 													<label className="block text-xs font-medium mb-1">Prix/L (€) *</label>
 													<input type="number" step="0.001" value={formData.price_per_liter}
 														onChange={(e) => setFormData({ ...formData, price_per_liter: e.target.value })}
-														className="w-full px-2 py-1 text-sm border border-gray-300 rounded" />
+														className="w-full" />
 												</div>
 												<div>
 													<label className="block text-xs font-medium mb-1">Station</label>
 													<input type="text" value={formData.station}
 														onChange={(e) => setFormData({ ...formData, station: e.target.value })}
-														className="w-full px-2 py-1 text-sm border border-gray-300 rounded" />
+														className="w-full" />
 												</div>
 												<div>
 													<label className="block text-xs font-medium mb-1">Notes</label>
 													<input type="text" value={formData.notes}
 														onChange={(e) => setFormData({ ...formData, notes: e.target.value })}
-														className="w-full px-2 py-1 text-sm border border-gray-300 rounded" />
+														className="w-full" />
 												</div>
 											</div>
 											<div className="flex gap-2 justify-end">
@@ -592,14 +596,14 @@ export default function FuelTracking({ vehicleId, onFuelAdded, canEdit = true })
 														onClick={() => handleEditLog(log)}
 														style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 14, color: 'var(--accent)', padding: 4 }}
 														title="Modifier">
-														✏️
+														<Icon name="pencil" size={15} />
 													</button>
 													<button
 														onClick={() => handleDeleteLog(log.id)}
 														disabled={deletingId === log.id}
 														style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 14, color: deletingId === log.id ? 'var(--text-3)' : 'var(--danger)', padding: 4 }}
 														title="Supprimer">
-														{deletingId === log.id ? '⏳' : '🗑️'}
+														<Icon name="trash" size={15} />
 													</button>
 												</div>
 											)}
@@ -614,7 +618,10 @@ export default function FuelTracking({ vehicleId, onFuelAdded, canEdit = true })
 
 			{stats && stats.entries === 0 && !showForm && (
 				<div className="card p-12 text-center">
-					<p style={{ color: 'var(--text-2)', fontSize: 14, marginBottom: 8 }}>⛽ Aucun plein enregistré</p>
+					<div className="icon-box lg neutral mx-auto" style={{ marginBottom: 12 }}>
+						<Icon name="fuel" size={20} />
+					</div>
+					<p style={{ color: 'var(--text-2)', fontSize: 14, marginBottom: 8 }}>Aucun plein enregistré.</p>
 					<p style={{ color: 'var(--text-3)', fontSize: 13 }}>Ajoutez votre premier plein pour commencer à suivre vos dépenses de carburant.</p>
 				</div>
 			)}

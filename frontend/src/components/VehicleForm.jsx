@@ -1,5 +1,7 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { api } from '../lib/api';
+import Icon from './Icon';
+import Notice from './Notice';
 
 export default function VehicleForm({ onSubmit, onCancel }) {
   const [creationMode, setCreationMode] = useState('manual');
@@ -354,35 +356,29 @@ export default function VehicleForm({ onSubmit, onCancel }) {
 
   // Build tabs dynamically
   const tabs = [
-    { key: 'manual', label: '✏️ Manuel' },
-    { key: 'vin', label: '🔍 VIN (gratuit)' },
+    { key: 'manual', icon: 'pencil', label: 'Manuel' },
+    { key: 'vin', icon: 'search', label: 'VIN (gratuit)' },
   ];
   if (plateApiAvailable) {
-    tabs.push({ key: 'plate', label: '🇫🇷 Plaque FR' });
+    tabs.push({ key: 'plate', icon: 'car', label: 'Plaque' });
   }
 
   return (
     <form onSubmit={handleSubmit} className="space-y-4">
-      <h3 className="text-lg font-bold mb-4">Ajouter un nouveau véhicule</h3>
+      <h3 className="section-title mb-4">Ajouter un véhicule</h3>
 
-      {error && (
-        <div style={{ background: 'var(--danger-light)', border: '1px solid var(--danger)', borderRadius: '6px', color: 'var(--danger)' }} className="p-3 text-sm">
-          {error}
-        </div>
-      )}
+      {error && <Notice tone="danger">{error}</Notice>}
 
-      {/* Mode selector */}
-      <div className="flex gap-2 rounded-lg card p-1" style={{ background: 'var(--bg-base)' }}>
+      {/* Comment saisir le véhicule */}
+      <div className="inset flex gap-1" style={{ padding: 4 }}>
         {tabs.map((tab) => (
           <button
             key={tab.key}
             type="button"
             onClick={() => setCreationMode(tab.key)}
-            className={`flex-1 rounded-md px-3 py-2 text-sm font-medium transition-colors ${
-              creationMode === tab.key ? 'btn btn-primary' : 'hover:opacity-70'
-            }`}
-            style={creationMode !== tab.key ? { color: 'var(--text-2)' } : {}}
+            className={`btn btn-sm flex-1 ${creationMode === tab.key ? 'btn-primary' : 'btn-ghost'}`}
           >
+            <Icon name={tab.icon} size={14} />
             {tab.label}
           </button>
         ))}
@@ -391,7 +387,10 @@ export default function VehicleForm({ onSubmit, onCancel }) {
       {/* VIN decode section */}
       {creationMode === 'vin' && (
         <div className="p-4 bg-gradient-to-r from-purple-50 to-blue-50 border border-purple-200 rounded-lg">
-          <h4 className="font-semibold text-sm mb-1 text-purple-900">🔍 Décodage VIN — 100% gratuit</h4>
+          <h4 className="font-semibold text-sm mb-1 flex items-center gap-2" style={{ color: 'var(--text-1)' }}>
+            <Icon name="search" size={15} />
+            Décodage VIN — gratuit
+          </h4>
           <p className="text-xs mb-3" style={{ color: 'var(--text-2)' }}>
             Le VIN (17 caractères) se trouve sur la carte grise (case E) ou sur le pare-brise.
             API publique NHTSA, sans inscription.
@@ -403,7 +402,7 @@ export default function VehicleForm({ onSubmit, onCancel }) {
               onChange={handleVinChange}
               placeholder="Exemple: VF1RFE00X56789012"
               maxLength="17"
-              className="input-field flex-1 uppercase font-mono"
+              className="flex-1 uppercase font-mono"
             />
             <button
               type="button"
@@ -411,15 +410,17 @@ export default function VehicleForm({ onSubmit, onCancel }) {
               disabled={vinLoading || !vin.trim()}
               className="btn btn-primary text-sm"
             >
-              {vinLoading ? '⏳...' : '🔎 Décoder'}
+              <><Icon name="search" size={15} />{vinLoading ? 'Décodage…' : 'Décoder'}</>
             </button>
           </div>
           {vinError && (
             <div style={{ background: 'var(--danger-light)', border: '1px solid var(--danger)', borderRadius: '6px', color: 'var(--danger)' }} className="p-2 text-xs">{vinError}</div>
           )}
           {decodedData && (
-            <div className="p-3 bg-white border border-green-300 rounded-lg">
-              <div className="text-sm font-medium mb-2" style={{ color: 'var(--success)' }}>✓ Données décodées</div>
+            <div style={{ background: 'var(--bg-surface)', border: '1px solid var(--success)', borderRadius: 'var(--radius-sm)', padding: 12 }}>
+              <div className="text-sm font-medium mb-2 flex items-center gap-1.5" style={{ color: 'var(--success)' }}>
+                <Icon name="checkCircle" size={15} />Données décodées
+              </div>
               <div className="grid grid-cols-2 gap-2 text-xs mb-3">
                 <div><span className="font-medium">Marque:</span> {decodedData.brand}</div>
                 <div><span className="font-medium">Modèle:</span> {decodedData.model || '—'}</div>
@@ -435,7 +436,7 @@ export default function VehicleForm({ onSubmit, onCancel }) {
                   <div><span className="font-medium">Puissance:</span> {decodedData.power_hp} ch</div>
                 )}
                 {decodedData.vehicle_type && (
-                  <div><span className="font-medium">Type:</span> {decodedData.vehicle_type === 'motorcycle' ? '🏍️ Moto' : '🚗 Voiture'}</div>
+                  <div><span className="font-medium">Type:</span> {decodedData.vehicle_type === 'motorcycle' ? 'Moto' : 'Voiture'}</div>
                 )}
               </div>
               <button
@@ -443,7 +444,8 @@ export default function VehicleForm({ onSubmit, onCancel }) {
                 onClick={applyDecodedData}
                 className="btn btn-primary w-full text-sm"
               >
-                ✓ Utiliser ces données
+                <Icon name="check" size={15} strokeWidth={2.4} />
+                Utiliser ces données
               </button>
             </div>
           )}
@@ -453,7 +455,10 @@ export default function VehicleForm({ onSubmit, onCancel }) {
       {/* Plate decode section (only when API configured) */}
       {creationMode === 'plate' && (
         <div className="p-4 bg-gradient-to-r from-blue-50 to-cyan-50 border border-blue-200 rounded-lg">
-          <h4 className="font-semibold text-sm mb-3 text-blue-900">🇫🇷 Décodage plaque</h4>
+          <h4 className="font-semibold text-sm mb-3 flex items-center gap-2" style={{ color: 'var(--text-1)' }}>
+            <Icon name="search" size={15} />
+            Décodage par plaque d'immatriculation
+          </h4>
           <div className="flex gap-2 mb-3">
             <input
               type="text"
@@ -461,7 +466,7 @@ export default function VehicleForm({ onSubmit, onCancel }) {
               onChange={handlePlateChange}
               placeholder="Exemple: AB-123-CD"
               maxLength="10"
-              className="input-field flex-1 uppercase font-mono tracking-wider"
+              className="flex-1 uppercase font-mono tracking-wider"
             />
             <button
               type="button"
@@ -469,7 +474,7 @@ export default function VehicleForm({ onSubmit, onCancel }) {
               disabled={plateLoading || !licensePlate.trim()}
               className="btn btn-primary text-sm"
             >
-              {plateLoading ? '⏳...' : '🔎 Décoder'}
+              <><Icon name="search" size={15} />{plateLoading ? 'Décodage…' : 'Décoder'}</>
             </button>
           </div>
           {plateError && (
@@ -477,14 +482,16 @@ export default function VehicleForm({ onSubmit, onCancel }) {
           )}
           {plateDecodedData && (
             <div className="card p-3">
-              <div className="text-sm font-medium" style={{ color: 'var(--success)' }}>✓ Données plaque récupérées</div>
+              <div className="text-sm font-medium flex items-center gap-1.5" style={{ color: 'var(--success)' }}>
+                <Icon name="checkCircle" size={15} />Données de la plaque récupérées
+              </div>
               <div className="grid grid-cols-2 gap-2 text-xs mb-3">
                 <div><span className="font-medium">Marque:</span> {plateDecodedData.brand}</div>
                 <div><span className="font-medium">Modèle:</span> {plateDecodedData.model}</div>
                 {plateDecodedData.sra_commercial && plateDecodedData.sra_commercial !== plateDecodedData.model && (
                   <div><span className="font-medium">Version:</span> {plateDecodedData.sra_commercial}</div>
                 )}
-                <div><span className="font-medium">Type:</span> {plateDecodedData.vehicle_type === 'motorcycle' ? '🏍️ Moto' : '🚗 Voiture'}</div>
+                <div><span className="font-medium">Type:</span> {plateDecodedData.vehicle_type === 'motorcycle' ? 'Moto' : 'Voiture'}</div>
                 <div><span className="font-medium">MEC:</span> {plateDecodedData.registration_date || '—'}</div>
                 <div><span className="font-medium">Année:</span> {plateDecodedData.year || '—'}</div>
                 <div><span className="font-medium">Motorisation:</span> {plateDecodedData.motorization || '—'}</div>
@@ -504,7 +511,8 @@ export default function VehicleForm({ onSubmit, onCancel }) {
                 onClick={applyPlateDecodedData}
                 className="btn btn-primary w-full text-sm"
               >
-                ✓ Utiliser ces données
+                <Icon name="check" size={15} strokeWidth={2.4} />
+                Utiliser ces données
               </button>
             </div>
           )}
@@ -534,7 +542,7 @@ export default function VehicleForm({ onSubmit, onCancel }) {
               setModelSearch('');
               setFormData((prev) => ({ ...prev, vehicle_type: e.target.value, brand: '', model: '', displacement: '', service_interval_km: '' }));
             }}
-            className="input-field"
+            
           >
             <option value="car">Voiture</option>
             <option value="motorcycle">Moto</option>
@@ -557,7 +565,7 @@ export default function VehicleForm({ onSubmit, onCancel }) {
             onBlur={() => setTimeout(() => setShowBrandDropdown(false), 200)}
             placeholder="Tapez pour rechercher..."
             required
-            className="input-field"
+            
             autoComplete="off"
           />
           {showBrandDropdown && filteredBrands.length > 0 && (
@@ -591,7 +599,7 @@ export default function VehicleForm({ onSubmit, onCancel }) {
             onBlur={() => setTimeout(() => setShowModelDropdown(false), 200)}
             placeholder={availableModels.length > 0 ? 'Tapez pour rechercher...' : 'ex: 308'}
             required
-            className="input-field"
+            
             autoComplete="off"
           />
           {showModelDropdown && filteredModels.length > 0 && (
@@ -619,7 +627,7 @@ export default function VehicleForm({ onSubmit, onCancel }) {
             onChange={handleChange}
             placeholder="ex: Ma voiture du quotidien"
             required
-            className="input-field"
+            
           />
         </div>
 
@@ -631,7 +639,7 @@ export default function VehicleForm({ onSubmit, onCancel }) {
             value={formData.registration_date}
             onChange={handleChange}
             required
-            className="input-field"
+            
           />
           {formData.year && (
             <div className="text-xs mt-1" style={{ color: 'var(--text-2)' }}>
@@ -646,7 +654,7 @@ export default function VehicleForm({ onSubmit, onCancel }) {
             name="motorization"
             value={formData.motorization}
             onChange={handleChange}
-            className="input-field"
+            
           >
             {motorizations[formData.vehicle_type].map((m) => {
               const motorLabels = {
@@ -675,7 +683,7 @@ export default function VehicleForm({ onSubmit, onCancel }) {
               onChange={handleChange}
               placeholder="ex: 125"
               required
-              className="input-field"
+              
             />
           </div>
         )}
@@ -693,11 +701,12 @@ export default function VehicleForm({ onSubmit, onCancel }) {
                 min="1000"
                 max="100000"
                 step="500"
-                className="input-field"
+                
               />
               {brandDefaults && formData.service_interval_km && formData.service_interval_km !== brandDefaults.km && (
                 <div style={{ background: 'var(--warning-light)', border: '1px solid var(--warning)', borderRadius: '4px', color: 'var(--warning)' }} className="p-2 mt-1 text-xs flex items-center gap-1">
-                  ⚠️ Défaut {formData.brand}: {brandDefaults.km} km
+                  <Icon name="info" size={13} />
+                  Défaut {formData.brand} : {brandDefaults.km} km
                   <button type="button" className="ml-auto underline text-xs" onClick={() => setFormData((prev) => ({ ...prev, service_interval_km: brandDefaults.km }))}>
                     Restaurer
                   </button>
@@ -707,12 +716,14 @@ export default function VehicleForm({ onSubmit, onCancel }) {
 
             <div className="col-span-full">
               <div style={{ background: 'var(--accent-light)', border: '1px solid var(--accent)', borderRadius: '6px' }} className="p-3 text-xs" title="Intervalles d'entretien prévisionnel">
-                <div className="font-medium mb-1" style={{ color: 'var(--accent)' }}>ℹ️ Entretiens prévisionnels</div>
+                <div className="font-medium mb-1 flex items-center gap-1.5" style={{ color: 'var(--accent)' }}>
+                  <Icon name="info" size={14} />Entretiens prévisionnels
+                </div>
                 <ul className="space-y-0.5" style={{ color: 'var(--text-2)' }}>
-                  <li>🔧 <strong>Révision (km)</strong> : tous les {formData.service_interval_km || brandDefaults?.km || '?'} km — vidange, filtres, contrôles</li>
-                  <li>📅 <strong>Entretien annuel</strong> : tous les 12 mois — contrôle simplifié si le kilométrage n'est pas atteint</li>
-                  <li>🔩 <strong>Soupapes</strong> : tous les {((formData.service_interval_km || brandDefaults?.km || 0) * 2) || '?'} km — vérification jeu aux soupapes (toutes les 2 révisions)</li>
-                  <li>🛢️ <strong>Purge frein</strong> : tous les 2 ans · <strong>Liquide refroidissement</strong> : tous les 3 ans · <strong>Fourche</strong> : tous les 3 ans</li>
+                  <li><strong>Révision (km)</strong> : tous les {formData.service_interval_km || brandDefaults?.km || '?'} km — vidange, filtres, contrôles</li>
+                  <li><strong>Entretien annuel</strong> : tous les 12 mois — contrôle simplifié si le kilométrage n'est pas atteint</li>
+                  <li><strong>Soupapes</strong> : tous les {((formData.service_interval_km || brandDefaults?.km || 0) * 2) || '?'} km — vérification jeu aux soupapes (toutes les 2 révisions)</li>
+                  <li><strong>Purge frein</strong> : tous les 2 ans · <strong>Liquide refroidissement</strong> : tous les 3 ans · <strong>Fourche</strong> : tous les 3 ans</li>
                 </ul>
               </div>
             </div>
@@ -729,22 +740,24 @@ export default function VehicleForm({ onSubmit, onCancel }) {
                 value={formData.displacement}
                 onChange={handleChange}
                 placeholder="ex: 1600 (optionnel)"
-                className="input-field"
+                
               />
             </div>
             <div className="col-span-full">
               <div style={{ background: 'var(--accent-light)', border: '1px solid var(--accent)', borderRadius: '6px' }} className="p-3 text-xs" title="Intervalles d'entretien prévisionnel">
-                <div className="font-medium mb-1" style={{ color: 'var(--accent)' }}>ℹ️ Entretiens prévisionnels auto</div>
+                <div className="font-medium mb-1 flex items-center gap-1.5" style={{ color: 'var(--accent)' }}>
+                  <Icon name="info" size={14} />Entretiens prévisionnels
+                </div>
                 <ul className="space-y-0.5" style={{ color: 'var(--text-2)' }}>
-                  <li>🛢️ <strong>Vidange + filtre</strong> : ~10 000 km / 1 an</li>
-                  <li>💨 <strong>Filtre à air</strong> : ~20 000 km / 1 an</li>
-                  <li>🍃 <strong>Filtre habitacle</strong> : ~15 000 km / 1 an</li>
-                  <li>⛽ <strong>Filtre gasoil</strong> : ~20 000 km / 2 ans (diesel) · <strong>Filtre essence</strong> : ~50 000 km / 4 ans</li>
-                  <li>🔌 <strong>Bougies</strong> : ~30 000 km (essence/hybride)</li>
-                  <li>🛞 <strong>Purge frein</strong> : tous les 2 ans</li>
-                  <li>⏱️ <strong>Courroie distribution</strong> : ~80 000 km / 6 ans</li>
-                  <li>❄️ <strong>Liquide refroidissement</strong> : ~60 000 km / 4 ans</li>
-                  <li>⚙️ <strong>Liquide transmission</strong> : ~80 000 km / 4 ans</li>
+                  <li><strong>Vidange + filtre</strong> : ~10 000 km / 1 an</li>
+                  <li><strong>Filtre à air</strong> : ~20 000 km / 1 an</li>
+                  <li><strong>Filtre habitacle</strong> : ~15 000 km / 1 an</li>
+                  <li><strong>Filtre gasoil</strong> : ~20 000 km / 2 ans (diesel) · <strong>Filtre essence</strong> : ~50 000 km / 4 ans</li>
+                  <li><strong>Bougies</strong> : ~30 000 km (essence/hybride)</li>
+                  <li><strong>Purge frein</strong> : tous les 2 ans</li>
+                  <li><strong>Courroie distribution</strong> : ~80 000 km / 6 ans</li>
+                  <li><strong>Liquide refroidissement</strong> : ~60 000 km / 4 ans</li>
+                  <li><strong>Liquide transmission</strong> : ~80 000 km / 4 ans</li>
                 </ul>
               </div>
             </div>
@@ -756,7 +769,9 @@ export default function VehicleForm({ onSubmit, onCancel }) {
           <div className="space-y-2">
             {suggestedCategory && suggestedCategory !== formData.range_category && (
               <div style={{ background: 'var(--accent-light)', border: '1px solid var(--accent)', borderRadius: '6px' }} className="p-2 flex items-center justify-between gap-2">
-                <div className="text-xs" style={{ color: 'var(--accent)' }}>💡 {categoryReason}</div>
+                <div className="text-xs flex items-center gap-1.5" style={{ color: 'var(--accent)' }}>
+                  <Icon name="bulb" size={13} />{categoryReason}
+                </div>
                 <button
                   type="button"
                   onClick={applySuggestedCategory}
@@ -770,19 +785,19 @@ export default function VehicleForm({ onSubmit, onCancel }) {
               name="range_category"
               value={formData.range_category}
               onChange={handleChange}
-              className="input-field"
+              
             >
               {formData.vehicle_type === 'motorcycle' ? (
                 <>
-                  <option value="accessible">♻️ Accessible (Honda, Yamaha, Kawasaki)</option>
-                  <option value="generalist">🔧 Généraliste (Ducati, KTM, Triumph)</option>
-                  <option value="premium">👑 Premium (BMW, Harley-Davidson, MV Agusta)</option>
+                  <option value="accessible">Accessible (Honda, Yamaha, Kawasaki)</option>
+                  <option value="generalist">Généraliste (Ducati, KTM, Triumph)</option>
+                  <option value="premium">Premium (BMW, Harley-Davidson, MV Agusta)</option>
                 </>
               ) : (
                 <>
-                  <option value="accessible">♻️ Accessible (Dacia, Peugeot, Toyota)</option>
-                  <option value="generalist">🔧 Généraliste (VW, Ford, Renault)</option>
-                  <option value="premium">👑 Premium (BMW, Mercedes, Audi)</option>
+                  <option value="accessible">Accessible (Dacia, Peugeot, Toyota)</option>
+                  <option value="generalist">Généraliste (VW, Ford, Renault)</option>
+                  <option value="premium">Premium (BMW, Mercedes, Audi)</option>
                 </>
               )}
             </select>
@@ -796,7 +811,7 @@ export default function VehicleForm({ onSubmit, onCancel }) {
             name="current_mileage"
             value={formData.current_mileage}
             onChange={handleChange}
-            className="input-field"
+            
           />
         </div>
 
@@ -808,7 +823,7 @@ export default function VehicleForm({ onSubmit, onCancel }) {
             value={formData.purchase_price}
             onChange={handleChange}
             placeholder="Optionnel"
-            className="input-field"
+            
           />
         </div>
       </div>
@@ -834,7 +849,8 @@ export default function VehicleForm({ onSubmit, onCancel }) {
             style={{ width: 15, height: 15, flexShrink: 0 }}
           />
           <span className="text-sm font-medium" style={{ color: 'var(--text-1)' }}>
-            🔒 Véhicule privé
+            <Icon name="lock" size={14} />
+            Véhicule privé
           </span>
           <span className="text-xs" style={{ color: 'var(--text-3)' }}>
             non partagé avec la famille
@@ -850,27 +866,29 @@ export default function VehicleForm({ onSubmit, onCancel }) {
           onChange={handleChange}
           placeholder="Notes additionnelles..."
           rows="3"
-          className="input-field"
+          
         />
       </div>
 
 
       <div className="mt-4">
-        <label className="block text-sm font-medium mb-2">📸 Photo du véhicule (optionnel)</label>
+        <label className="field-label">Photo du véhicule (optionnel)</label>
         {photoPreview ? (
           <div className="relative">
             <img src={photoPreview} alt="Aperçu" className="w-full h-48 object-cover rounded-lg" style={{ border: '1px solid var(--border)' }} />
             <button
               type="button"
               onClick={removePhoto}
-              className="absolute top-2 right-2 bg-red-500 text-white p-1 rounded-full hover:bg-red-600 transition-colors"
+              className="btn-icon danger absolute top-2 right-2"
+              style={{ background: 'var(--bg-surface)', border: '1px solid var(--border)', boxShadow: 'var(--shadow-xs)' }}
               title="Supprimer la photo"
+              aria-label="Supprimer la photo"
             >
-              ✕
+              <Icon name="close" size={14} strokeWidth={2.2} />
             </button>
           </div>
         ) : (
-          <label className="block w-full p-4 border-2 border-dashed rounded-lg cursor-pointer transition-colors text-center" style={{ borderColor: 'var(--border)', background: 'var(--bg-2)' }}>
+          <label className="block w-full p-4 border-2 border-dashed rounded-lg cursor-pointer transition-colors text-center" style={{ borderColor: 'var(--border)', background: 'var(--bg-inset)', color: 'var(--text-2)' }}>
             <input
               type="file"
               accept="image/*"
@@ -878,7 +896,8 @@ export default function VehicleForm({ onSubmit, onCancel }) {
               className="hidden"
             />
             <div className="text-sm" style={{ color: 'var(--text-2)' }}>
-              📁 Cliquez ou déposez une image
+              <Icon name="upload" size={18} style={{ marginBottom: 6 }} />
+              Cliquez ou déposez une image
             </div>
           </label>
         )}
@@ -889,7 +908,7 @@ export default function VehicleForm({ onSubmit, onCancel }) {
       {/* Info banner when plate not available */}
       {!plateApiAvailable && creationMode === 'manual' && (
         <div style={{ background: 'var(--warning-light)', border: '1px solid var(--warning)', borderRadius: '6px', color: 'var(--warning)' }} className="p-3 text-xs">
-          <strong>💡 Astuce :</strong> Utilisez le mode <strong>VIN (gratuit)</strong> pour auto-remplir les données du véhicule.
+          <strong>Astuce :</strong> le mode <strong>VIN (gratuit)</strong> remplit automatiquement les données du véhicule.
           Le VIN se trouve sur la carte grise (case E) ou sur le pare-brise côté conducteur.
           {' '}Pour activer le décodage par plaque (10 req/mois gratuit), créez un compte sur{' '}
           <a href="https://rapidapi.com/api-plaque-immatriculation-siv-api-plaque-immatriculation-siv-default/api/api-plaque-immatriculation-siv/" target="_blank" rel="noopener noreferrer" className="underline font-medium">RapidAPI</a>

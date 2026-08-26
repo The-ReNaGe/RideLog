@@ -1,5 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { api } from '../lib/api';
+import Icon from '../components/Icon';
+import Notice from '../components/Notice';
 
 export default function AuthPage({ onLoginSuccess, pendingFamilyToken = null }) {
   const [isRegister, setIsRegister] = useState(false);
@@ -185,8 +187,17 @@ export default function AuthPage({ onLoginSuccess, pendingFamilyToken = null }) 
       <div className="w-full max-w-md">
         {/* Header */}
         <div className="flex flex-col items-center mb-8">
-          <div className="flex items-center justify-center bg-white/90 rounded-2xl shadow-md border border-gray-200 mb-3"
-               style={{ width: '88px', height: '88px' }}>
+          <div
+            className="flex items-center justify-center mb-3"
+            style={{
+              width: 88, height: 88,
+              // Voir App.jsx : le logo est un tracé sombre sur transparent.
+              background: '#ffffff',
+              borderRadius: 'var(--radius-lg)',
+              border: '1px solid var(--border)',
+              boxShadow: 'var(--shadow-sm)',
+            }}
+          >
             <img
               src="/RideLog.png"
               alt="RideLog logo"
@@ -202,11 +213,7 @@ export default function AuthPage({ onLoginSuccess, pendingFamilyToken = null }) 
 
         {/* Lien de rattachement à un groupe famille ouvert sans être connecté */}
         {pendingFamilyToken && (
-          <div
-            className="card p-4 mb-4 text-sm"
-            style={{ background: 'var(--accent-light)', color: 'var(--text-1)' }}
-          >
-            👨‍👩‍👧{' '}
+          <Notice tone="info" icon="users" className="mb-4">
             {pendingFamily ? (
               <>
                 Connectez-vous pour rejoindre le groupe <strong>{pendingFamily.name}</strong> et
@@ -215,11 +222,11 @@ export default function AuthPage({ onLoginSuccess, pendingFamilyToken = null }) 
             ) : (
               <>Connectez-vous pour rejoindre le groupe famille auquel vous avez été invité.</>
             )}
-            <span className="block text-xs mt-2" style={{ color: 'var(--text-2)' }}>
+            <span className="block text-xs mt-2" style={{ color: 'var(--text-3)' }}>
               Ce lien ne crée pas de compte. Si vous n'en avez pas encore, demandez-en un à
               l'administrateur de cette instance.
             </span>
-          </div>
+          </Notice>
         )}
 
         {/* Card */}
@@ -255,49 +262,29 @@ export default function AuthPage({ onLoginSuccess, pendingFamilyToken = null }) 
           )}
 
           {/* Messages */}
-          {error && (
-            <div
-              className="mb-4 p-3 rounded text-sm"
-              style={{
-                background: 'var(--danger-light)',
-                border: '1px solid var(--danger)',
-                color: 'var(--danger)',
-              }}
-            >
-              ⚠️ {error}
-            </div>
-          )}
-
-          {success && (
-            <div
-              className="mb-4 p-3 rounded text-sm"
-              style={{
-                background: 'var(--success)',
-                color: 'white',
-              }}
-            >
-              ✅ {success}
-            </div>
-          )}
+          {error && <Notice tone="danger" className="mb-4">{error}</Notice>}
+          {success && <Notice tone="success" className="mb-4">{success}</Notice>}
 
           {/* Login Form */}
           {!isRegister ? (
             <form onSubmit={handleLogin} className="space-y-4">
               {lockoutSeconds > 0 && (
                 <div
-                  className="p-4 rounded text-center"
+                  className="text-center"
                   style={{
-                    background: '#fef3c7',
-                    border: '1px solid #f59e0b',
-                    color: '#92400e',
+                    background: 'var(--warning-light)',
+                    border: '1px solid var(--warning)',
+                    borderRadius: 'var(--radius)',
+                    padding: 16,
+                    color: 'var(--text-1)',
                   }}
                 >
-                  <div className="text-2xl font-bold mb-1">{lockoutSeconds}s</div>
-                  <p className="text-sm">Trop de tentatives. Veuillez patienter.</p>
+                  <div className="tabular" style={{ fontSize: 24, fontWeight: 800, color: 'var(--warning)' }}>{lockoutSeconds}s</div>
+                  <p className="text-sm" style={{ color: 'var(--text-2)' }}>Trop de tentatives. Veuillez patienter.</p>
                 </div>
               )}
               <div>
-                <label className="block text-sm font-semibold mb-2" style={{ color: 'var(--text-1)' }}>
+                <label className="field-label">
                   Identifiant
                 </label>
                 <input
@@ -305,14 +292,14 @@ export default function AuthPage({ onLoginSuccess, pendingFamilyToken = null }) 
                   value={loginUsername}
                   onChange={(e) => setLoginUsername(e.target.value)}
                   placeholder="toto"
-                  className="input w-full"
+                  className="w-full"
                   disabled={loading || lockoutSeconds > 0}
                   required
                 />
               </div>
 
               <div>
-                <label className="block text-sm font-semibold mb-2" style={{ color: 'var(--text-1)' }}>
+                <label className="field-label">
                   Mot de passe
                 </label>
                 <input
@@ -320,7 +307,7 @@ export default function AuthPage({ onLoginSuccess, pendingFamilyToken = null }) 
                   value={loginPassword}
                   onChange={(e) => setLoginPassword(e.target.value)}
                   placeholder="••••••••"
-                  className="input w-full"
+                  className="w-full"
                   disabled={loading || lockoutSeconds > 0}
                   required
                 />
@@ -351,9 +338,12 @@ export default function AuthPage({ onLoginSuccess, pendingFamilyToken = null }) 
               </button>
 
               {showForgotPassword && (
-                <div className="mt-3 p-3 rounded" style={{ background: 'var(--bg-base)', border: '1px solid var(--border)' }}>
+                <div className="inset mt-3" style={{ padding: 12 }}>
                   {forgotMessage ? (
-                    <p className="text-xs" style={{ color: 'var(--text-2)' }}>✅ {forgotMessage}</p>
+                    <p className="text-xs flex items-start gap-2" style={{ color: 'var(--text-2)' }}>
+                      <Icon name="checkCircle" size={14} style={{ color: 'var(--success)', marginTop: 1 }} />
+                      {forgotMessage}
+                    </p>
                   ) : (
                     <>
                       <p className="text-xs mb-2" style={{ color: 'var(--text-3)' }}>
@@ -365,11 +355,11 @@ export default function AuthPage({ onLoginSuccess, pendingFamilyToken = null }) 
                           value={forgotUsername}
                           onChange={(e) => setForgotUsername(e.target.value)}
                           placeholder="Votre identifiant"
-                          className="input flex-1 text-sm"
+                          className="flex-1"
                           required
                           disabled={forgotSubmitting}
                         />
-                        <button type="submit" className="btn btn-secondary text-xs whitespace-nowrap" disabled={forgotSubmitting}>
+                        <button type="submit" className="btn btn-secondary btn-sm" disabled={forgotSubmitting}>
                           {forgotSubmitting ? '...' : 'Envoyer'}
                         </button>
                       </form>
@@ -378,8 +368,9 @@ export default function AuthPage({ onLoginSuccess, pendingFamilyToken = null }) 
                 </div>
               )}
 
-              <p className="text-xs text-center mt-4" style={{ color: 'var(--text-3)' }}>
-                🔒 Votre mot de passe est haché avec bcrypt (sécurisé)
+              <p className="text-xs flex items-center justify-center gap-1.5 mt-4" style={{ color: 'var(--text-3)' }}>
+                <Icon name="lock" size={12} />
+                Mot de passe haché avec bcrypt
               </p>
             </>
           )}
@@ -388,7 +379,7 @@ export default function AuthPage({ onLoginSuccess, pendingFamilyToken = null }) 
             /* Register Form */
             <form onSubmit={handleRegister} className="space-y-4">
               <div>
-                <label className="block text-sm font-semibold mb-2" style={{ color: 'var(--text-1)' }}>
+                <label className="field-label">
                   Identifiant <span style={{ color: 'var(--danger)' }}>*</span>
                 </label>
                 <input
@@ -396,7 +387,7 @@ export default function AuthPage({ onLoginSuccess, pendingFamilyToken = null }) 
                   value={regUsername}
                   onChange={(e) => setRegUsername(e.target.value)}
                   placeholder="toto"
-                  className="input w-full"
+                  className="w-full"
                   minLength={3}
                   maxLength={50}
                   disabled={loading}
@@ -408,7 +399,7 @@ export default function AuthPage({ onLoginSuccess, pendingFamilyToken = null }) 
               </div>
 
               <div>
-                <label className="block text-sm font-semibold mb-2" style={{ color: 'var(--text-1)' }}>
+                <label className="field-label">
                   Nom affiché <span style={{ color: 'var(--danger)' }}>*</span>
                 </label>
                 <input
@@ -416,7 +407,7 @@ export default function AuthPage({ onLoginSuccess, pendingFamilyToken = null }) 
                   value={regDisplayName}
                   onChange={(e) => setRegDisplayName(e.target.value)}
                   placeholder="Toto Dupont"
-                  className="input w-full"
+                  className="w-full"
                   disabled={loading}
                   required
                 />
@@ -426,7 +417,7 @@ export default function AuthPage({ onLoginSuccess, pendingFamilyToken = null }) 
               </div>
 
               <div>
-                <label className="block text-sm font-semibold mb-2" style={{ color: 'var(--text-1)' }}>
+                <label className="field-label">
                   Mot de passe <span style={{ color: 'var(--danger)' }}>*</span>
                 </label>
                 <input
@@ -434,7 +425,7 @@ export default function AuthPage({ onLoginSuccess, pendingFamilyToken = null }) 
                   value={regPassword}
                   onChange={(e) => setRegPassword(e.target.value)}
                   placeholder="••••••••"
-                  className="input w-full"
+                  className="w-full"
                   minLength={6}
                   disabled={loading}
                   required
@@ -445,7 +436,7 @@ export default function AuthPage({ onLoginSuccess, pendingFamilyToken = null }) 
               </div>
 
               <div>
-                <label className="block text-sm font-semibold mb-2" style={{ color: 'var(--text-1)' }}>
+                <label className="field-label">
                   Confirmer le mot de passe <span style={{ color: 'var(--danger)' }}>*</span>
                 </label>
                 <input
@@ -453,7 +444,7 @@ export default function AuthPage({ onLoginSuccess, pendingFamilyToken = null }) 
                   value={regPasswordConfirm}
                   onChange={(e) => setRegPasswordConfirm(e.target.value)}
                   placeholder="••••••••"
-                  className="input w-full"
+                  className="w-full"
                   disabled={loading}
                   required
                 />
@@ -464,60 +455,46 @@ export default function AuthPage({ onLoginSuccess, pendingFamilyToken = null }) 
                 className="btn btn-primary w-full mt-6"
                 disabled={loading}
               >
-                {loading ? 'Création en cours...' : 'Créer un compte'}
+                {loading ? 'Création…' : 'Créer un compte'}
               </button>
 
-              <p className="text-xs text-center mt-4" style={{ color: 'var(--text-3)' }}>
-                🔒 Données chiffrées &amp; stockées localement (SQLite)
+              <p className="text-xs flex items-center justify-center gap-1.5 mt-4" style={{ color: 'var(--text-3)' }}>
+                <Icon name="lock" size={12} />
+                Données stockées localement (SQLite)
               </p>
 
-              <div
-                className="mt-4 p-3 rounded text-xs"
-                style={{
-                  background: 'var(--info-light)',
-                  border: '1px solid var(--info)',
-                  color: 'var(--info)',
-                }}
-              >
-                {isFirstUser ? (
-                  <>
-                    ⭐ <strong>Le premier compte créé sera automatiquement administrateur</strong>
-                    <br />
-                    L'admin pourra ensuite promouvoir/rétrograder d'autres utilisateurs
-                  </>
-                ) : registrationMode === 'invite' && inviteToken && inviteValid ? (
-                  <>
-                    ✅ <strong>Invitation valide</strong> — Créez votre compte ci-dessus
-                  </>
-                ) : registrationMode === 'invite' && inviteToken && inviteValid === false ? (
-                  <>
-                    ❌ <strong>Invitation invalide ou expirée</strong>
-                  </>
-                ) : registrationMode === 'open' ? (
-                  <>
-                    🌐 <strong>Inscription ouverte</strong> — Créez votre compte librement
-                  </>
-                ) : (
-                  <>
-                    🔒 <strong>Inscription sur invitation uniquement</strong>
-                    <br />
-                    Demandez un lien d'invitation à un administrateur
-                  </>
-                )}
-              </div>
+              {/* Les jetons --info / --info-light n'ont jamais existé : ce
+                  bandeau s'affichait sans fond et avec une couleur héritée. */}
+              {isFirstUser ? (
+                <Notice tone="success" icon="star" title="Le premier compte créé sera administrateur" className="mt-4">
+                  Il pourra ensuite promouvoir ou rétrograder les suivants.
+                </Notice>
+              ) : registrationMode === 'invite' && inviteToken && inviteValid ? (
+                <Notice tone="success" className="mt-4">
+                  <strong>Invitation valide</strong> — créez votre compte ci-dessus.
+                </Notice>
+              ) : registrationMode === 'invite' && inviteToken && inviteValid === false ? (
+                <Notice tone="danger" className="mt-4">
+                  <strong>Invitation invalide ou expirée.</strong>
+                </Notice>
+              ) : registrationMode === 'open' ? (
+                <Notice tone="info" icon="globe" className="mt-4">
+                  <strong>Inscription ouverte</strong> — créez votre compte librement.
+                </Notice>
+              ) : (
+                <Notice tone="info" icon="lock" title="Inscription sur invitation uniquement" className="mt-4">
+                  Demandez un lien d'invitation à un administrateur.
+                </Notice>
+              )}
             </form>
           )}
         </div>
 
         {/* Info */}
-        <div className="mt-8 text-center text-xs" style={{ color: 'var(--text-3)' }}>
-          <p>
-            🏛️ <strong>Sécurité locale</strong> - Aucune donnée n'est partagée
-          </p>
-          <p className="mt-2">
-            1️⃣ Créez un compte • 2️⃣ Connectez-vous • 3️⃣ Gérez vos véhicules
-          </p>
-        </div>
+        <p className="mt-6 text-center text-xs flex items-center justify-center gap-1.5" style={{ color: 'var(--text-3)' }}>
+          <Icon name="shield" size={12} />
+          Instance auto-hébergée — aucune donnée n'est partagée à l'extérieur.
+        </p>
       </div>
     </div>
   );

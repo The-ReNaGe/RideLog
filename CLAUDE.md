@@ -29,6 +29,7 @@
 20. [Préparation à l'internationalisation](#20-préparation-à-linternationalisation)
 21. [Distribution par images publiées](#21-distribution-par-images-publiées)
 22. [Contrôle d'accès et groupes famille](#22-contrôle-daccès-et-groupes-famille)
+23. [Système de design de l'interface](#23-système-de-design-de-linterface)
 
 ---
 
@@ -911,6 +912,10 @@ frontend/src/
 │   ├── Settings.jsx            # Paramètres (Discord, HA, Rappels, Mode inscription)
 │   └── Admin.jsx               # Administration (users, invitations)
 └── components/
+    ├── Icon.jsx                     # ★ Jeu d'icônes SVG maison — aucun émoji dans l'interface, voir §23 ★
+    ├── Notice.jsx                   # Encart d'explication/résultat (tons info, success, warning, danger, neutral)
+    ├── PageHeader.jsx               # En-tête de page : titre, précision, actions
+    ├── CategoryTag.jsx              # Catégorie d'intervention (entretien / réparation / modification)
     ├── VehicleCard.jsx              # Carte véhicule (React.memo)
     ├── VehiclePhoto.jsx             # ★ Photo véhicule — charge le binaire via Axios (JWT) et l'affiche en object URL ★
     ├── VehicleForm.jsx              # Formulaire création/édition véhicule
@@ -951,13 +956,8 @@ L'application n'utilise **pas** React Router. La navigation est gérée par un �
 
 - Mode clair/sombre basculable depuis le header
 - Persisté dans `localStorage`
-- Variables CSS dans `index.css` :
-  - `--bg`, `--bg-surface`, `--bg-base` : fonds
-  - `--text-1`, `--text-2`, `--text-3` : textes (décroissant en importance)
-  - `--accent` : couleur principale (bleu)
-  - `--border` : bordures
-  - `--success`, `--warning`, `--danger` : alertes
-  - `--success-light`, `--warning-light`, `--accent-light` : versions pastel
+- Tous les jetons sont déclarés dans `index.css`, sur `:root` et
+  `[data-theme="dark"]` — voir §23 pour la liste et les règles d'emploi.
 
 ### Client API (`lib/api.js`)
 
@@ -1880,6 +1880,159 @@ bouton voué à échouer en 404.
 - **Changer le plafond d'invitations** : `routes/families.py` → `MAX_PENDING_INVITATIONS`
 - **Tests** : `tests/test_access.py` (règle pure), `tests/test_families.py`
   (routes réelles, dont l'interdiction d'écriture vérifiée verbe par verbe)
+
+---
+
+## 23. Système de design de l'interface
+
+### 23.1 Ce qui a été retiré
+
+L'interface reposait sur trois habitudes qui la faisaient paraître bâclée, et
+sur quelques jetons qui n'existaient pas.
+
+| Avant | Problème | Après |
+|---|---|---|
+| ~440 émojis comme icônes | Rendu propre à chaque système, taille incontrôlable, sens approximatif | `components/Icon.jsx` — jeu SVG maison, grille 24×24, trait 1,75 px en `currentColor` |
+| Ombre diffuse `0 0 35px` sur chaque carte, sans bordure | Tout flottait, rien ne délimitait rien | Bordure 1 px + ombre discrète ; l'élévation est réservée au survol d'une carte **cliquable** (`.card-interactive`) |
+| `--info`, `--info-light`, `--bg-input`, `--text-code`, `--primary`, `--bg-main`, `--bg-2`, `--bg-card` | **Jamais définis** : les blocs concernés s'affichaient sans fond, avec la couleur héritée | Supprimés, remplacés par des jetons réels |
+| `.input-field` | Classe **jamais définie** non plus : posée sur 27 champs, elle ne faisait rien | Supprimée — les champs sont stylés par élément (`input`, `select`, `textarea`) |
+| Classes Tailwind de couleur (`bg-white`, `border-gray-300`, `text-blue-900`…) | Illisibles en thème sombre | Jetons CSS |
+
+> **Le raccourci `background:` efface `background-image`.** L'override sombre
+> `[data-theme="dark"] select { background: … }` supprimait le chevron du
+> `<select>` défini plus haut dans la feuille. Viser `background-color`.
+
+### 23.2 Jetons
+
+La palette est calquée sur celle du système d'Apple : gris neutres
+(`#f5f5f7`, `#1d1d1f`, `#86868b`) plutôt que gris bleutés, et bleu système
+(`#007aff` en clair, `#0a84ff` en sombre). Trois familles de fonds, du plus
+profond au plus proche : `--bg-base` (page), `--bg-inset` (zone creusée),
+`--bg-surface` (carte). Trois rayons (`--radius-sm` 8, `--radius` 12,
+`--radius-lg` 16) et quatre ombres (`--shadow-xs` → `--shadow-lg`). Les états
+gardent `--success` / `--danger` / `--warning` ; `--purple` s'y ajoute pour la
+catégorie « modification », qui n'est pas un état et ne doit pas emprunter la
+couleur d'une alerte.
+
+`--bg-topbar` est **translucide** et la classe `.app-bar` y ajoute
+`backdrop-filter: saturate(180%) blur(20px)`. Le contenu qui passe sous la
+barre au défilement reste deviné, comme sous une barre d'outils macOS. Un
+`@supports not` repose un fond opaque là où le flou n'existe pas — sans lui, le
+texte de la page traverserait la barre.
+
+> **Deux essais de « mise en couleur » ont été écartés**, et il vaut mieux ne
+> pas les refaire :
+>
+> 1. **Des halos dégradés** en haut de page et sur la barre. Ça teintait sans
+>    rien dire — de la décoration, pas de l'information.
+> 2. **Une vignette de couleur par section** (bleu Véhicules, rouge Planning…,
+>    façon Réglages système). La rangée virait à l'arc-en-ciel et la section
+>    active ne ressortait plus : six couleurs à égalité, aucune hiérarchie.
+>
+> Ce qui reste : **des surfaces en aplat, un seul accent**. La couleur marque
+> ce qui est actif ou ce qui alerte, rien d'autre.
+
+**Une seule couleur littérale subsiste dans tout le frontend** : le fond blanc
+de la plaque du logo (`App.jsx`, `AuthPage.jsx`). `RideLog.png` est un tracé
+sombre sur fond transparent — sur une surface sombre, il disparaît. C'est une
+exception documentée, pas un oubli.
+
+### 23.3 Le jeu d'icônes
+
+`components/Icon.jsx` expose une table de tracés et `<Icon name size
+strokeWidth />`. Un nom inconnu ne rend rien plutôt que de casser la page ;
+`ICON_NAMES` liste les tracés disponibles.
+
+**Pourquoi pas une librairie** : le frontend n'avait aucune dépendance
+d'interface, l'image est construite en CI depuis un lockfile figé et publiée en
+amd64 **et** arm64 (§21). Ajouter un paquet pour une cinquantaine de tracés
+coûterait plus en maintenance qu'il ne rapporte — et aucun jeu générique ne
+dessine correctement une moto.
+
+Les icônes n'ont pas de couleur propre : elles héritent de `currentColor`, donc
+du texte environnant, ce qui les rend justes dans les deux thèmes sans effort.
+
+### 23.4 Photos : toujours entières
+
+`object-fit: cover` recadrait les photos de véhicule dans le tas et coupait
+l'avant ou l'arrière. Le réglage par défaut est donc `contain` — mais une photo
+qui n'a pas le format du bandeau laissait alors deux aplats gris sur les côtés.
+
+`VehiclePhoto` accepte `backdrop` : une **doublure floutée de la même image**,
+posée en fond (`.photo-backdrop`, `cover` + `blur(22px)`). La photo reste
+entière, les côtés sont habillés.
+
+**Tous les cadres photo sont en 3/2** (`.photo-band`, `.hero-media`,
+`.photo-thumb`). Ce n'est pas arbitraire : les photos de véhicule tournent
+autour de 4/3 et de 16/10. Dans un cadre plus large que ça — le bandeau faisait
+2,6/1 — une photo affichée entière laissait de larges marges floutées de chaque
+côté et prenait des airs de vignette. En 3/2, elle occupe la quasi-totalité du
+cadre, et la doublure ne sert plus qu'à rattraper l'écart résiduel.
+
+> Le sélecteur est `.photo-container .photo-backdrop`, à deux classes.
+> `.photo-container img` (0,1,1) l'emporterait sur une classe seule et
+> remettrait la doublure dans le flux, à côté de la photo au lieu de derrière.
+
+### 23.5 L'en-tête et le sélecteur de section
+
+L'en-tête tient sur **une seule ligne, en trois zones** (`.app-bar-inner`, une
+grille `1fr auto 1fr`) : marque à gauche, sélecteur de section **centré sur la
+fenêtre**, session à droite. La colonne du milieu en `auto` entre deux `1fr`
+garantit que le sélecteur reste au centre quelle que soit la largeur des deux
+autres zones. Tout aligner à gauche entassait la barre dans un coin et laissait
+la moitié droite vide.
+
+Le sélecteur est un **contrôle segmenté** (`.segmented` / `.segment`) : une
+piste creusée et un seul segment plein, l'actif, en accent. Une seule couleur
+dans toute la barre.
+
+La barre du bas en mobile (`.nav-bottom-item`) suit la même retenue : icône et
+libellé en gris, section active en accent avec un filet au-dessus.
+
+### 23.6 Le panneau — montrer où un groupe s'arrête
+
+`.panel` / `.panel-header` / `.panel-body` délimite un regroupement. C'est né
+de la liste des véhicules : un titre « Garage de … » suivi de cartes
+flottantes, répété une fois par membre du groupe famille, ne dit pas où un
+garage s'arrête et où le suivant commence. Le panneau (bordure, en-tête avec
+initiale et décompte, corps sur fond creusé) répond à cette seule question.
+
+À réutiliser pour tout regroupement qui pose la même question, pas comme
+conteneur générique : une carte isolée reste une `card`.
+
+### 23.7 Composants partagés
+
+| Composant | Rôle | Remplaçait |
+|---|---|---|
+| `Icon` | icônes SVG | les émojis |
+| `Notice` | encart d'explication ou de résultat, cinq tons | des bandeaux réécrits à la main dans chaque onglet de réglages, avec des fonds et des tailles tous différents |
+| `PageHeader` | titre + précision + actions | un en-tête par page, chacun avec sa taille de titre |
+| `CategoryTag` | entretien / réparation / modification | une table de correspondance recopiée dans `VehicleDetail` et `MaintenanceHistory`, déjà divergentes |
+
+### 23.8 Actions destructrices
+
+**La suppression d'un véhicule ne vit pas dans la liste.** Une corbeille au coin
+d'une carte entièrement cliquable se déclenche par erreur — un clic un peu à
+côté du titre, et l'historique complet part. L'action est dans la fiche du
+véhicule, dans sa rangée d'actions à côté de « Modifier », en bouton-icône
+discret, avec une confirmation qui énumère ce qui sera perdu.
+
+Elle n'existe **qu'à cet endroit** : elle avait aussi été posée au pied de la
+modale d'édition, et deux chemins pour une même action destructrice, c'est un
+de trop — on ne sait plus lequel fait quoi.
+
+Même règle pour toute action irréversible ajoutée plus tard : elle ne se place
+pas sur un élément dont le corps entier est une cible de navigation.
+
+### 23.9 Pour modifier
+
+- **Ajouter une icône** : une entrée dans la table `P` d'`Icon.jsx`. Ne pas
+  poser de couleur dans le tracé.
+- **Ajouter un jeton** : le déclarer dans **les deux** blocs de `index.css`
+  (`:root` et `[data-theme="dark"]`). Un jeton défini d'un seul côté est un
+  bug invisible tant qu'on ne bascule pas de thème.
+- **Régler un contraste** : `.claude/skills/ridelog-ui/SKILL.md` porte les
+  règles de composition ; cette section porte l'inventaire.
 
 ---
 

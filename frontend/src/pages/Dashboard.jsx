@@ -1,5 +1,8 @@
 import React, { useEffect, useState } from 'react';
 import { api } from '../lib/api';
+import Icon from '../components/Icon';
+import PageHeader from '../components/PageHeader';
+import VehiclePhoto from '../components/VehiclePhoto';
 
 export default function Dashboard({ onSelectVehicle, currentUser }) {
   const [data, setData] = useState(null);
@@ -35,9 +38,15 @@ export default function Dashboard({ onSelectVehicle, currentUser }) {
 
   if (error) {
     return (
-      <div className="card p-8 text-center">
-        <p style={{ color: 'var(--danger)' }}>{error}</p>
-        <button onClick={fetchDashboard} className="btn btn-primary mt-4">Réessayer</button>
+      <div className="card text-center" style={{ padding: '40px 16px' }}>
+        <div className="icon-box lg danger mx-auto" style={{ marginBottom: 12 }}>
+          <Icon name="alert" size={20} />
+        </div>
+        <p style={{ color: 'var(--text-2)' }}>{error}</p>
+        <button onClick={fetchDashboard} className="btn btn-primary mt-4">
+          <Icon name="refresh" size={16} />
+          Réessayer
+        </button>
       </div>
     );
   }
@@ -49,60 +58,61 @@ export default function Dashboard({ onSelectVehicle, currentUser }) {
 
   return (
     <div>
-      <h2 className="text-2xl font-bold mb-6" style={{ color: 'var(--text-1)' }}>
-        📊 Dashboard — {currentUser?.display_name || 'Mon garage'}
-      </h2>
+      <PageHeader
+        title="Tableau de bord"
+        subtitle={`Vue d'ensemble du garage${currentUser?.display_name ? ` de ${currentUser.display_name}` : ''}`}
+      />
 
       {/* KPI Cards Row */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
-        <div className="card p-4 text-center">
-          <div className="card-label">Véhicules</div>
-          <div className="stat-number">{data.total_vehicles}</div>
-        </div>
-        <div className="card p-4 text-center">
-          <div className="card-label">Coût total</div>
-          <div className="stat-number" style={{ fontSize: '22px' }}>{fmtEuro(data.total_cost)}</div>
-          <div className="text-xs mt-1" style={{ color: 'var(--text-3)' }}>
-            Entretien {fmtEuro(data.total_maintenance_cost)} • Carburant {fmtEuro(data.total_fuel_cost)}
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-5">
+        {[
+          { icon: 'car',   label: 'Véhicules',     value: fmt(data.total_vehicles) },
+          { icon: 'euro',  label: 'Coût total',    value: fmtEuro(data.total_cost),
+            sub: `Entretien ${fmtEuro(data.total_maintenance_cost)} · Carburant ${fmtEuro(data.total_fuel_cost)}` },
+          { icon: 'gauge', label: 'Km totaux',     value: `${fmt(data.total_mileage)} km` },
+          { icon: 'package', label: "Valeur d'achat", value: data.fleet_purchase_price ? fmtEuro(data.fleet_purchase_price) : '—',
+            sub: "Prix d'achat cumulé du parc" },
+        ].map(kpi => (
+          <div key={kpi.label} className="card" style={{ padding: 16 }}>
+            <div className="flex items-center gap-2" style={{ marginBottom: 8 }}>
+              <Icon name={kpi.icon} size={15} style={{ color: 'var(--text-3)' }} />
+              <span className="card-label" style={{ marginBottom: 0 }}>{kpi.label}</span>
+            </div>
+            <div className="stat-number" style={{ fontSize: 24 }}>{kpi.value}</div>
+            {kpi.sub && <div style={{ fontSize: 12, color: 'var(--text-3)', marginTop: 3 }}>{kpi.sub}</div>}
           </div>
-        </div>
-        <div className="card p-4 text-center">
-          <div className="card-label">Km totaux</div>
-          <div className="stat-number" style={{ fontSize: '22px' }}>{fmt(data.total_mileage)}</div>
-        </div>
-        <div className="card p-4 text-center">
-          <div className="card-label">Valeur d'achat</div>
-          <div className="stat-number" style={{ fontSize: '20px' }}>
-            {data.fleet_purchase_price ? fmtEuro(data.fleet_purchase_price) : '—'}
-          </div>
-          <div className="text-xs mt-1" style={{ color: 'var(--text-3)' }}>Prix d'achat total</div>
-        </div>
+        ))}
       </div>
 
       {/* Alerts Row */}
       {data.alert_details && data.alert_details.length > 0 && (
-        <div className="card p-4 mb-6">
-          <h3 className="text-lg font-bold mb-3" style={{ color: 'var(--text-1)' }}>⚠️ Alertes</h3>
+        <div className="card mb-5">
+          <h3 className="section-title flex items-center gap-2" style={{ marginBottom: 10 }}>
+            <Icon name="bell" size={16} style={{ color: 'var(--text-3)' }} />
+            Alertes
+          </h3>
           <div className="space-y-2">
             {data.alert_details.map((alert, i) => {
               const cfg = alert.type === 'overdue'
-                ? { icon: '⛔', label: 'En retard', color: 'var(--danger)' }
+                ? { icon: 'alertCircle', label: 'en retard', color: 'var(--danger)' }
                 : alert.type === 'urgent'
-                ? { icon: '🔴', label: 'Urgent', color: 'var(--warning)' }
-                : { icon: '🟡', label: 'À prévoir', color: 'var(--accent)' };
+                ? { icon: 'alert', label: 'urgent', color: 'var(--warning)' }
+                : { icon: 'clock', label: 'à prévoir', color: 'var(--accent)' };
               return (
-                <div
+                <button
                   key={i}
-                  className="flex items-center justify-between p-3 rounded cursor-pointer"
-                  style={{ background: 'var(--bg-base)', borderLeft: `4px solid ${cfg.color}` }}
+                  className="inset flex items-center justify-between gap-3 w-full text-left"
+                  style={{ padding: '10px 12px', borderLeft: `3px solid ${cfg.color}`, cursor: 'pointer' }}
                   onClick={() => onSelectVehicle(alert.vehicle_id)}
                 >
-                  <div className="flex items-center gap-2">
-                    <span>{cfg.icon}</span>
-                    <span className="font-bold text-sm" style={{ color: 'var(--text-1)' }}>{alert.vehicle_name}</span>
-                  </div>
-                  <span className="text-xs font-bold" style={{ color: cfg.color }}>{alert.count} {cfg.label}</span>
-                </div>
+                  <span className="flex items-center gap-2 min-w-0">
+                    <Icon name={cfg.icon} size={16} style={{ color: cfg.color }} />
+                    <span className="font-bold text-sm text-ellipsis" style={{ color: 'var(--text-1)' }}>{alert.vehicle_name}</span>
+                  </span>
+                  <span className="text-xs font-bold" style={{ color: cfg.color, whiteSpace: 'nowrap' }}>
+                    {alert.count} {cfg.label}
+                  </span>
+                </button>
               );
             })}
           </div>
@@ -110,56 +120,60 @@ export default function Dashboard({ onSelectVehicle, currentUser }) {
       )}
 
       {/* Vehicles Grid */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-5 mb-6">
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 mb-5">
         {data.vehicles.map((v) => {
-          const borderColor = v.overdue_count > 0 ? 'var(--danger)' : v.urgent_count > 0 ? 'var(--warning)' : v.warning_count > 0 ? '#f59e0b' : 'var(--success)';
+          // L'état colore une réglette à gauche, pas tout le contour : quatre
+          // cartes cerclées de rouge et de vert font un damier, pas une liste.
+          const state = v.overdue_count > 0
+            ? { color: 'var(--danger)',  tone: 'danger',  icon: 'alertCircle', label: `${v.overdue_count} retard${v.overdue_count > 1 ? 's' : ''}` }
+            : v.urgent_count > 0
+            ? { color: 'var(--warning)', tone: 'warning', icon: 'alert',       label: `${v.urgent_count} urgent${v.urgent_count > 1 ? 's' : ''}` }
+            : v.warning_count > 0
+            ? { color: 'var(--warning)', tone: 'warning', icon: 'clock',       label: `${v.warning_count} à prévoir` }
+            : { color: 'var(--success)', tone: 'success', icon: 'checkCircle', label: 'À jour' };
+
           return (
-            <div
+            <article
               key={v.id}
-              className="card p-5 cursor-pointer transition-transform hover:scale-[1.01]"
-              style={{ border: `2px solid ${borderColor}` }}
+              className="card card-interactive"
+              style={{ borderLeft: `3px solid ${state.color}` }}
               onClick={() => onSelectVehicle(v.id)}
+              role="button" tabIndex={0}
+              onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onSelectVehicle(v.id); } }}
             >
-              <div className="flex items-start gap-4 mb-4">
-                {v.photo_url ? (
-                  <img src={v.photo_url} alt={v.name} className="w-20 h-20 rounded-lg object-cover flex-shrink-0" style={{ background: 'var(--bg-base)' }} />
-                ) : (
-                  <div className="w-20 h-20 rounded-lg flex items-center justify-center flex-shrink-0 text-3xl" style={{ background: 'var(--bg-base)' }}>
-                    {v.vehicle_type === 'motorcycle' ? '🏍️' : '🚗'}
-                  </div>
-                )}
-                <div className="flex-1 min-w-0">
-                  <div className="font-bold text-base" style={{ color: 'var(--text-1)' }}>{v.name}</div>
-                  <div className="text-sm" style={{ color: 'var(--text-3)' }}>{v.brand} {v.model} • {v.year}</div>
-                  <div className="text-sm" style={{ color: 'var(--text-2)' }}>{fmt(v.current_mileage)} km</div>
-                </div>
-                <div className="flex-shrink-0 text-lg">
-                  {v.overdue_count > 0 ? '⛔' : v.urgent_count > 0 ? '🔴' : v.warning_count > 0 ? '🟡' : '✅'}
-                </div>
-              </div>
-              <div className="grid grid-cols-3 gap-3 text-center">
-                <div className="p-3 rounded" style={{ background: 'var(--bg-base)' }}>
-                  <div className="text-sm font-bold" style={{ color: 'var(--text-1)' }}>{fmtEuro(v.total_cost)}</div>
-                  <div className="text-xs" style={{ color: 'var(--text-3)' }}>Dépenses</div>
-                </div>
-                <div className="p-3 rounded" style={{ background: 'var(--bg-base)' }}>
-                  <div className="text-sm font-bold" style={{ color: 'var(--text-1)' }}>{v.purchase_price ? fmtEuro(v.purchase_price) : '—'}</div>
-                  <div className="text-xs" style={{ color: 'var(--text-3)' }}>Prix d'achat</div>
-                </div>
-                <div className="p-3 rounded" style={{ background: 'var(--bg-base)' }}>
-                  {v.overdue_count > 0 ? (
-                    <div className="text-sm font-bold" style={{ color: 'var(--danger)' }}>{v.overdue_count} retard{v.overdue_count > 1 ? 's' : ''}</div>
-                  ) : v.urgent_count > 0 ? (
-                    <div className="text-sm font-bold" style={{ color: 'var(--warning)' }}>{v.urgent_count} urgent{v.urgent_count > 1 ? 's' : ''}</div>
-                  ) : v.warning_count > 0 ? (
-                    <div className="text-sm font-bold" style={{ color: '#f59e0b' }}>{v.warning_count} à prévoir</div>
-                  ) : (
-                    <div className="text-sm font-bold" style={{ color: 'var(--success)' }}>À jour</div>
+              <div className="flex items-start gap-3 mb-3">
+                <div className="photo-container photo-thumb flex-shrink-0">
+                  <Icon
+                    name={v.vehicle_type === 'motorcycle' ? 'motorcycle' : 'car'}
+                    size={24} strokeWidth={1.4}
+                    style={{ color: 'var(--border-strong)', position: 'absolute' }}
+                  />
+                  {v.photo_url && (
+                    <VehiclePhoto vehicleId={v.id} version={v.updated_at} alt={v.name} backdrop />
                   )}
-                  <div className="text-xs" style={{ color: 'var(--text-3)' }}>État</div>
                 </div>
+                <div className="flex-1 min-w-0">
+                  <div className="font-bold text-ellipsis" style={{ color: 'var(--text-1)', fontSize: 15 }}>{v.name}</div>
+                  <div className="text-ellipsis" style={{ color: 'var(--text-3)', fontSize: 13 }}>{v.brand} {v.model} · {v.year}</div>
+                  <div className="tabular" style={{ color: 'var(--text-2)', fontSize: 13, fontWeight: 600 }}>{fmt(v.current_mileage)} km</div>
+                </div>
+                <span className={`icon-box sm ${state.tone}`} title={state.label}>
+                  <Icon name={state.icon} size={15} />
+                </span>
               </div>
-            </div>
+              <div className="grid grid-cols-3 gap-2 text-center">
+                {[
+                  { label: 'Dépenses',     value: fmtEuro(v.total_cost),  color: 'var(--text-1)' },
+                  { label: "Prix d'achat", value: v.purchase_price ? fmtEuro(v.purchase_price) : '—', color: 'var(--text-1)' },
+                  { label: 'État',         value: state.label,            color: state.color },
+                ].map(cell => (
+                  <div key={cell.label} className="inset" style={{ padding: '9px 6px' }}>
+                    <div className="tabular text-sm font-bold text-ellipsis" style={{ color: cell.color }}>{cell.value}</div>
+                    <div style={{ fontSize: 11.5, color: 'var(--text-3)' }}>{cell.label}</div>
+                  </div>
+                ))}
+              </div>
+            </article>
           );
         })}
       </div>
@@ -169,16 +183,19 @@ export default function Dashboard({ onSelectVehicle, currentUser }) {
 
         {/* Recent Activity */}
         <div className="card p-4">
-          <h3 className="text-lg font-bold mb-3" style={{ color: 'var(--text-1)' }}>🕐 Activité récente</h3>
+          <h3 className="section-title flex items-center gap-2" style={{ marginBottom: 10 }}>
+            <Icon name="clock" size={16} style={{ color: 'var(--text-3)' }} />
+            Activité récente
+          </h3>
           {data.recent_activity.length === 0 ? (
             <p className="text-sm" style={{ color: 'var(--text-3)' }}>Aucune activité</p>
           ) : (
             <div className="space-y-2">
               {data.recent_activity.map((a) => (
-                <div
+                <button
                   key={a.id}
-                  className="flex items-center justify-between p-2 rounded cursor-pointer"
-                  style={{ background: 'var(--bg-base)' }}
+                  className="inset flex items-center justify-between gap-3 w-full text-left"
+                  style={{ padding: '8px 10px', cursor: 'pointer' }}
                   onClick={() => onSelectVehicle(a.vehicle_id)}
                 >
                   <div>
@@ -193,7 +210,7 @@ export default function Dashboard({ onSelectVehicle, currentUser }) {
                       {new Date(a.execution_date).toLocaleDateString('fr-FR')}
                     </span>
                   </div>
-                </div>
+                </button>
               ))}
             </div>
           )}
@@ -257,21 +274,18 @@ function CostCharts({ monthlyCosts }) {
       {/* Graphique mensuel */}
       <div>
         <div className="flex items-center justify-between mb-3">
-          <h3 className="text-base font-bold" style={{ color: 'var(--text-1)' }}>📅 Dépenses mensuelles</h3>
+          <h3 className="section-title flex items-center gap-2">
+            <Icon name="calendar" size={16} style={{ color: 'var(--text-3)' }} />
+            Dépenses mensuelles
+          </h3>
           {sortedYears.length > 1 && (
             <div className="flex gap-1">
               {sortedYears.map(y => (
                 <button
                   key={y}
                   onClick={() => setSelectedYear(y)}
-                  style={{
-                    fontSize: '0.72rem', fontWeight: 600,
-                    padding: '2px 8px', borderRadius: 6,
-                    border: '1px solid var(--border)',
-                    background: selectedYear === y ? 'var(--accent)' : 'var(--bg-base)',
-                    color: selectedYear === y ? 'white' : 'var(--text-3)',
-                    cursor: 'pointer',
-                  }}
+                  className={`btn btn-sm ${selectedYear === y ? 'btn-primary' : 'btn-secondary'}`}
+                  style={{ minHeight: 26, padding: '0 9px', fontSize: 12 }}
                 >
                   {y}
                 </button>
@@ -287,7 +301,10 @@ function CostCharts({ monthlyCosts }) {
 
       {/* Graphique annuel — titre en haut, graphique en bas */}
       <div style={{ flex: 1, display: 'flex', flexDirection: 'column' }}>
-        <h3 className="text-base font-bold mb-3" style={{ color: 'var(--text-1)' }}>📈 Dépenses annuelles</h3>
+        <h3 className="section-title flex items-center gap-2" style={{ marginBottom: 10 }}>
+          <Icon name="trendUp" size={16} style={{ color: 'var(--text-3)' }} />
+          Dépenses annuelles
+        </h3>
         <div style={{ flex: 1, display: 'flex', flexDirection: 'column', justifyContent: 'flex-end' }}>
           {annualData.length === 0 ? (
             <p className="text-sm" style={{ color: 'var(--text-3)' }}>Aucune donnée</p>
@@ -334,7 +351,7 @@ function BarChart({ data, max, fmtEuro, height = 160, accentOpacity = 0.6, minBa
             transform: 'translateX(-50%)',
             top: '-4px',
             whiteSpace: 'nowrap',
-            boxShadow: '0 2px 8px rgba(0,0,0,0.12)',
+            boxShadow: 'var(--shadow-md)',
           }}
         >
           <div style={{ fontSize: '0.75rem', fontWeight: 700, color: 'var(--text-1)' }}>{fmtEuro(data[hovered].cost)}</div>

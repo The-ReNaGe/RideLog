@@ -1,37 +1,54 @@
 import React, { useState } from 'react';
+import Icon from './Icon';
+
+/**
+ * Couleur par verbe HTTP.
+ *
+ * Les valeurs étaient écrites en dur (#3399FF, #22CC44, #FF6600), comme
+ * `--bg-input`, `--text-code` et `--primary` — trois jetons qui n'ont jamais
+ * existé dans la feuille de style : les blocs de code s'affichaient donc sans
+ * fond, avec la couleur héritée.
+ */
+const METHOD_COLORS = {
+  GET: 'var(--accent)',
+  POST: 'var(--success)',
+  PUT: 'var(--warning)',
+  PATCH: 'var(--warning)',
+  DELETE: 'var(--danger)',
+};
+const methodColor = (m) => METHOD_COLORS[m] || 'var(--text-2)';
 
 export default function APIDocumentation() {
   const [expandedSection, setExpandedSection] = useState('auth');
 
-  const Section = ({ id, title, icon, children }) => (
-    <div className="mb-8">
-      <button
-        onClick={() => setExpandedSection(expandedSection === id ? null : id)}
-        className="w-full text-left p-4 rounded cursor-pointer transition-all"
-        style={{
-          background: expandedSection === id ? 'var(--bg-surface)' : 'var(--bg-input)',
-          borderLeft: `4px solid var(--primary)`
-        }}
-      >
-        <h3 className="text-lg font-bold flex items-center gap-2" style={{ color: 'var(--text-1)' }}>
-          {icon} {title}
-        </h3>
-      </button>
-      {expandedSection === id && (
-        <div className="p-6 bg-opacity-50" style={{ background: 'var(--bg-surface)' }}>
-          {children}
-        </div>
-      )}
-    </div>
-  );
+  const Section = ({ id, title, icon, children }) => {
+    const open = expandedSection === id;
+    return (
+      <div className="panel mb-4">
+        <button
+          onClick={() => setExpandedSection(open ? null : id)}
+          className="panel-header w-full text-left"
+          style={{ cursor: 'pointer', borderBottom: open ? '1px solid var(--border)' : 'none' }}
+          aria-expanded={open}
+        >
+          <span className="icon-box sm"><Icon name={icon} size={15} /></span>
+          <h3 className="section-title flex-1">{title}</h3>
+          <Icon name={open ? 'chevronUp' : 'chevronDown'} size={16} style={{ color: 'var(--text-3)' }} />
+        </button>
+        {open && <div className="panel-body">{children}</div>}
+      </div>
+    );
+  };
 
-  const CodeBlock = ({ code, language = 'bash' }) => (
+  const CodeBlock = ({ code }) => (
     <pre
-      className="p-4 rounded mb-4 overflow-x-auto text-sm"
+      className="p-3 mb-3 overflow-x-auto text-xs"
       style={{
-        background: 'var(--bg-input)',
-        color: 'var(--text-code)',
-        fontFamily: 'monospace'
+        background: 'var(--bg-surface)',
+        border: '1px solid var(--border)',
+        borderRadius: 'var(--radius-sm)',
+        color: 'var(--text-1)',
+        fontFamily: 'ui-monospace, SFMono-Regular, Menlo, monospace',
       }}
     >
       <code>{code}</code>
@@ -39,34 +56,37 @@ export default function APIDocumentation() {
   );
 
   const ApiEndpoint = ({ method, path, description, example, response }) => (
-    <div className="mb-8 p-4 rounded border-l-4" style={{
-      borderColor: method === 'GET' ? '#3399FF' : method === 'POST' ? '#22CC44' : '#FF6600',
-      background: 'var(--bg-input)'
-    }}>
-      <div className="flex gap-4 items-start mb-3">
-        <span
-          className="px-3 py-1 rounded font-bold text-sm text-white whitespace-nowrap"
-          style={{
-            background: method === 'GET' ? '#3399FF' : method === 'POST' ? '#22CC44' : '#FF6600'
-          }}
-        >
+    <div
+      className="mb-4"
+      style={{
+        borderLeft: `3px solid ${methodColor(method)}`,
+        background: 'var(--bg-surface)',
+        border: '1px solid var(--border)',
+        borderLeftWidth: 3,
+        borderLeftColor: methodColor(method),
+        borderRadius: 'var(--radius)',
+        padding: 14,
+      }}
+    >
+      <div className="flex gap-3 items-center mb-2 flex-wrap">
+        <span className="badge" style={{ background: 'transparent', border: `1px solid ${methodColor(method)}`, color: methodColor(method) }}>
           {method}
         </span>
-        <code style={{ color: 'var(--text-code)', fontSize: '12px' }} className="font-mono">
+        <code style={{ color: 'var(--text-1)', fontSize: 12.5 }} className="font-mono">
           {path}
         </code>
       </div>
       <p className="text-sm mb-3" style={{ color: 'var(--text-2)' }}>{description}</p>
       {example && (
         <>
-          <p style={{ color: 'var(--text-3)', fontSize: '12px' }} className="font-semibold mb-2">Exemple:</p>
+          <p className="card-label">Exemple</p>
           <CodeBlock code={example} />
         </>
       )}
       {response && (
         <>
-          <p style={{ color: 'var(--text-3)', fontSize: '12px' }} className="font-semibold mb-2">Réponse (200 OK):</p>
-          <CodeBlock code={response} language="json" />
+          <p className="card-label">Réponse (200 OK)</p>
+          <CodeBlock code={response} />
         </>
       )}
     </div>
@@ -75,9 +95,10 @@ export default function APIDocumentation() {
   return (
     <div>
       {/* Header */}
-      <div className="card mb-8 border-l-4" style={{ borderColor: 'var(--primary)' }}>
-        <h2 className="text-2xl font-bold mb-4 flex items-center gap-3" style={{ color: 'var(--text-1)' }}>
-          🔌 Documentation API RideLog
+      <div className="card mb-5">
+        <h2 className="section-title flex items-center gap-2 mb-2">
+          <Icon name="plug" size={18} style={{ color: 'var(--text-3)' }} />
+          Documentation de l'API
         </h2>
         <p style={{ color: 'var(--text-2)', lineHeight: '1.6' }} className="text-sm">
           RideLog expose une API REST complète et sécurisée. Tous les endpoints (sauf <code>/auth/login</code> et <code>/auth/register</code>) 
@@ -86,7 +107,7 @@ export default function APIDocumentation() {
       </div>
 
       {/* Quick Links */}
-      <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 mb-8">
+      <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 mb-5">
         {[
           { title: 'Base URL', value: 'localhost:8000' },
           { title: 'Authentification', value: 'JWT Bearer' },
@@ -104,13 +125,13 @@ export default function APIDocumentation() {
 
       {/* Sections */}
 
-      <Section id="auth" icon="🔐" title="Authentification">
+      <Section id="auth" icon={'lock'} title="Authentification">
         <p className="mb-4 text-sm" style={{ color: 'var(--text-2)' }}>
           L'authentification utilise JWT (JSON Web Tokens). Le token est obtenu lors du login et doit être envoyé 
           dans l'en-tête <code>Authorization: Bearer {'<token>'}</code> pour chaque requête protégée.
         </p>
 
-        <h4 className="font-bold text-base mb-3" style={{ color: 'var(--text-1)' }}>📝 Créer un compte</h4>
+        <h4 className="section-title mb-3" style={{ fontSize: '0.95rem' }}>Créer un compte</h4>
         <ApiEndpoint
           method="POST"
           path="/auth/register"
@@ -125,7 +146,7 @@ export default function APIDocumentation() {
   }'`}
         />
 
-        <h4 className="font-bold text-base mb-3" style={{ color: 'var(--text-1)' }}>🔑 Connexion</h4>
+        <h4 className="section-title mb-3" style={{ fontSize: '0.95rem' }}>Connexion</h4>
         <ApiEndpoint
           method="POST"
           path="/auth/login"
@@ -138,7 +159,7 @@ export default function APIDocumentation() {
   }'`}
         />
 
-        <h4 className="font-bold text-base mb-3" style={{ color: 'var(--text-1)' }}>👤 Profil utilisateur</h4>
+        <h4 className="section-title mb-3" style={{ fontSize: '0.95rem' }}>Profil utilisateur</h4>
         <ApiEndpoint
           method="GET"
           path="/auth/me"
@@ -147,7 +168,7 @@ export default function APIDocumentation() {
   -H "Authorization: Bearer <YOUR_TOKEN>"`}
         />
 
-        <h4 className="font-bold text-base mb-3" style={{ color: 'var(--text-1)' }}>🔄 Renouveler le token</h4>
+        <h4 className="section-title mb-3" style={{ fontSize: '0.95rem' }}>Renouveler le token</h4>
         <ApiEndpoint
           method="POST"
           path="/auth/refresh"
@@ -156,7 +177,7 @@ export default function APIDocumentation() {
   -H "Authorization: Bearer <YOUR_TOKEN>"`}
         />
 
-        <h4 className="font-bold text-base mb-3" style={{ color: 'var(--text-1)' }}>🏠 Initialiser Home Assistant</h4>
+        <h4 className="section-title mb-3" style={{ fontSize: '0.95rem' }}>Initialiser Home Assistant</h4>
         <ApiEndpoint
           method="POST"
           path="/auth/ha-init"
@@ -166,12 +187,12 @@ export default function APIDocumentation() {
         />
       </Section>
 
-      <Section id="vehicles" icon="🚗" title="Véhicules">
+      <Section id="vehicles" icon={'car'} title="Véhicules">
         <p className="mb-4 text-sm" style={{ color: 'var(--text-2)' }}>
           Chaque utilisateur peut créer et gérer ses propres véhicules. Les données sont isolées par <code>user_id</code>.
         </p>
 
-        <h4 className="font-bold text-base mb-3" style={{ color: 'var(--text-1)' }}>📋 Lister mes véhicules</h4>
+        <h4 className="section-title mb-3" style={{ fontSize: '0.95rem' }}>Lister mes véhicules</h4>
         <ApiEndpoint
           method="GET"
           path="/vehicles"
@@ -180,7 +201,7 @@ export default function APIDocumentation() {
   -H "Authorization: Bearer <YOUR_TOKEN>"`}
         />
 
-        <h4 className="font-bold text-base mb-3" style={{ color: 'var(--text-1)' }}>➕ Créer un véhicule</h4>
+        <h4 className="section-title mb-3" style={{ fontSize: '0.95rem' }}>Créer un véhicule</h4>
         <ApiEndpoint
           method="POST"
           path="/vehicles"
@@ -196,7 +217,7 @@ export default function APIDocumentation() {
   }'`}
         />
 
-        <h4 className="font-bold text-base mb-3" style={{ color: 'var(--text-1)' }}>🔍 Détail d'un véhicule</h4>
+        <h4 className="section-title mb-3" style={{ fontSize: '0.95rem' }}>Détail d'un véhicule</h4>
         <ApiEndpoint
           method="GET"
           path="/vehicles/{vehicle_id}"
@@ -205,7 +226,7 @@ export default function APIDocumentation() {
   -H "Authorization: Bearer <YOUR_TOKEN>"`}
         />
 
-        <h4 className="font-bold text-base mb-3" style={{ color: 'var(--text-1)' }}>✏️ Modifier un véhicule</h4>
+        <h4 className="section-title mb-3" style={{ fontSize: '0.95rem' }}>Modifier un véhicule</h4>
         <ApiEndpoint
           method="PUT"
           path="/vehicles/{vehicle_id}"
@@ -216,7 +237,7 @@ export default function APIDocumentation() {
   -d '{ "name": "Ma Voiture Modifiée", "mileage": 55000 }'`}
         />
 
-        <h4 className="font-bold text-base mb-3" style={{ color: 'var(--text-1)' }}>🗑️ Supprimer un véhicule</h4>
+        <h4 className="section-title mb-3" style={{ fontSize: '0.95rem' }}>Supprimer un véhicule</h4>
         <ApiEndpoint
           method="DELETE"
           path="/vehicles/{vehicle_id}"
@@ -225,7 +246,7 @@ export default function APIDocumentation() {
   -H "Authorization: Bearer <YOUR_TOKEN>"`}
         />
 
-        <h4 className="font-bold text-base mb-3" style={{ color: 'var(--text-1)' }}>🔎 Décoder un VIN</h4>
+        <h4 className="section-title mb-3" style={{ fontSize: '0.95rem' }}>Décoder un VIN</h4>
         <ApiEndpoint
           method="POST"
           path="/vehicles/decode-vin"
@@ -236,7 +257,7 @@ export default function APIDocumentation() {
   -d '{ "vin": "VF1RFB00X56789012" }'`}
         />
 
-        <h4 className="font-bold text-base mb-3" style={{ color: 'var(--text-1)' }}>🔎 Décoder une plaque</h4>
+        <h4 className="section-title mb-3" style={{ fontSize: '0.95rem' }}>Décoder une plaque</h4>
         <ApiEndpoint
           method="POST"
           path="/vehicles/decode-license-plate"
@@ -247,7 +268,7 @@ export default function APIDocumentation() {
   -d '{ "license_plate": "AB-123-CD" }'`}
         />
 
-        <h4 className="font-bold text-base mb-3" style={{ color: 'var(--text-1)' }}>📷 Photo du véhicule</h4>
+        <h4 className="section-title mb-3" style={{ fontSize: '0.95rem' }}>Photo du véhicule</h4>
         <ApiEndpoint
           method="POST"
           path="/vehicles/{vehicle_id}/photo"
@@ -257,7 +278,7 @@ export default function APIDocumentation() {
   -F "file=@photo.jpg"`}
         />
 
-        <h4 className="font-bold text-base mb-3" style={{ color: 'var(--text-1)' }}>📅 Planning global</h4>
+        <h4 className="section-title mb-3" style={{ fontSize: '0.95rem' }}>Planning global</h4>
         <ApiEndpoint
           method="GET"
           path="/vehicles/planning"
@@ -267,13 +288,13 @@ export default function APIDocumentation() {
         />
       </Section>
 
-      <Section id="maintenances" icon="🔧" title="Entretiens">
+      <Section id="maintenances" icon={'wrench'} title="Entretiens">
         <p className="mb-4 text-sm" style={{ color: 'var(--text-2)' }}>
           Gérez l'historique d'entretien de chaque véhicule. Ajoutez des interventions avec factures, 
           consultez les entretiens à venir et les recommandations.
         </p>
 
-        <h4 className="font-bold text-base mb-3" style={{ color: 'var(--text-1)' }}>📋 Historique d'entretien</h4>
+        <h4 className="section-title mb-3" style={{ fontSize: '0.95rem' }}>Historique d'entretien</h4>
         <ApiEndpoint
           method="GET"
           path="/vehicles/{vehicle_id}/maintenances"
@@ -282,7 +303,7 @@ export default function APIDocumentation() {
   -H "Authorization: Bearer <YOUR_TOKEN>"`}
         />
 
-        <h4 className="font-bold text-base mb-3" style={{ color: 'var(--text-1)' }}>➕ Ajouter un entretien</h4>
+        <h4 className="section-title mb-3" style={{ fontSize: '0.95rem' }}>Ajouter un entretien</h4>
         <ApiEndpoint
           method="POST"
           path="/vehicles/{vehicle_id}/maintenances"
@@ -296,7 +317,7 @@ export default function APIDocumentation() {
   -F "invoices=@facture.pdf"`}
         />
 
-        <h4 className="font-bold text-base mb-3" style={{ color: 'var(--text-1)' }}>✏️ Modifier un entretien</h4>
+        <h4 className="section-title mb-3" style={{ fontSize: '0.95rem' }}>Modifier un entretien</h4>
         <ApiEndpoint
           method="PUT"
           path="/vehicles/{vehicle_id}/maintenances/{maintenance_id}"
@@ -307,7 +328,7 @@ export default function APIDocumentation() {
   -F "notes=Huile synthétique 5W40"`}
         />
 
-        <h4 className="font-bold text-base mb-3" style={{ color: 'var(--text-1)' }}>🗑️ Supprimer un entretien</h4>
+        <h4 className="section-title mb-3" style={{ fontSize: '0.95rem' }}>Supprimer un entretien</h4>
         <ApiEndpoint
           method="DELETE"
           path="/vehicles/{vehicle_id}/maintenances/{maintenance_id}"
@@ -316,7 +337,7 @@ export default function APIDocumentation() {
   -H "Authorization: Bearer <YOUR_TOKEN>"`}
         />
 
-        <h4 className="font-bold text-base mb-3" style={{ color: 'var(--text-1)' }}>📄 Télécharger une facture</h4>
+        <h4 className="section-title mb-3" style={{ fontSize: '0.95rem' }}>Télécharger une facture</h4>
         <ApiEndpoint
           method="GET"
           path="/vehicles/{vehicle_id}/maintenances/{maintenance_id}/invoices/{invoice_id}"
@@ -325,7 +346,7 @@ export default function APIDocumentation() {
   -H "Authorization: Bearer <YOUR_TOKEN>" --output facture.pdf`}
         />
 
-        <h4 className="font-bold text-base mb-3" style={{ color: 'var(--text-1)' }}>⏰ Entretiens à venir</h4>
+        <h4 className="section-title mb-3" style={{ fontSize: '0.95rem' }}>Entretiens à venir</h4>
         <ApiEndpoint
           method="GET"
           path="/vehicles/{vehicle_id}/upcoming"
@@ -334,7 +355,7 @@ export default function APIDocumentation() {
   -H "Authorization: Bearer <YOUR_TOKEN>"`}
         />
 
-        <h4 className="font-bold text-base mb-3" style={{ color: 'var(--text-1)' }}>💡 Recommandations</h4>
+        <h4 className="section-title mb-3" style={{ fontSize: '0.95rem' }}>Recommandations</h4>
         <ApiEndpoint
           method="GET"
           path="/vehicles/{vehicle_id}/recommendations"
@@ -343,7 +364,7 @@ export default function APIDocumentation() {
   -H "Authorization: Bearer <YOUR_TOKEN>"`}
         />
 
-        <h4 className="font-bold text-base mb-3" style={{ color: 'var(--text-1)' }}>📊 Interventions disponibles</h4>
+        <h4 className="section-title mb-3" style={{ fontSize: '0.95rem' }}>Interventions disponibles</h4>
         <ApiEndpoint
           method="GET"
           path="/vehicles/{vehicle_id}/available-interventions"
@@ -353,12 +374,12 @@ export default function APIDocumentation() {
         />
       </Section>
 
-      <Section id="fuels" icon="⛽" title="Carburant">
+      <Section id="fuels" icon={'fuel'} title="Carburant">
         <p className="mb-4 text-sm" style={{ color: 'var(--text-2)' }}>
           Suivez vos pleins de carburant et analysez votre consommation. Recherchez les stations les moins chères à proximité.
         </p>
 
-        <h4 className="font-bold text-base mb-3" style={{ color: 'var(--text-1)' }}>📋 Historique des pleins</h4>
+        <h4 className="section-title mb-3" style={{ fontSize: '0.95rem' }}>Historique des pleins</h4>
         <ApiEndpoint
           method="GET"
           path="/vehicles/{vehicle_id}/fuel-logs"
@@ -367,7 +388,7 @@ export default function APIDocumentation() {
   -H "Authorization: Bearer <YOUR_TOKEN>"`}
         />
 
-        <h4 className="font-bold text-base mb-3" style={{ color: 'var(--text-1)' }}>➕ Ajouter un plein</h4>
+        <h4 className="section-title mb-3" style={{ fontSize: '0.95rem' }}>Ajouter un plein</h4>
         <ApiEndpoint
           method="POST"
           path="/vehicles/{vehicle_id}/fuel-logs"
@@ -385,7 +406,7 @@ export default function APIDocumentation() {
   }'`}
         />
 
-        <h4 className="font-bold text-base mb-3" style={{ color: 'var(--text-1)' }}>📊 Statistiques consommation</h4>
+        <h4 className="section-title mb-3" style={{ fontSize: '0.95rem' }}>Statistiques consommation</h4>
         <ApiEndpoint
           method="GET"
           path="/vehicles/{vehicle_id}/fuel-stats"
@@ -394,7 +415,7 @@ export default function APIDocumentation() {
   -H "Authorization: Bearer <YOUR_TOKEN>"`}
         />
 
-        <h4 className="font-bold text-base mb-3" style={{ color: 'var(--text-1)' }}>🔍 Rechercher des stations</h4>
+        <h4 className="section-title mb-3" style={{ fontSize: '0.95rem' }}>Rechercher des stations</h4>
         <ApiEndpoint
           method="GET"
           path="/fuel-stations/search?city=Paris&fuel_type=SP95"
@@ -403,7 +424,7 @@ export default function APIDocumentation() {
   -H "Authorization: Bearer <YOUR_TOKEN>"`}
         />
 
-        <h4 className="font-bold text-base mb-3" style={{ color: 'var(--text-1)' }}>🏙️ Suggestions de villes</h4>
+        <h4 className="section-title mb-3" style={{ fontSize: '0.95rem' }}>Suggestions de villes</h4>
         <ApiEndpoint
           method="GET"
           path="/fuel-stations/city-suggestions?q=Par"
@@ -413,13 +434,13 @@ export default function APIDocumentation() {
         />
       </Section>
 
-      <Section id="exports" icon="📦" title="Exports & Intégrations">
+      <Section id="exports" icon={'package'} title="Exports & Intégrations">
         <p className="mb-4 text-sm" style={{ color: 'var(--text-2)' }}>
           Exportez vos données en CSV, générez des récapitulatifs, estimez la valeur du véhicule 
           et intégrez avec Home Assistant.
         </p>
 
-        <h4 className="font-bold text-base mb-3" style={{ color: 'var(--text-1)' }}>📊 Export CSV</h4>
+        <h4 className="section-title mb-3" style={{ fontSize: '0.95rem' }}>Export CSV</h4>
         <ApiEndpoint
           method="GET"
           path="/vehicles/{vehicle_id}/csv"
@@ -428,7 +449,7 @@ export default function APIDocumentation() {
   -H "Authorization: Bearer <YOUR_TOKEN>" --output entretiens.csv`}
         />
 
-        <h4 className="font-bold text-base mb-3" style={{ color: 'var(--text-1)' }}>📋 Récapitulatif complet</h4>
+        <h4 className="section-title mb-3" style={{ fontSize: '0.95rem' }}>Récapitulatif complet</h4>
         <ApiEndpoint
           method="GET"
           path="/vehicles/{vehicle_id}/recap"
@@ -437,7 +458,7 @@ export default function APIDocumentation() {
   -H "Authorization: Bearer <YOUR_TOKEN>"`}
         />
 
-        <h4 className="font-bold text-base mb-3" style={{ color: 'var(--text-1)' }}>📥 Télécharger ZIP</h4>
+        <h4 className="section-title mb-3" style={{ fontSize: '0.95rem' }}>Télécharger ZIP</h4>
         <ApiEndpoint
           method="GET"
           path="/vehicles/{vehicle_id}/recap/download"
@@ -446,7 +467,7 @@ export default function APIDocumentation() {
   -H "Authorization: Bearer <YOUR_TOKEN>" --output recap.zip`}
         />
 
-        <h4 className="font-bold text-base mb-3" style={{ color: 'var(--text-1)' }}>💰 Estimation valeur</h4>
+        <h4 className="section-title mb-3" style={{ fontSize: '0.95rem' }}>Estimation valeur</h4>
         <ApiEndpoint
           method="GET"
           path="/vehicles/{vehicle_id}/estimate"
@@ -455,7 +476,7 @@ export default function APIDocumentation() {
   -H "Authorization: Bearer <YOUR_TOKEN>"`}
         />
 
-        <h4 className="font-bold text-base mb-3" style={{ color: 'var(--text-1)' }}>🏠 Données Home Assistant</h4>
+        <h4 className="section-title mb-3" style={{ fontSize: '0.95rem' }}>Données Home Assistant</h4>
         <ApiEndpoint
           method="GET"
           path="/vehicles/{vehicle_id}/homeassistant"
@@ -464,7 +485,7 @@ export default function APIDocumentation() {
   -H "Authorization: Bearer <YOUR_TOKEN>"`}
         />
 
-        <h4 className="font-bold text-base mb-3" style={{ color: 'var(--text-1)' }}>🎨 Carte HA dynamique</h4>
+        <h4 className="section-title mb-3" style={{ fontSize: '0.95rem' }}>Carte HA dynamique</h4>
         <ApiEndpoint
           method="GET"
           path="/vehicles/{vehicle_id}/ha-dashboard-card"
@@ -474,13 +495,13 @@ export default function APIDocumentation() {
         />
       </Section>
 
-      <Section id="webhooks" icon="🪝" title="Webhooks & Notifications">
+      <Section id="webhooks" icon={'webhook'} title="Webhooks & Notifications">
         <p className="mb-4 text-sm" style={{ color: 'var(--text-2)' }}>
           Configurez des notifications automatiques vers Discord, ntfy.sh, Gotify, Home Assistant, etc. 
           Chaque utilisateur gère ses propres webhooks en isolation complète.
         </p>
 
-        <h4 className="font-bold text-base mb-3" style={{ color: 'var(--text-1)' }}>📋 Lister mes webhooks</h4>
+        <h4 className="section-title mb-3" style={{ fontSize: '0.95rem' }}>Lister mes webhooks</h4>
         <ApiEndpoint
           method="GET"
           path="/settings/webhooks"
@@ -489,7 +510,7 @@ export default function APIDocumentation() {
   -H "Authorization: Bearer <YOUR_TOKEN>"`}
         />
 
-        <h4 className="font-bold text-base mb-3" style={{ color: 'var(--text-1)' }}>➕ Créer un webhook</h4>
+        <h4 className="section-title mb-3" style={{ fontSize: '0.95rem' }}>Créer un webhook</h4>
         <ApiEndpoint
           method="POST"
           path="/settings/webhooks"
@@ -503,7 +524,7 @@ export default function APIDocumentation() {
   }'`}
         />
 
-        <h4 className="font-bold text-base mb-3" style={{ color: 'var(--text-1)' }}>🗑️ Supprimer un webhook</h4>
+        <h4 className="section-title mb-3" style={{ fontSize: '0.95rem' }}>Supprimer un webhook</h4>
         <ApiEndpoint
           method="DELETE"
           path="/settings/webhooks/{webhook_id}"
@@ -512,7 +533,7 @@ export default function APIDocumentation() {
   -H "Authorization: Bearer <YOUR_TOKEN>"`}
         />
 
-        <h4 className="font-bold text-base mb-3" style={{ color: 'var(--text-1)' }}>🔔 Activer/Désactiver</h4>
+        <h4 className="section-title mb-3" style={{ fontSize: '0.95rem' }}>Activer/Désactiver</h4>
         <ApiEndpoint
           method="PUT"
           path="/settings/webhooks/{webhook_id}"
@@ -521,7 +542,7 @@ export default function APIDocumentation() {
   -H "Authorization: Bearer <YOUR_TOKEN>"`}
         />
 
-        <h4 className="font-bold text-base mb-3" style={{ color: 'var(--text-1)' }}>🧪 Tester un webhook</h4>
+        <h4 className="section-title mb-3" style={{ fontSize: '0.95rem' }}>Tester un webhook</h4>
         <ApiEndpoint
           method="POST"
           path="/settings/webhooks/{webhook_id}/test"
@@ -530,7 +551,7 @@ export default function APIDocumentation() {
   -H "Authorization: Bearer <YOUR_TOKEN>"`}
         />
 
-        <h4 className="font-bold text-base mb-3" style={{ color: 'var(--text-1)' }}>🔄 Forcer vérification rappels</h4>
+        <h4 className="section-title mb-3" style={{ fontSize: '0.95rem' }}>Forcer vérification rappels</h4>
         <ApiEndpoint
           method="POST"
           path="/settings/webhooks/check-reminders"
@@ -540,12 +561,12 @@ export default function APIDocumentation() {
         />
       </Section>
 
-      <Section id="admin" icon="👑" title="Administration">
+      <Section id="admin" icon={'shield'} title="Administration">
         <p className="mb-4 text-sm" style={{ color: 'var(--text-2)' }}>
           Endpoints réservés aux administrateurs pour gérer les utilisateurs.
         </p>
 
-        <h4 className="font-bold text-base mb-3" style={{ color: 'var(--text-1)' }}>👥 Lister les utilisateurs</h4>
+        <h4 className="section-title mb-3" style={{ fontSize: '0.95rem' }}>Lister les utilisateurs</h4>
         <ApiEndpoint
           method="GET"
           path="/admin/users"
@@ -554,7 +575,7 @@ export default function APIDocumentation() {
   -H "Authorization: Bearer <ADMIN_TOKEN>"`}
         />
 
-        <h4 className="font-bold text-base mb-3" style={{ color: 'var(--text-1)' }}>🗑️ Supprimer un utilisateur</h4>
+        <h4 className="section-title mb-3" style={{ fontSize: '0.95rem' }}>Supprimer un utilisateur</h4>
         <ApiEndpoint
           method="DELETE"
           path="/admin/users/{user_id}"
@@ -563,7 +584,7 @@ export default function APIDocumentation() {
   -H "Authorization: Bearer <ADMIN_TOKEN>"`}
         />
 
-        <h4 className="font-bold text-base mb-3" style={{ color: 'var(--text-1)' }}>⬆️ Promouvoir admin</h4>
+        <h4 className="section-title mb-3" style={{ fontSize: '0.95rem' }}>Promouvoir admin</h4>
         <ApiEndpoint
           method="PUT"
           path="/admin/users/{user_id}/promote"
@@ -573,25 +594,25 @@ export default function APIDocumentation() {
         />
       </Section>
 
-      <Section id="security" icon="🔒" title="Sécurité">
+      <Section id="security" icon={'shield'} title="Sécurité">
         <div className="space-y-3 text-sm">
-          <div className="p-3 rounded" style={{ background: 'var(--bg-input)', borderLeft: '4px solid #22CC44' }}>
-            <p className="font-semibold mb-1">✅ Isolation par utilisateur</p>
+          <div className="inset p-3" style={{ borderLeft: '3px solid var(--success)' }}>
+            <p className="font-semibold mb-1">Isolation par utilisateur</p>
             <p style={{ color: 'var(--text-2)' }}>Chaque utilisateur ne voit que ses propres données.</p>
           </div>
 
-          <div className="p-3 rounded" style={{ background: 'var(--bg-input)', borderLeft: '4px solid #22CC44' }}>
-            <p className="font-semibold mb-1">✅ Authentification JWT</p>
+          <div className="inset p-3" style={{ borderLeft: '3px solid var(--success)' }}>
+            <p className="font-semibold mb-1">Authentification JWT</p>
             <p style={{ color: 'var(--text-2)' }}>Tous les endpoints nécessitent un JWT valide (7 jours).</p>
           </div>
 
-          <div className="p-3 rounded" style={{ background: 'var(--bg-input)', borderLeft: '4px solid #22CC44' }}>
-            <p className="font-semibold mb-1">✅ Mots de passe hachés</p>
+          <div className="inset p-3" style={{ borderLeft: '3px solid var(--success)' }}>
+            <p className="font-semibold mb-1">Mots de passe hachés</p>
             <p style={{ color: 'var(--text-2)' }}>Hachés avec bcrypt (coût 12, ~100ms par vérification).</p>
           </div>
 
-          <div className="p-3 rounded" style={{ background: 'var(--bg-input)', borderLeft: '4px solid #22CC44' }}>
-            <p className="font-semibold mb-1">✅ Upload sécurisé</p>
+          <div className="inset p-3" style={{ borderLeft: '3px solid var(--success)' }}>
+            <p className="font-semibold mb-1">Upload sécurisé</p>
             <p style={{ color: 'var(--text-2)' }}>Vérification MIME type, taille max 10 Mo, stockage isolé par utilisateur.</p>
           </div>
         </div>

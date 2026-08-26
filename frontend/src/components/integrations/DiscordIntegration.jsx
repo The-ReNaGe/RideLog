@@ -1,5 +1,7 @@
 import React, { useState } from 'react';
 import { api } from '../../lib/api';
+import Icon from '../Icon';
+import Notice from '../Notice';
 
 export default function DiscordIntegration() {
   const [webhooks, setWebhooks] = useState([]);
@@ -34,9 +36,9 @@ export default function DiscordIntegration() {
       setWebhookUrl('');
       setShowForm(false);
       fetchWebhooks();
-      alert('✅ Webhook Discord ajouté!');
+      alert('Webhook Discord ajouté.');
     } catch (err) {
-      alert('❌ Erreur : ' + (err.response?.data?.detail || err.message));
+      alert('Erreur : ' + (err.response?.data?.detail || err.message));
     }
   };
 
@@ -44,9 +46,9 @@ export default function DiscordIntegration() {
     setTesting(true);
     try {
       await api.testWebhook(webhookId);
-      alert('✅ Message de test envoyé sur Discord!');
+      alert('Message de test envoyé sur Discord.');
     } catch (err) {
-      alert('❌ Erreur : ' + (err.response?.data?.detail || err.message));
+      alert('Erreur : ' + (err.response?.data?.detail || err.message));
     }
     setTesting(false);
   };
@@ -56,7 +58,7 @@ export default function DiscordIntegration() {
       try {
         await api.deleteWebhook(webhookId);
         fetchWebhooks();
-        alert('✅ Webhook supprimé');
+        alert('Webhook supprimé.');
       } catch (err) {
         alert('Impossible de supprimer le webhook');
       }
@@ -73,35 +75,33 @@ export default function DiscordIntegration() {
   };
 
   return (
-    <div className="card p-6 mb-6">
-      <div className="flex justify-between items-center mb-6">
+    <div className="card">
+      <div className="flex items-center gap-3 mb-4">
+        <div className="icon-box"><Icon name="message" size={18} /></div>
         <div>
-          <h3 className="text-xl font-bold flex items-center gap-2" style={{ color: 'var(--text-1)' }}>
-            💬 Discord
-          </h3>
-          <p className="text-sm mt-2" style={{ color: 'var(--text-2)' }}>
-            Recevez les alertes de maintenance directement sur Discord
+          <h3 className="section-title">Discord</h3>
+          <p className="text-sm" style={{ color: 'var(--text-2)' }}>
+            Recevez les alertes d'entretien directement sur votre serveur.
           </p>
         </div>
       </div>
 
-      <div className="rounded p-3 text-sm mb-4" style={{ background: 'var(--accent-light)', border: '1px solid var(--accent)', color: 'var(--text-1)' }}>
-        <p className="font-bold mb-2">📌 Configurer un webhook Discord :</p>
-        <ol className="list-decimal list-inside space-y-1 text-xs">
+      <Notice tone="info" title="Configurer un webhook Discord" className="mb-4">
+        <ol className="list-decimal list-inside space-y-1">
           <li>Allez dans <strong>Paramètres du serveur → Intégrations → Webhooks</strong></li>
           <li>Cliquez sur <strong>Créer un webhook</strong></li>
           <li>Choisissez le salon où envoyer les messages</li>
           <li>Copiez l'URL du webhook</li>
           <li>Collez-la ci-dessous</li>
         </ol>
-      </div>
+      </Notice>
 
       {webhooks.length > 0 ? (
         <div className="mb-6">
-          <h4 className="font-bold mb-3" style={{ color: 'var(--text-1)' }}>Webhooks configurés :</h4>
+          <h4 className="card-label">Webhooks configurés</h4>
           <div className="space-y-2">
             {webhooks.map((webhook) => (
-              <div key={webhook.id} className="flex items-center justify-between p-3 card gap-2">
+              <div key={webhook.id} className="inset flex items-center justify-between gap-2" style={{ padding: 12 }}>
                 <div className="flex-1 min-w-0">
                   <div className="text-sm break-all" style={{ color: 'var(--text-2)' }}>{webhook.url}</div>
                 </div>
@@ -109,23 +109,24 @@ export default function DiscordIntegration() {
                   <button
                     onClick={() => handleTestWebhook(webhook.id)}
                     disabled={testing}
-                    className="px-3 py-1 rounded text-sm font-medium btn btn-secondary whitespace-nowrap"
+                    className="btn btn-secondary btn-sm"
                   >
-                    {testing ? '...' : '🧪 Tester'}
+                    <Icon name="send" size={14} />
+                    {testing ? 'Envoi…' : 'Tester'}
                   </button>
                   <button
                     onClick={() => handleToggleWebhook(webhook.id, webhook.is_active)}
-                    className={`px-3 py-1 rounded text-sm font-medium btn whitespace-nowrap ${
-                      webhook.is_active ? 'btn-primary' : 'btn-secondary'
-                    }`}
+                    className={`btn btn-sm ${webhook.is_active ? 'btn-primary' : 'btn-secondary'}`}
                   >
                     {webhook.is_active ? 'Actif' : 'Inactif'}
                   </button>
                   <button
                     onClick={() => handleDeleteWebhook(webhook.id)}
-                    className="btn btn-danger text-sm whitespace-nowrap"
+                    className="btn-icon danger"
+                    title="Supprimer ce webhook"
+                    aria-label="Supprimer ce webhook"
                   >
-                    ✕
+                    <Icon name="trash" size={15} />
                   </button>
                 </div>
               </div>
@@ -133,8 +134,11 @@ export default function DiscordIntegration() {
           </div>
         </div>
       ) : (
-        <div className="text-center py-6 mb-4" style={{ color: 'var(--text-2)' }}>
-          <p>Aucun webhook Discord configuré</p>
+        <div className="text-center mb-4" style={{ padding: '24px 8px' }}>
+          <div className="icon-box lg neutral mx-auto" style={{ marginBottom: 10 }}>
+            <Icon name="webhook" size={20} />
+          </div>
+          <p style={{ color: 'var(--text-2)' }}>Aucun webhook Discord configuré.</p>
         </div>
       )}
 
@@ -143,16 +147,17 @@ export default function DiscordIntegration() {
           onClick={() => setShowForm(true)}
           className="btn btn-primary w-full mb-4"
         >
-          ✅ Ajouter un webhook Discord
+          <Icon name="plus" size={16} strokeWidth={2} />
+          Ajouter un webhook Discord
         </button>
       )}
 
       {showForm && (
-        <div className="p-4 card mb-4" style={{ background: 'var(--bg-base)' }}>
+        <div className="inset mb-4" style={{ padding: 16 }}>
           <input
             type="text"
-            placeholder="https://discord.com/api/webhooks/..."
-            className="input w-full mb-3"
+            placeholder="https://discord.com/api/webhooks/…"
+            className="w-full mb-3"
             value={webhookUrl}
             onChange={(e) => setWebhookUrl(e.target.value)}
           />

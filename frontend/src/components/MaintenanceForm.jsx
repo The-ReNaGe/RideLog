@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { api } from '../lib/api';
 import RevisionChecklistModal from './RevisionChecklistModal';
+import Icon from './Icon';
 import {
   REVISION_TRIGGERS,
   SUBITEM_TRIGGERS,
@@ -186,7 +187,7 @@ export default function MaintenanceForm({
         <h3 className="text-lg font-bold mb-4">Enregistrer une intervention</h3>
 
         {error && (
-          <div className="p-3 bg-red-100 border border-red-300 rounded text-red-800 text-sm">
+          <div className="text-sm" style={{ background: 'var(--danger-light)', border: '1px solid var(--danger)', color: 'var(--danger)', borderRadius: 'var(--radius-sm)', padding: 12 }}>
             {error}
           </div>
         )}
@@ -199,7 +200,7 @@ export default function MaintenanceForm({
               value={formData.intervention_type}
               onChange={handleChange}
               required
-              className="w-full px-3 py-2 border border-gray-300 rounded-lg"
+              className="w-full"
             >
               <option value="">Sélectionnez une intervention...</option>
               {availableInterventions.map((intervention) => {
@@ -220,7 +221,7 @@ export default function MaintenanceForm({
                   onChange={handleChange}
                   placeholder="Ex: Remplacement silencieux, Réparation moteur..."
                   required
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg"
+                  className="w-full"
                 />
               </div>
             )}
@@ -228,7 +229,8 @@ export default function MaintenanceForm({
             {needsRevisionModal && (
               <div className="mt-2 flex items-center justify-between gap-2 p-2 rounded text-xs" style={{ background: 'var(--bg-base)', border: '1px solid var(--border)' }}>
                 <span style={{ color: 'var(--text-3)' }}>
-                  📋 {pendingSubInterventions && pendingSubInterventions.length > 0
+                  <Icon name="clipboard" size={15} />
+                  {pendingSubInterventions && pendingSubInterventions.length > 0
                     ? `${pendingSubInterventions.length} élément(s) sélectionné(s)`
                     : 'Aucun détail sélectionné'}
                 </span>
@@ -261,7 +263,7 @@ export default function MaintenanceForm({
               value={formData.execution_date}
               onChange={handleChange}
               required
-              className="w-full px-3 py-2 border border-gray-300 rounded-lg"
+              className="w-full"
             />
           </div>
 
@@ -276,7 +278,7 @@ export default function MaintenanceForm({
               value={formData.mileage_at_intervention}
               onChange={handleChange}
               placeholder="Laisser vide pour estimation auto"
-              className="w-full px-3 py-2 border border-gray-300 rounded-lg"
+              className="w-full"
             />
           </div>
 
@@ -289,7 +291,7 @@ export default function MaintenanceForm({
               onChange={handleChange}
               placeholder="Optionnel"
               step="0.01"
-              className="w-full px-3 py-2 border border-gray-300 rounded-lg"
+              className="w-full"
             />
           </div>
 
@@ -299,11 +301,11 @@ export default function MaintenanceForm({
               name="maintenance_category"
               value={formData.maintenance_category}
               onChange={handleChange}
-              className="w-full px-3 py-2 border border-gray-300 rounded-lg mb-3"
+              className="w-full mb-3"
             >
-              <option value="scheduled">🔧 Entretien</option>
-              <option value="repair">⚠️ Réparation/Panne</option>
-              <option value="modification">🔨 Modification véhicule</option>
+              <option value="scheduled">Entretien</option>
+              <option value="repair">Réparation / panne</option>
+              <option value="modification">Modification du véhicule</option>
             </select>
           </div>
         </div>
@@ -316,7 +318,7 @@ export default function MaintenanceForm({
             onChange={handleChange}
             placeholder="Notes additionnelles..."
             rows="2"
-            className="w-full px-3 py-2 border border-gray-300 rounded-lg"
+            className="w-full"
           />
         </div>
 
@@ -329,20 +331,22 @@ export default function MaintenanceForm({
             accept="application/pdf,image/jpeg,image/png,image/webp"
             onChange={handleInvoiceChange}
             disabled={invoiceFiles.length >= 10}
-            className="w-full px-3 py-2 border border-gray-300 rounded-lg disabled:bg-gray-100"
+            className="w-full"
           />
           {invoiceFiles.length > 0 && (
             <div className="mt-3 space-y-2">
               <p className="text-sm font-medium">Fichiers sélectionnés ({invoiceFiles.length}/10) :</p>
               <ul className="space-y-1">
                 {invoiceFiles.map((file, index) => (
-                  <li key={index} className="flex items-center justify-between p-2 rounded text-sm" style={{ background: 'var(--bg-base)' }}>
+                  <li key={index} className="inset flex items-center justify-between p-2 text-sm">
                     <span className="truncate">{file.name}</span>
                     <button
                       type="button"
                       onClick={() => removeInvoice(index)}
-                      className="ml-2 text-red-600 hover:text-red-800 font-medium"
-                    >✕</button>
+                      className="btn-icon danger"
+                      style={{ marginLeft: 6, minHeight: 24, width: 24 }}
+                      aria-label={`Retirer ${file.name}`}
+                    ><Icon name="close" size={13} strokeWidth={2.2} /></button>
                   </li>
                 ))}
               </ul>

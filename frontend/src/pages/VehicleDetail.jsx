@@ -5,26 +5,25 @@ import MaintenanceForm from '../components/MaintenanceForm';
 import MaintenanceHistory from '../components/MaintenanceHistory';
 import FuelTracking from '../components/FuelTracking';
 import VehiclePhoto from '../components/VehiclePhoto';
+import Icon from '../components/Icon';
+import CategoryTag, { getCategory } from '../components/CategoryTag';
 
 const motorLabels = {
-  essence: 'Essence', diesel: 'Diesel', hybrid: 'Hybride',
-  electric: 'Électrique', thermal: 'Thermique',
+  essence: 'Essence', diesel: 'Diesel', hybride: 'Hybride', hybrid: 'Hybride',
+  electrique: 'Électrique', electric: 'Électrique',
+  thermal: 'Thermique', thermique: 'Thermique',
 };
 const categoryLabels = {
-  accessible: '♻️ Accessible', generalist: '🔧 Généraliste', premium: '👑 Premium',
+  accessible: 'Accessible', generalist: 'Généraliste', premium: 'Premium',
 };
 const tabs = [
-  { key: 'upcoming', label: '📋 À venir' },
-  { key: 'history', label: '📜 Historique' },
-  { key: 'fuel', label: '⛽ Carburant' },
-  { key: 'recap', label: '📊 Récapitulatif' },
+  { key: 'upcoming', icon: 'clipboard', label: 'À venir' },
+  { key: 'history',  icon: 'note',      label: 'Historique' },
+  { key: 'fuel',     icon: 'fuel',      label: 'Carburant' },
+  { key: 'recap',    icon: 'chart',     label: 'Récapitulatif' },
 ];
 
-const CAT_MAP = {
-  scheduled:    { icon: '🔧', label: 'Entretien',    bg: 'var(--accent)',  bgLight: 'rgba(108,138,247,0.12)' },
-  repair:       { icon: '⚠️', label: 'Réparation',   bg: 'var(--warning)', bgLight: 'rgba(243,156,18,0.12)' },
-  modification: { icon: '🔨', label: 'Modification',  bg: '#8b5cf6',        bgLight: 'rgba(139,92,246,0.12)' },
-};
+
 
 export default function VehicleDetail({ vehicleId, onBack, currentUser }) {
   const [vehicle, setVehicle] = useState(null);
@@ -45,6 +44,7 @@ export default function VehicleDetail({ vehicleId, onBack, currentUser }) {
   const [isEditing, setIsEditing] = useState(false);
   const [editedVehicle, setEditedVehicle] = useState(null);
   const [editSaving, setEditSaving] = useState(false);
+  const [deleting, setDeleting] = useState(false);
   const photoInputRef = useRef(null);
 
   useEffect(() => { fetchData(); }, [vehicleId]);
@@ -121,6 +121,25 @@ export default function VehicleDetail({ vehicleId, onBack, currentUser }) {
     } finally { setMileageSaving(false); }
   }, [newMileage, vehicleId, fetchData]);
 
+  // La suppression vit ici, derrière « Modifier », et pas sur la carte de la
+  // liste : là-bas, la carte entière est cliquable et une corbeille au coin se
+  // déclenche par erreur.
+  const handleDeleteVehicle = useCallback(async () => {
+    if (!window.confirm(
+      `Supprimer ${vehicle?.brand} ${vehicle?.model} ?\n\n` +
+      'Tout son historique d\'entretien, ses pleins et ses factures seront supprimés. ' +
+      'Cette action est définitive.'
+    )) return;
+    try {
+      setDeleting(true);
+      await api.deleteVehicle(vehicleId);
+      onBack();
+    } catch (err) {
+      alert(err.response?.data?.detail || 'Impossible de supprimer ce véhicule');
+      setDeleting(false);
+    }
+  }, [vehicle, vehicleId, onBack]);
+
   const handleEditStart = () => {
     setEditedVehicle({
       name: vehicle.name,
@@ -188,10 +207,14 @@ export default function VehicleDetail({ vehicleId, onBack, currentUser }) {
   if (error) {
     return (
       <div className="text-center py-16">
-        <p style={{ color: '#CC0000' }} className="mb-4">⚠️ Erreur lors du chargement</p>
+        <div className="icon-box lg danger mx-auto" style={{ marginBottom: 12 }}>
+          <Icon name="alert" size={20} />
+        </div>
+        <p className="mb-1" style={{ color: 'var(--text-1)', fontWeight: 700 }}>Erreur lors du chargement</p>
         <p className="text-sm" style={{ color: 'var(--text-2)' }}>{error}</p>
-        <button onClick={() => { setError(null); fetchData(); }} className="mt-4 px-4 py-2 rounded" style={{ background: 'var(--accent)', color: 'white' }}>
-          🔄 Réessayer
+        <button onClick={() => { setError(null); fetchData(); }} className="btn btn-primary mt-4">
+          <Icon name="refresh" size={16} />
+          Réessayer
         </button>
       </div>
     );
@@ -222,9 +245,9 @@ export default function VehicleDetail({ vehicleId, onBack, currentUser }) {
 
       {/* Modal d'édition */}
       {isEditing && editedVehicle && (
-        <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000, padding: '1rem' }}>
-          <div className="card p-6 w-full max-w-md" style={{ maxHeight: '90vh', overflowY: 'auto' }}>
-            <h3 className="text-xl font-bold mb-4">Modifier les informations</h3>
+        <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, background: 'rgba(12,15,22,0.55)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000, padding: '1rem' }}>
+          <div className="card w-full max-w-md" style={{ maxHeight: '90vh', overflowY: 'auto', boxShadow: 'var(--shadow-lg)' }}>
+            <h3 className="mb-4">Modifier les informations</h3>
             <div className="space-y-3 text-sm">
               {[
                 { label: 'Nom du véhicule', key: 'name', type: 'text' },
@@ -234,22 +257,21 @@ export default function VehicleDetail({ vehicleId, onBack, currentUser }) {
                 { label: "Prix d'achat", key: 'purchase_price', type: 'number', min: '0', step: '100' },
               ].map(field => (
                 <div key={field.key}>
-                  <label style={{ color: 'var(--text-2)' }}>{field.label}</label>
+                  <label className="field-label">{field.label}</label>
                   <input
                     type={field.type}
                     min={field.min} max={field.max} step={field.step}
                     value={editedVehicle[field.key]}
                     onChange={e => setEditedVehicle({ ...editedVehicle, [field.key]: e.target.value })}
-                    className="w-full px-3 py-2 mt-1 rounded input-field"
                   />
                 </div>
               ))}
               <div>
-                <label style={{ color: 'var(--text-2)' }}>Notes</label>
+                <label className="field-label">Notes</label>
                 <textarea
                   value={editedVehicle.notes}
                   onChange={e => setEditedVehicle({ ...editedVehicle, notes: e.target.value })}
-                  className="w-full px-3 py-2 mt-1 rounded input-field" rows="3"
+                  rows="3"
                 />
               </div>
               <div>
@@ -261,7 +283,10 @@ export default function VehicleDetail({ vehicleId, onBack, currentUser }) {
                     className="mt-1"
                   />
                   <span>
-                    <span style={{ color: 'var(--text-1)' }}>🔒 Véhicule privé</span>
+                    <span className="inline-flex items-center gap-1.5" style={{ color: 'var(--text-1)', fontWeight: 600 }}>
+                      <Icon name="lock" size={14} />
+                      Véhicule privé
+                    </span>
                     <span className="block text-xs" style={{ color: 'var(--text-3)' }}>
                       Exclu du partage avec votre groupe famille. Vous continuez à le voir.
                     </span>
@@ -270,98 +295,180 @@ export default function VehicleDetail({ vehicleId, onBack, currentUser }) {
               </div>
             </div>
             <div className="flex gap-2 mt-6">
-              <button onClick={() => setIsEditing(false)} disabled={editSaving} className="flex-1 px-4 py-2 rounded disabled:opacity-50" style={{ background: 'var(--bg-surface)', border: '1px solid var(--border)', color: 'var(--text-1)' }}>
+              <button onClick={() => setIsEditing(false)} disabled={editSaving} className="btn btn-secondary flex-1">
                 Annuler
               </button>
-              <button onClick={handleEditSave} disabled={editSaving} className="flex-1 px-4 py-2 rounded disabled:opacity-50" style={{ background: 'var(--accent)', color: 'white' }}>
-                {editSaving ? '⏳ Sauvegarde…' : '💾 Sauvegarder'}
+              <button onClick={handleEditSave} disabled={editSaving} className="btn btn-primary flex-1">
+                {editSaving ? 'Enregistrement…' : 'Enregistrer'}
               </button>
             </div>
+
           </div>
         </div>
       )}
 
-      <button onClick={onBack} className="mb-4 sm:mb-6 px-3 py-1.5 font-medium text-sm hover:opacity-80 transition-opacity" style={{ color: 'var(--accent)' }}>
-        ← Retour aux véhicules
+      <button onClick={onBack} className="btn btn-ghost btn-sm mb-4" style={{ marginLeft: -10 }}>
+        <Icon name="chevronLeft" size={16} strokeWidth={2} />
+        Retour aux véhicules
       </button>
 
       {/* Véhicule consulté via le groupe famille : le backend refuserait toute
           écriture en 404. Mieux vaut retirer les commandes que laisser
           l'utilisateur buter dessus. */}
       {!canEdit && (
-        <div className="card p-3 mb-4 text-sm" style={{ background: 'var(--accent-light)', color: 'var(--text-1)' }}>
-          👁️ Véhicule de <strong>{vehicle.owner_display_name || 'un autre membre'}</strong>,
-          partagé avec votre groupe famille. Consultation seule.
+        <div
+          className="flex items-center gap-2 mb-4"
+          style={{
+            background: 'var(--accent-light)', color: 'var(--text-1)',
+            border: '1px solid var(--border)', borderRadius: 'var(--radius)',
+            padding: '10px 14px', fontSize: 14,
+          }}
+        >
+          <Icon name="eye" size={16} style={{ color: 'var(--accent)' }} />
+          <span>
+            Véhicule de <strong>{vehicle.owner_display_name || 'un autre membre'}</strong>,
+            partagé avec votre groupe famille. Consultation seule.
+          </span>
         </div>
       )}
 
-      {/* Vehicle Header */}
-      <div className="card overflow-hidden mb-6">
-        {vehicle.photo_url && (
-          <div className="photo-container mb-4">
-            <VehiclePhoto vehicleId={vehicle.id} version={vehicle.updated_at} alt={`${vehicle.brand} ${vehicle.model}`} />
-            {canEdit && (
-              <button onClick={handlePhotoDelete} className="absolute top-2 right-2 rounded-full w-8 h-8 flex items-center justify-center text-sm hover:opacity-80 font-bold" style={{ background: 'var(--danger)', color: 'white' }}>✕</button>
+      {/* En-tête du véhicule */}
+      <section className="card mb-5" style={{ padding: 0, overflow: 'hidden' }}>
+        <div className="flex flex-col sm:flex-row">
+          {/* Visuel — silhouette en fond, photo par-dessus si elle existe.
+              Une hauteur fixe évite que la fiche saute selon la présence
+              d'une photo et selon son format. */}
+          <div
+            className="photo-container hero-media relative"
+          >
+            <Icon
+              name={vehicle.vehicle_type === 'car' ? 'car' : 'motorcycle'}
+              size={56} strokeWidth={1.3}
+              style={{ color: 'var(--border-strong)', position: 'absolute' }}
+            />
+            {vehicle.photo_url && (
+              <VehiclePhoto
+                vehicleId={vehicle.id}
+                version={vehicle.updated_at}
+                alt={`${vehicle.brand} ${vehicle.model}`}
+                backdrop
+              />
+            )}
+            {vehicle.photo_url && canEdit && (
+              <button
+                onClick={handlePhotoDelete}
+                className="btn-icon"
+                title="Supprimer la photo"
+                aria-label="Supprimer la photo"
+                style={{
+                  position: 'absolute', top: 8, right: 8,
+                  background: 'var(--bg-surface)', border: '1px solid var(--border)',
+                  boxShadow: 'var(--shadow-xs)',
+                }}
+              >
+                <Icon name="close" size={15} strokeWidth={2.2} />
+              </button>
             )}
           </div>
-        )}
-        <div className="p-4 sm:p-6">
-          <div className="flex flex-col sm:flex-row sm:justify-between sm:items-start gap-3">
-            <div className="flex-1 min-w-0">
-              <h2 className="text-xl sm:text-3xl font-bold" style={{ color: 'var(--text-1)' }}>
-                {vehicle.vehicle_type === 'car' ? '🚗' : '🏍️'} {vehicle.brand} {vehicle.model}
-              </h2>
-              <div className="flex flex-wrap gap-x-3 gap-y-1 mt-2 text-sm" style={{ color: 'var(--text-2)' }}>
-                <span>{vehicle.year}</span>
-                <span>{motorLabels[vehicle.motorization] || vehicle.motorization}</span>
-                {vehicle.displacement > 0 && <span>{vehicle.displacement} cc</span>}
-                {editingMileage ? (
-                  <span className="flex items-center gap-1">
-                    <input type="number" value={newMileage} onChange={e => setNewMileage(e.target.value)}
-                      className="w-28 px-2 py-0.5 text-sm rounded input-field" autoFocus
-                      onKeyDown={e => { if (e.key === 'Enter') handleMileageSave(); if (e.key === 'Escape') setEditingMileage(false); }}
-                    />
-                    <button onClick={handleMileageSave} disabled={mileageSaving} className="font-bold text-xs" style={{ color: 'var(--success)' }}>✓</button>
-                    <button onClick={() => setEditingMileage(false)} className="text-xs" style={{ color: 'var(--text-3)' }}>✕</button>
-                  </span>
-                ) : canEdit ? (
-                  <button onClick={() => { setNewMileage(String(vehicle.current_mileage)); setEditingMileage(true); }}
-                    className="font-bold hover:opacity-80 cursor-pointer" style={{ color: 'var(--accent)' }}>
-                    {vehicle.current_mileage.toLocaleString()} km ✏️
-                  </button>
-                ) : (
-                  <span className="font-bold" style={{ color: 'var(--text-1)' }}>
-                    {vehicle.current_mileage.toLocaleString()} km
-                  </span>
+
+          <div className="flex-1 min-w-0 flex flex-col gap-3" style={{ padding: '16px 18px' }}>
+            <div className="flex items-start justify-between gap-3 flex-wrap">
+              <div className="min-w-0">
+                <div className="flex items-center gap-2 flex-wrap">
+                  <h1 style={{ fontSize: '1.5rem', margin: 0 }}>{vehicle.brand} {vehicle.model}</h1>
+                  {vehicle.is_private && canEdit && (
+                    <span className="badge badge-neutral" title="Exclu du partage avec votre groupe famille">
+                      <Icon name="lock" size={12} strokeWidth={2} />
+                      Privé
+                    </span>
+                  )}
+                </div>
+                {vehicle.name && vehicle.name.trim() !== `${vehicle.brand} ${vehicle.model}`.trim() && (
+                  <p style={{ fontSize: 13, color: 'var(--text-3)' }}>{vehicle.name}</p>
                 )}
-                {vehicleAge > 0 && <span>{vehicleAge} an{vehicleAge > 1 ? 's' : ''}</span>}
               </div>
-              {vehicle.notes && <p className="text-sm mt-2" style={{ color: 'var(--text-2)' }}>{vehicle.notes}</p>}
-            </div>
-            <div className="flex flex-row sm:flex-col items-center sm:items-end gap-2 flex-wrap">
-              <span className="text-sm font-medium" style={{ color: 'var(--text-1)' }}>{categoryLabels[vehicle.range_category] || vehicle.range_category}</span>
+
               {canEdit && (
-                <>
+                <div className="flex items-center gap-2 flex-wrap">
                   <input ref={photoInputRef} type="file" accept="image/jpeg,image/png,image/webp" onChange={handlePhotoUpload} className="hidden" />
-                  <button onClick={() => photoInputRef.current?.click()} disabled={photoUploading}
-                    className="text-xs px-3 py-1.5 rounded-lg disabled:opacity-50"
-                    style={{ background: 'var(--bg-surface)', border: '1px solid var(--border)', color: 'var(--text-2)' }}>
-                    {photoUploading ? '⏳ Upload…' : vehicle.photo_url ? '📷 Changer' : '📷 Photo'}
+                  <button onClick={() => photoInputRef.current?.click()} disabled={photoUploading} className="btn btn-secondary btn-sm">
+                    <Icon name="camera" size={15} />
+                    {photoUploading ? 'Envoi…' : vehicle.photo_url ? 'Changer la photo' : 'Ajouter une photo'}
                   </button>
-                  <button onClick={handleEditStart} className="text-xs px-3 py-1.5 rounded-lg" style={{ background: 'var(--accent)', color: 'white' }}>
-                    ✏️ Modifier
+                  <button onClick={handleEditStart} className="btn btn-secondary btn-sm">
+                    <Icon name="pencil" size={15} />
+                    Modifier
                   </button>
+                  <button
+                    onClick={handleDeleteVehicle}
+                    disabled={deleting}
+                    className="btn-icon danger"
+                    title="Supprimer ce véhicule"
+                    aria-label="Supprimer ce véhicule"
+                    style={{ border: '1px solid var(--border)' }}
+                  >
+                    <Icon name="trash" size={15} />
+                  </button>
+                </div>
+              )}
+            </div>
+
+            <div className="flex flex-wrap items-center" style={{ gap: 6 }}>
+              {[
+                vehicle.year ? `${vehicle.year}${vehicleAge > 0 ? ` · ${vehicleAge} an${vehicleAge > 1 ? 's' : ''}` : ''}` : null,
+                motorLabels[vehicle.motorization] || vehicle.motorization,
+                vehicle.displacement > 0 ? `${vehicle.displacement} cm³` : null,
+                categoryLabels[vehicle.range_category] || vehicle.range_category,
+              ].filter(Boolean).map((m, i) => (
+                <React.Fragment key={m}>
+                  {i > 0 && <span className="chip-sep" aria-hidden="true">·</span>}
+                  <span className="chip">{m}</span>
+                </React.Fragment>
+              ))}
+            </div>
+
+            {/* Kilométrage — la donnée la plus consultée et la plus souvent
+                corrigée : elle se modifie sur place, sans ouvrir la modale. */}
+            <div className="inset inline-flex items-center self-start" style={{ gap: 10, padding: '8px 12px' }}>
+              <Icon name="gauge" size={17} style={{ color: 'var(--text-3)' }} />
+              {editingMileage ? (
+                <span className="flex items-center gap-1">
+                  <input
+                    type="number" value={newMileage} onChange={e => setNewMileage(e.target.value)}
+                    style={{ width: 110 }} autoFocus
+                    onKeyDown={e => { if (e.key === 'Enter') handleMileageSave(); if (e.key === 'Escape') setEditingMileage(false); }}
+                  />
+                  <button onClick={handleMileageSave} disabled={mileageSaving} className="btn-icon" title="Valider" style={{ color: 'var(--success)' }}>
+                    <Icon name="check" size={16} strokeWidth={2.4} />
+                  </button>
+                  <button onClick={() => setEditingMileage(false)} className="btn-icon" title="Annuler">
+                    <Icon name="close" size={16} strokeWidth={2.2} />
+                  </button>
+                </span>
+              ) : (
+                <>
+                  <span className="tabular" style={{ fontSize: 20, fontWeight: 800, letterSpacing: '-0.02em', color: 'var(--text-1)' }}>
+                    {vehicle.current_mileage.toLocaleString('fr-FR')}
+                    <span style={{ fontSize: 13, fontWeight: 600, color: 'var(--text-3)', marginLeft: 4 }}>km</span>
+                  </span>
+                  {canEdit && (
+                    <button
+                      onClick={() => { setNewMileage(String(vehicle.current_mileage)); setEditingMileage(true); }}
+                      className="btn-icon" title="Corriger le kilométrage" aria-label="Corriger le kilométrage"
+                    >
+                      <Icon name="pencil" size={15} />
+                    </button>
+                  )}
                 </>
               )}
-              {vehicle.is_private && canEdit && (
-                <span className="text-xs px-2 py-1 rounded" style={{ background: 'var(--bg-surface)', border: '1px solid var(--border)', color: 'var(--text-3)' }}>
-                  🔒 Privé
-                </span>
-              )}
             </div>
+
+            {vehicle.notes && (
+              <p style={{ fontSize: 13, color: 'var(--text-2)' }}>{vehicle.notes}</p>
+            )}
           </div>
         </div>
-      </div>
+      </section>
 
       {/* KPI Cards */}
       {(() => {
@@ -372,12 +479,12 @@ export default function VehicleDetail({ vehicleId, onBack, currentUser }) {
         const nextDays = next ? Math.round(next.days_remaining) : null;
 
         const stateConfig = overdue > 0
-          ? { icon: '🔴', label: 'En retard',    color: 'var(--danger)' }
+          ? { icon: 'alertCircle', tone: 'danger',  label: 'En retard',    color: 'var(--danger)' }
           : urgent > 0
-          ? { icon: '🟠', label: 'Urgent',       color: 'var(--warning)' }
+          ? { icon: 'alert',       tone: 'warning', label: 'Urgent',       color: 'var(--warning)' }
           : warning > 0
-          ? { icon: '🟡', label: 'À surveiller', color: '#f59e0b' }
-          : { icon: '✅', label: 'À jour',        color: 'var(--success)' };
+          ? { icon: 'clock',       tone: 'warning', label: 'À surveiller', color: 'var(--warning)' }
+          : { icon: 'checkCircle', tone: 'success', label: 'À jour',       color: 'var(--success)' };
 
         const nextLabel = nextDays == null ? '—'
           : nextDays <= 0 ? 'En retard'
@@ -387,18 +494,23 @@ export default function VehicleDetail({ vehicleId, onBack, currentUser }) {
           : nextDays <= 0 ? 'var(--danger)'
           : nextDays <= 7 ? 'var(--warning)'
           : 'var(--text-1)';
-        const nextName = next?.intervention_type
-          ? (next.intervention_type.length > 16 ? next.intervention_type.slice(0, 14) + '…' : next.intervention_type)
-          : null;
+        const nextName = next?.intervention_type || null;
 
         const fmtEuro = (n) => n.toLocaleString('fr-FR', { style: 'currency', currency: 'EUR', maximumFractionDigits: 0 });
 
-        // Style commun à toutes les cards — label + valeur + sous-label
+        // Style commun à toutes les cards — libellé, valeur, précision.
+        // Toutes partagent la même taille de valeur et la même hauteur : une
+        // rangée dont les chiffres n'ont pas le même corps se lit comme une
+        // hiérarchie qui n'existe pas.
         const KpiCard = ({ label, value, valueColor = 'var(--text-1)', sub = null }) => (
-          <div className="card p-3 text-center" style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', minHeight: '90px' }}>
-            <div className="card-label" style={{ marginBottom: '6px' }}>{label}</div>
-            <div style={{ fontSize: '22px', fontWeight: 700, lineHeight: 1.2, color: valueColor }}>{value}</div>
-            {sub && <div style={{ fontSize: '0.68rem', color: 'var(--text-3)', marginTop: '4px' }}>{sub}</div>}
+          <div className="card" style={{ padding: 14, minHeight: 92, display: 'flex', flexDirection: 'column', justifyContent: 'space-between' }}>
+            <div className="card-label" style={{ marginBottom: 0 }}>{label}</div>
+            <div>
+              <div className="tabular" style={{ fontSize: 21, fontWeight: 800, lineHeight: 1.2, letterSpacing: '-0.02em', color: valueColor }}>
+                {value}
+              </div>
+              {sub && <div className="text-ellipsis" style={{ fontSize: 12, color: 'var(--text-3)', marginTop: 2 }}>{sub}</div>}
+            </div>
           </div>
         );
 
@@ -406,17 +518,23 @@ export default function VehicleDetail({ vehicleId, onBack, currentUser }) {
           <div className="mb-6">
             {canEdit && (
               <div className="flex justify-end mb-3">
-                <button onClick={() => setShowMaintenanceForm(!showMaintenanceForm)} className="btn btn-primary">
-                  {showMaintenanceForm ? 'Annuler' : '+ Intervention'}
+                <button onClick={() => setShowMaintenanceForm(!showMaintenanceForm)} className={`btn ${showMaintenanceForm ? 'btn-secondary' : 'btn-primary'}`}>
+                  <Icon name={showMaintenanceForm ? 'close' : 'plus'} size={16} strokeWidth={2} />
+                  {showMaintenanceForm ? 'Annuler' : 'Enregistrer une intervention'}
                 </button>
               </div>
             )}
             <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
               <KpiCard
                 label="État"
-                value={<span style={{ fontSize: '1.5rem' }}>{stateConfig.icon}</span>}
-                valueColor={stateConfig.color}
-                sub={stateConfig.label}
+                value={
+                  <span className="inline-flex items-center" style={{ gap: 8 }}>
+                    <span className={`icon-box sm ${stateConfig.tone}`}>
+                      <Icon name={stateConfig.icon} size={16} />
+                    </span>
+                    <span style={{ fontSize: 15, fontWeight: 700, color: stateConfig.color }}>{stateConfig.label}</span>
+                  </span>
+                }
               />
               <KpiCard
                 label="En retard"
@@ -447,10 +565,13 @@ export default function VehicleDetail({ vehicleId, onBack, currentUser }) {
       })()}
 
       {estimate && estimate.estimated_value != null && (
-        <div className="card p-4 mb-6" style={{ borderLeft: '4px solid var(--success)' }}>
-          <div className="card-label">💰 Prix d'achat</div>
-          <div className="stat-number" style={{ color: 'var(--success)' }}>
+        <div className="card mb-5 inline-flex items-center gap-3" style={{ padding: '12px 16px' }}>
+          <div className="icon-box success"><Icon name="euro" size={18} /></div>
+          <div>
+          <div className="card-label" style={{ marginBottom: 2 }}>Prix d'achat</div>
+          <div className="stat-number" style={{ color: 'var(--success)', fontSize: 22 }}>
             {new Intl.NumberFormat('fr-FR', { style: 'currency', currency: 'EUR', maximumFractionDigits: 0 }).format(estimate.estimated_value)}
+          </div>
           </div>
         </div>
       )}
@@ -473,14 +594,29 @@ export default function VehicleDetail({ vehicleId, onBack, currentUser }) {
       {/* Recommendations */}
       {recommendations?.recommendations?.length > 0 && (
         <div className="mb-6">
-          <h3 className="text-xl font-bold mb-4" style={{ color: 'var(--text-1)' }}>Recommandations</h3>
-          <div className="space-y-3">
+          <h3 className="section-title mb-3">Recommandations</h3>
+          <div className="space-y-2">
             {recommendations.recommendations.map((rec, idx) => {
-              const color = rec.type === 'error' ? 'var(--danger)' : rec.type === 'warning' ? 'var(--warning)' : '#3b82f6';
+              const tone = {
+                error:   { color: 'var(--danger)',  bg: 'var(--danger-light)',  icon: 'alertCircle', label: 'Critique' },
+                warning: { color: 'var(--warning)', bg: 'var(--warning-light)', icon: 'alert',       label: 'Attention' },
+                info:    { color: 'var(--accent)',  bg: 'var(--accent-light)',  icon: 'info',        label: 'Information' },
+              }[rec.type] || { color: 'var(--accent)', bg: 'var(--accent-light)', icon: 'info', label: 'Information' };
               return (
-                <div key={idx} className="card p-4" style={{ background: `${color}15`, borderLeft: `4px solid ${color}` }}>
-                  <p className="font-medium" style={{ color }}>{{ error: '🔴 Critique', warning: '🟡 Attention', info: '🔵 Info' }[rec.type]}</p>
-                  <p className="mt-1" style={{ color: 'var(--text-1)' }}>{rec.message}</p>
+                <div
+                  key={idx}
+                  className="flex items-start gap-3"
+                  style={{
+                    background: tone.bg, border: '1px solid var(--border)',
+                    borderLeft: `3px solid ${tone.color}`,
+                    borderRadius: 'var(--radius)', padding: '12px 14px',
+                  }}
+                >
+                  <Icon name={tone.icon} size={17} style={{ color: tone.color, marginTop: 2 }} />
+                  <div className="min-w-0">
+                    <p style={{ color: tone.color, fontWeight: 700, fontSize: 13 }}>{tone.label}</p>
+                    <p style={{ color: 'var(--text-1)', fontSize: 14 }}>{rec.message}</p>
+                  </div>
                 </div>
               );
             })}
@@ -489,19 +625,18 @@ export default function VehicleDetail({ vehicleId, onBack, currentUser }) {
       )}
 
       {/* Tabs */}
-      <div className="mb-4 overflow-x-auto" style={{ borderBottom: '1px solid var(--border)' }}>
-        <div className="flex gap-1 sm:gap-4 min-w-max">
-          {tabs.map(tab => (
-            <button
-              key={tab.key}
-              onClick={() => { setActiveTab(tab.key); if (tab.key === 'recap' && !recap) loadRecap(); }}
-              className="px-3 sm:px-4 py-2 font-medium text-sm transition-all whitespace-nowrap"
-              style={{ borderBottom: activeTab === tab.key ? '2px solid var(--accent)' : '2px solid transparent', color: activeTab === tab.key ? 'var(--accent)' : 'var(--text-2)' }}
-            >
-              {tab.label}
-            </button>
-          ))}
-        </div>
+      <div className="tabs mb-5">
+        {tabs.map(tab => (
+          <button
+            key={tab.key}
+            onClick={() => { setActiveTab(tab.key); if (tab.key === 'recap' && !recap) loadRecap(); }}
+            className={`tab ${activeTab === tab.key ? 'active' : ''}`}
+            aria-current={activeTab === tab.key ? 'true' : undefined}
+          >
+            <Icon name={tab.icon} size={16} />
+            {tab.label}
+          </button>
+        ))}
       </div>
 
       {/* Tab Content */}
@@ -518,32 +653,36 @@ export default function VehicleDetail({ vehicleId, onBack, currentUser }) {
           ) : recap ? (
             <div className="space-y-6">
               {/* Header récap */}
-              <div className="card p-4 sm:p-5" style={{ borderLeft: '4px solid var(--accent)' }}>
+              <div className="card">
                 <div className="flex items-center justify-between flex-wrap gap-3">
-                  <div>
-                    <h3 className="text-lg font-bold" style={{ color: 'var(--text-1)' }}>
-                      {recap.vehicle_type === 'car' ? '🚗' : '🏍️'} {recap.vehicle_name}
-                    </h3>
+                  <div className="flex items-center gap-3">
+                    <div className="icon-box"><Icon name={recap.vehicle_type === 'car' ? 'car' : 'motorcycle'} size={18} /></div>
+                    <div>
+                    <h3 className="section-title">{recap.vehicle_name}</h3>
                     <p className="text-sm" style={{ color: 'var(--text-3)' }}>
                       {recap.vehicle_year && `Année ${recap.vehicle_year} · `}{recap.current_mileage?.toLocaleString('fr-FR')} km
                     </p>
+                    </div>
                   </div>
                   <div className="flex gap-2 flex-wrap">
                     <button
                       onClick={() => { const n = (recap.vehicle_name || 'vehicule').replace(/\s+/g, '_'); api.downloadFile(`/vehicles/${vehicleId}/recap/download`, `suivi_${n}.zip`); }}
-                      className="btn btn-primary inline-flex items-center gap-2 text-sm"
+                      className="btn btn-primary btn-sm"
                     >
-                      📥 Télécharger
+                      <Icon name="download" size={15} />
+                      Télécharger l'archive
                     </button>
-                    <button onClick={loadRecap} className="btn btn-secondary">🔄</button>
+                    <button onClick={loadRecap} className="btn btn-secondary btn-sm" title="Recharger">
+                      <Icon name="refresh" size={15} />
+                    </button>
                   </div>
                 </div>
               </div>
 
               {/* Total */}
-              <div className="card p-5 text-center" style={{ background: 'var(--bg-surface)' }}>
-                <div className="text-sm font-medium mb-1" style={{ color: 'var(--text-3)' }}>Coût total toutes catégories</div>
-                <div className="text-4xl font-bold" style={{ color: 'var(--accent)' }}>
+              <div className="card text-center">
+                <div className="card-label">Coût total toutes catégories</div>
+                <div className="tabular" style={{ fontSize: 34, fontWeight: 800, letterSpacing: '-0.03em', color: 'var(--accent)' }}>
                   {recap.total_cost.toLocaleString('fr-FR', { minimumFractionDigits: 2 })} €
                 </div>
                 <div className="text-sm mt-1" style={{ color: 'var(--text-3)' }}>
@@ -555,20 +694,23 @@ export default function VehicleDetail({ vehicleId, onBack, currentUser }) {
               {recap.cost_by_category && (
                 <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
                   {[
-                    { key: 'scheduled', icon: '🔧', label: 'Entretien',    color: 'var(--accent)' },
-                    { key: 'repair',    icon: '⚠️', label: 'Réparation',   color: 'var(--warning)' },
-                    { key: 'modification', icon: '🔨', label: 'Modification', color: '#8b5cf6' },
+                    { key: 'scheduled',    icon: 'wrench',  label: 'Entretien',    color: 'var(--accent)' },
+                    { key: 'repair',       icon: 'alert',   label: 'Réparation',   color: 'var(--warning)' },
+                    { key: 'modification', icon: 'sliders', label: 'Modification', color: 'var(--purple)' },
                   ].map(cat => {
                     const cost = recap.cost_by_category[cat.key] || 0;
                     const count = recap.count_by_category?.[cat.key] || 0;
                     const pct = recap.total_cost > 0 ? Math.round((cost / recap.total_cost) * 100) : 0;
                     return (
-                      <div key={cat.key} className="card p-4" style={{ borderLeft: `4px solid ${cat.color}` }}>
-                        <div className="flex items-center justify-between mb-2">
-                          <span className="text-sm font-semibold" style={{ color: 'var(--text-1)' }}>{cat.icon} {cat.label}</span>
-                          <span className="text-xs px-2 py-0.5 rounded-full font-medium" style={{ background: 'var(--bg-surface)', color: 'var(--text-3)' }}>{count} interv.</span>
+                      <div key={cat.key} className="card">
+                        <div className="flex items-center justify-between gap-2 mb-2">
+                          <span className="inline-flex items-center gap-2 text-sm font-semibold" style={{ color: 'var(--text-1)' }}>
+                            <Icon name={cat.icon} size={15} style={{ color: cat.color }} />
+                            {cat.label}
+                          </span>
+                          <span className="badge badge-neutral">{count}</span>
                         </div>
-                        <div className="text-2xl font-bold" style={{ color: cat.color }}>
+                        <div className="tabular" style={{ fontSize: 22, fontWeight: 800, letterSpacing: '-0.02em', color: cat.color }}>
                           {cost.toLocaleString('fr-FR', { minimumFractionDigits: 2 })} €
                         </div>
                         {recap.total_cost > 0 && (
@@ -590,7 +732,7 @@ export default function VehicleDetail({ vehicleId, onBack, currentUser }) {
                 <div className="card p-12 text-center"><p style={{ color: 'var(--text-3)' }}>Aucun entretien enregistré.</p></div>
               ) : (
                 <div className="space-y-3">
-                  <h3 className="text-lg font-bold" style={{ color: 'var(--text-1)' }}>Détail des interventions</h3>
+                  <h3 className="section-title">Détail des interventions</h3>
 
                   {/* Desktop : tableau */}
                   <div className="hidden sm:block overflow-x-auto">
@@ -608,14 +750,12 @@ export default function VehicleDetail({ vehicleId, onBack, currentUser }) {
                       </thead>
                       <tbody>
                         {recap.maintenances.map(m => {
-                          const cat = CAT_MAP[m.maintenance_category] || CAT_MAP.scheduled;
+                          const cat = getCategory(m.maintenance_category);
                           const dt = (m.intervention_type === 'Autre' && m.other_description) ? m.other_description : m.intervention_type;
                           return (
                             <tr key={m.id} style={{ borderBottom: '1px solid var(--border)' }}>
                               <td className="py-2.5 pr-4 whitespace-nowrap" style={{ color: 'var(--text-1)' }}>{new Date(m.execution_date).toLocaleDateString('fr-FR')}</td>
-                              <td className="py-2.5 pr-4">
-                                <span style={{ display: 'inline-block', padding: '2px 8px', borderRadius: 4, fontSize: 11, fontWeight: 600, background: cat.bgLight, color: cat.bg }}>{cat.icon} {cat.label}</span>
-                              </td>
+                              <td className="py-2.5 pr-4"><CategoryTag category={cat} /></td>
                               <td className="py-2.5 pr-4 font-medium" style={{ color: 'var(--text-1)' }}>
                                 {dt}
                                 {m.sub_interventions && m.sub_interventions.length > 0 && (
@@ -642,8 +782,10 @@ export default function VehicleDetail({ vehicleId, onBack, currentUser }) {
                               <td className="py-2.5">
                                 {m.has_invoice ? (
                                   <button onClick={e => { e.preventDefault(); api.downloadFile(m.invoice_download_url, m.invoice_filename || 'facture'); }}
-                                    style={{ color: 'var(--accent)', fontWeight: 500, background: 'none', border: 'none', cursor: 'pointer', padding: 0 }} className="whitespace-nowrap">
-                                    📎 {m.invoice_filename || 'Facture'}
+                                    style={{ color: 'var(--accent)', fontWeight: 600, background: 'none', border: 'none', cursor: 'pointer', padding: 0 }}
+                                    className="whitespace-nowrap inline-flex items-center gap-1.5">
+                                    <Icon name="paperclip" size={14} />
+                                    {m.invoice_filename || 'Facture'}
                                   </button>
                                 ) : <span style={{ color: 'var(--text-3)' }}>—</span>}
                               </td>
@@ -668,15 +810,13 @@ export default function VehicleDetail({ vehicleId, onBack, currentUser }) {
                   {/* Mobile : cartes empilées */}
                   <div className="sm:hidden space-y-2">
                     {recap.maintenances.map(m => {
-                      const cat = CAT_MAP[m.maintenance_category] || CAT_MAP.scheduled;
+                      const cat = getCategory(m.maintenance_category);
                       const dt = (m.intervention_type === 'Autre' && m.other_description) ? m.other_description : m.intervention_type;
                       return (
-                        <div key={m.id} className="card p-3" style={{ borderLeft: `3px solid ${cat.bg}` }}>
+                        <div key={m.id} className="card p-3" style={{ borderLeft: `3px solid ${cat.color}` }}>
                           <div className="flex items-start justify-between gap-2 mb-1">
                             <span className="font-semibold text-sm" style={{ color: 'var(--text-1)' }}>{dt}</span>
-                            <span style={{ fontSize: 10, fontWeight: 600, padding: '1px 6px', borderRadius: 4, background: cat.bgLight, color: cat.bg, flexShrink: 0 }}>
-                              {cat.icon} {cat.label}
-                            </span>
+                            <CategoryTag category={cat} />
                           </div>
                           {m.sub_interventions && m.sub_interventions.length > 0 && (
                             <div className="flex flex-wrap gap-1 mt-1 mb-1">
@@ -696,16 +836,17 @@ export default function VehicleDetail({ vehicleId, onBack, currentUser }) {
                             </div>
                           )}
                           <div className="flex flex-wrap gap-x-3 gap-y-0.5 text-xs" style={{ color: 'var(--text-3)' }}>
-                            <span>📅 {new Date(m.execution_date).toLocaleDateString('fr-FR')}</span>
-                            <span>🛣 {m.mileage_at_intervention.toLocaleString('fr-FR')} km</span>
-                            {m.cost_paid != null && <span style={{ color: 'var(--success)', fontWeight: 600 }}>💶 {m.cost_paid.toFixed(2)} €</span>}
+                            <span className="inline-flex items-center gap-1"><Icon name="calendar" size={12} />{new Date(m.execution_date).toLocaleDateString('fr-FR')}</span>
+                            <span className="inline-flex items-center gap-1"><Icon name="gauge" size={12} />{m.mileage_at_intervention.toLocaleString('fr-FR')} km</span>
+                            {m.cost_paid != null && <span className="inline-flex items-center gap-1" style={{ color: 'var(--success)', fontWeight: 600 }}><Icon name="euro" size={12} />{m.cost_paid.toFixed(2)} €</span>}
                           </div>
                           {m.notes && <p className="text-xs mt-1" style={{ color: 'var(--text-2)' }}>{m.notes}</p>}
                           {m.has_invoice && (
                             <button onClick={e => { e.preventDefault(); api.downloadFile(m.invoice_download_url, m.invoice_filename || 'facture'); }}
-                              className="text-xs mt-1 block hover:opacity-70"
+                              className="text-xs mt-1 inline-flex items-center gap-1.5 hover:opacity-70"
                               style={{ color: 'var(--accent)', background: 'none', border: 'none', padding: 0, cursor: 'pointer' }}>
-                              📎 {m.invoice_filename || 'Facture'}
+                              <Icon name="paperclip" size={13} />
+                              {m.invoice_filename || 'Facture'}
                             </button>
                           )}
                         </div>
