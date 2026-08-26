@@ -2,6 +2,46 @@ import React, { useEffect, useState } from 'react';
 import { api } from '../lib/api';
 import VehicleForm from '../components/VehicleForm';
 import VehicleCard from '../components/VehicleCard';
+import Icon from '../components/Icon';
+
+const countLabel = (n) =>
+  n === 0 ? 'Aucun véhicule' : n === 1 ? '1 véhicule' : `${n} véhicules`;
+
+/**
+ * Bloc « garage » — un panneau fermé par garage.
+ *
+ * Un titre suivi de cartes flottantes ne délimite rien : avec plusieurs
+ * garages à la suite, on ne voit plus où l'un s'arrête et où le suivant
+ * commence. Le panneau (bordure, en-tête, fond creusé) répond à cette seule
+ * question.
+ */
+function GaragePanel({ title, owner, subtitle, badge, count, action, children }) {
+  // L'initiale est celle de la personne : « Garage de tata » donnerait « G »,
+  // identique pour tous les garages, donc inutile.
+  const initial = ((owner || title).match(/[A-Za-zÀ-ÿ0-9]/) || ['?'])[0];
+
+  return (
+    <section className="panel">
+      <header className="panel-header">
+        <div className="avatar" aria-hidden="true">{initial}</div>
+        <div className="flex-1 min-w-0">
+          <div className="flex items-center gap-2 flex-wrap">
+            <h2 className="section-title">{title}</h2>
+            {badge}
+          </div>
+          {subtitle && (
+            <p style={{ fontSize: 13, color: 'var(--text-2)', marginTop: 2 }}>{subtitle}</p>
+          )}
+        </div>
+        <span className="badge badge-neutral">{countLabel(count)}</span>
+        {action}
+      </header>
+      <div className="panel-body">{children}</div>
+    </section>
+  );
+}
+
+const GRID = 'grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4';
 
 export default function VehicleList({ onSelectVehicle, currentUser }) {
   const [vehicles, setVehicles] = useState([]);
@@ -32,22 +72,9 @@ export default function VehicleList({ onSelectVehicle, currentUser }) {
     fetchVehicles();
   };
 
-  const handleDeleteVehicle = async (vehicleId) => {
-    if (window.confirm('Êtes-vous sûr de vouloir supprimer ce véhicule?')) {
-      try {
-        await api.deleteVehicle(vehicleId);
-        fetchVehicles();
-      } catch (err) {
-        alert('Impossible de supprimer le véhicule');
-        console.error(err);
-      }
-    }
-  };
-
-  // Titre personnalisé avec le nom de l'utilisateur
   const garageTitle = currentUser
     ? `Garage de ${currentUser.display_name}`
-    : 'Mes véhicules';
+    : 'Mon garage';
 
   // Séparation par propriétaire : ses véhicules d'abord, puis un garage par
   // membre du groupe famille. Mélangés dans une seule grille, on ne sait plus
@@ -86,28 +113,36 @@ export default function VehicleList({ onSelectVehicle, currentUser }) {
     );
   }
 
-  return (
-    <div>
-      <div className="flex justify-between items-center mb-6">
-        <h2 className="text-3xl font-bold" style={{ color: 'var(--text-1)' }}>
-          {garageTitle}
-        </h2>
-        <button
-          onClick={() => setShowForm(!showForm)}
-          className="btn btn-primary"
-        >
-          {showForm ? 'Annuler' : '+ Ajouter'}
-        </button>
-      </div>
+  const renderCards = (list) => (
+    <div className={GRID}>
+      {list.map((vehicle) => (
+        <VehicleCard
+          key={vehicle.id}
+          vehicle={vehicle}
+          onSelect={() => onSelectVehicle(vehicle.id)}
+          currentUser={currentUser}
+        />
+      ))}
+    </div>
+  );
 
+  return (
+    <div className="flex flex-col" style={{ gap: 24 }}>
       {error && (
-        <div className="mb-6 p-4 rounded gap-section" style={{ background: 'var(--danger-light)', border: '1px solid var(--danger)', color: 'var(--danger)' }}>
+        <div
+          className="flex items-center gap-2"
+          style={{
+            background: 'var(--danger-light)', border: '1px solid var(--danger)',
+            color: 'var(--danger)', borderRadius: 'var(--radius)', padding: '12px 14px', fontSize: 14,
+          }}
+        >
+          <Icon name="alertCircle" size={16} />
           {error}
         </div>
       )}
 
       {showForm && (
-        <div className="mb-6 card gap-section">
+        <div className="card">
           <VehicleForm
             onSubmit={handleVehicleCreated}
             onCancel={() => setShowForm(false)}
@@ -115,77 +150,61 @@ export default function VehicleList({ onSelectVehicle, currentUser }) {
         </div>
       )}
 
-      {vehicles.length === 0 ? (
-        <div className="card text-center py-12">
-          <p style={{ color: 'var(--text-2)' }} className="mb-6">Aucun véhicule pour le moment</p>
+      <GaragePanel
+        title={garageTitle}
+        owner={currentUser?.display_name}
+        count={myVehicles.length}
+        action={
           <button
-            onClick={() => setShowForm(true)}
-            className="btn btn-primary"
+            onClick={() => setShowForm(!showForm)}
+            className={`btn btn-sm ${showForm ? 'btn-secondary' : 'btn-primary'}`}
           >
-            + Ajouter votre premier véhicule
+            <Icon name={showForm ? 'close' : 'plus'} size={15} strokeWidth={2} />
+            {showForm ? 'Annuler' : 'Ajouter'}
           </button>
-        </div>
-      ) : (
-        <>
-          {/* Ses propres véhicules */}
-          {myVehicles.length > 0 ? (
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-              {myVehicles.map((vehicle) => (
-                <VehicleCard
-                  key={vehicle.id}
-                  vehicle={vehicle}
-                  onSelect={() => onSelectVehicle(vehicle.id)}
-                  onDelete={() => handleDeleteVehicle(vehicle.id)}
-                  currentUser={currentUser}
-                />
-              ))}
+        }
+      >
+        {myVehicles.length > 0 ? (
+          renderCards(myVehicles)
+        ) : (
+          // Le cas existe dès qu'on rejoint un groupe avant d'avoir créé son
+          // premier véhicule : sans ce message, la page s'ouvre directement
+          // sur le garage de quelqu'un d'autre.
+          <div className="text-center" style={{ padding: '32px 16px' }}>
+            <div className="icon-box lg neutral mx-auto" style={{ marginBottom: 12 }}>
+              <Icon name="car" size={20} />
             </div>
-          ) : (
-            // Le cas existe dès qu'on rejoint un groupe avant d'avoir créé son
-            // premier véhicule : sans ce message, la page s'ouvre directement
-            // sur le garage de quelqu'un d'autre.
-            <div className="card text-center py-8">
-              <p className="text-sm" style={{ color: 'var(--text-2)' }}>
-                Vous n'avez pas encore de véhicule.
-              </p>
-            </div>
-          )}
+            <p style={{ color: 'var(--text-2)', fontSize: 14, marginBottom: 14 }}>
+              Votre garage est vide pour le moment.
+            </p>
+            {!showForm && (
+              <button onClick={() => setShowForm(true)} className="btn btn-primary">
+                <Icon name="plus" size={16} strokeWidth={2} />
+                Ajouter un véhicule
+              </button>
+            )}
+          </div>
+        )}
+      </GaragePanel>
 
-          {/* Un garage par membre du groupe famille */}
-          {sharedGarages.map((garage) => (
-            <div key={garage.ownerId} className="mt-10">
-              <div className="mb-4 pb-2" style={{ borderBottom: '1px solid var(--border)' }}>
-                <div className="flex items-center gap-3 flex-wrap">
-                  <h3 className="text-xl font-bold" style={{ color: 'var(--text-1)' }}>
-                    Garage de {garage.name || 'un membre du groupe'}
-                  </h3>
-                  <span
-                    className="text-xs px-2 py-1 rounded font-semibold"
-                    style={{ background: 'var(--accent-light)', color: 'var(--accent)' }}
-                  >
-                    Lecture seule
-                  </span>
-                </div>
-                <p className="text-sm mt-1" style={{ color: 'var(--text-2)' }}>
-                  Partagé avec vous — vous pouvez tout consulter, mais seul{' '}
-                  {garage.name || 'son propriétaire'} peut y enregistrer un entretien ou un plein.
-                </p>
-              </div>
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                {garage.vehicles.map((vehicle) => (
-                  <VehicleCard
-                    key={vehicle.id}
-                    vehicle={vehicle}
-                    onSelect={() => onSelectVehicle(vehicle.id)}
-                    onDelete={() => handleDeleteVehicle(vehicle.id)}
-                    currentUser={currentUser}
-                  />
-                ))}
-              </div>
-            </div>
-          ))}
-        </>
-      )}
+      {/* Un panneau par membre du groupe famille */}
+      {sharedGarages.map((garage) => (
+        <GaragePanel
+          key={garage.ownerId}
+          title={`Garage de ${garage.name || 'un membre du groupe'}`}
+          owner={garage.name}
+          count={garage.vehicles.length}
+          badge={
+            <span className="badge badge-info">
+              <Icon name="eye" size={12} strokeWidth={2} />
+              Lecture seule
+            </span>
+          }
+          subtitle={`Partagé avec vous — seul ${garage.name || 'son propriétaire'} peut y enregistrer un entretien ou un plein.`}
+        >
+          {renderCards(garage.vehicles)}
+        </GaragePanel>
+      ))}
     </div>
   );
 }

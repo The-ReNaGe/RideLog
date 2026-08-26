@@ -1,5 +1,7 @@
 import React, { useEffect, useState, useMemo } from 'react';
 import { api } from '../lib/api';
+import Icon from '../components/Icon';
+import PageHeader from '../components/PageHeader';
 
 const interventionTranslations = {
   'Oil change': 'Vidange',
@@ -36,22 +38,27 @@ const MONTH_NAMES = [
 ];
 const DAY_NAMES = ['Lun', 'Mar', 'Mer', 'Jeu', 'Ven', 'Sam', 'Dim'];
 
-function getStatusColor(status) {
-  switch (status) {
-    case 'overdue': return 'var(--danger)';
-    case 'urgent': return 'var(--warning)';
-    case 'warning': return '#e6a817';
-    default: return 'var(--success)';
-  }
-}
+const STATUSES = [
+  { key: 'overdue', label: 'En retard',    color: 'var(--danger)' },
+  { key: 'urgent',  label: 'Urgent',       color: 'var(--warning)' },
+  { key: 'warning', label: 'À surveiller', color: 'var(--purple)' },
+  { key: 'ok',      label: 'Planifié',     color: 'var(--success)' },
+];
 
-function getStatusEmoji(status) {
-  switch (status) {
-    case 'overdue': return '🔴';
-    case 'urgent': return '🟠';
-    case 'warning': return '🟡';
-    default: return '🟢';
-  }
+const statusOf = (status) => STATUSES.find(s => s.key === status) || STATUSES[3];
+const getStatusColor = (status) => statusOf(status).color;
+
+/** Pastille de couleur — la légende du calendrier s'appuie sur la même. */
+function StatusDot({ status, size = 8 }) {
+  return (
+    <span
+      aria-hidden="true"
+      style={{
+        width: size, height: size, borderRadius: 999, flexShrink: 0,
+        background: getStatusColor(status), display: 'inline-block',
+      }}
+    />
+  );
 }
 
 function CalendarDay({ day, isCurrentMonth, isToday, items, onDayClick }) {
@@ -85,7 +92,7 @@ function CalendarDay({ day, isCurrentMonth, isToday, items, onDayClick }) {
               style={{ background: getStatusColor(item.status), color: '#fff', fontSize: '10px', padding: '1px 4px', borderRadius: 3, marginTop: 1, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', lineHeight: '14px' }}
               title={`${item.vehicle_name} - ${t(item.intervention_type)}`}
             >
-              {item.vehicle_type === 'car' ? '🚗' : '🏍️'} {t(item.intervention_type)}
+              {t(item.intervention_type)}
             </div>
           ))}
           {items.length > 3 && (
@@ -103,34 +110,47 @@ function DayDetailModal({ date, items, onClose }) {
   if (!date || !items) return null;
 
   return (
-    <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000 }}
+    <div style={{ position: 'fixed', inset: 0, background: 'rgba(12,15,22,0.55)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000, padding: '1rem' }}
       onClick={onClose}>
-      <div className="card" style={{ maxWidth: 500, width: '90%', maxHeight: '80vh', overflow: 'auto', padding: 24 }}
+      <div className="card" style={{ maxWidth: 500, width: '100%', maxHeight: '80vh', overflow: 'auto', boxShadow: 'var(--shadow-lg)' }}
         onClick={e => e.stopPropagation()}>
-        <div className="flex items-center justify-between mb-4">
-          <h3 style={{ color: 'var(--text-1)', margin: 0 }}>
-            📅 {date.toLocaleDateString('fr-FR', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })}
+        <div className="flex items-center justify-between gap-3 mb-4">
+          <h3 className="flex items-center gap-2" style={{ margin: 0, fontSize: '1.05rem' }}>
+            <Icon name="calendar" size={17} style={{ color: 'var(--text-3)' }} />
+            <span style={{ textTransform: 'capitalize' }}>
+              {date.toLocaleDateString('fr-FR', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })}
+            </span>
           </h3>
-          <button onClick={onClose} style={{ background: 'none', border: 'none', fontSize: 20, cursor: 'pointer', color: 'var(--text-2)' }}>✕</button>
+          <button onClick={onClose} className="btn-icon" aria-label="Fermer">
+            <Icon name="close" size={16} strokeWidth={2.2} />
+          </button>
         </div>
         <div className="space-y-3">
           {items.map((item, idx) => (
-            <div key={idx} className="card p-3" style={{ borderLeft: `4px solid ${getStatusColor(item.status)}` }}>
-              <div className="flex items-center gap-2 mb-1">
-                <span style={{ fontSize: 12, padding: '2px 6px', borderRadius: 4, background: 'var(--bg-surface)', border: '1px solid var(--border)', color: 'var(--text-2)' }}>
-                  {item.vehicle_type === 'car' ? '🚗' : '🏍️'} {item.vehicle_name}
+            <div key={idx} className="inset" style={{ padding: 12, borderLeft: `3px solid ${getStatusColor(item.status)}` }}>
+              <div className="flex items-center gap-2 mb-1 flex-wrap">
+                <span className="badge badge-neutral">
+                  <Icon name={item.vehicle_type === 'car' ? 'car' : 'motorcycle'} size={12} />
+                  {item.vehicle_name}
                 </span>
-                <span style={{ fontSize: 11, color: getStatusColor(item.status), fontWeight: 600 }}>
-                  {getStatusEmoji(item.status)} {item.status === 'overdue' ? 'En retard' : item.status === 'urgent' ? 'Urgent' : item.status === 'warning' ? 'À surveiller' : 'Planifié'}
+                <span className="inline-flex items-center gap-1.5" style={{ fontSize: 12, color: getStatusColor(item.status), fontWeight: 700 }}>
+                  <StatusDot status={item.status} size={7} />
+                  {statusOf(item.status).label}
                 </span>
               </div>
               <div style={{ fontWeight: 600, color: 'var(--text-1)', fontSize: 14 }}>{t(item.intervention_type)}</div>
               <div style={{ fontSize: 12, color: 'var(--text-3)', marginTop: 4 }}>
                 {item.km_remaining != null && item.km_remaining !== 999999 && (
-                  <span>{item.km_remaining < 0 ? `⚠️ ${Math.abs(item.km_remaining).toLocaleString('fr-FR')} km de retard` : `Dans ${item.km_remaining.toLocaleString('fr-FR')} km`}</span>
+                  <span style={item.km_remaining < 0 ? { color: 'var(--danger)', fontWeight: 600 } : undefined}>
+                    {item.km_remaining < 0
+                      ? `${Math.abs(item.km_remaining).toLocaleString('fr-FR')} km de retard`
+                      : `Dans ${item.km_remaining.toLocaleString('fr-FR')} km`}
+                  </span>
                 )}
                 {item.estimated_cost_max && (
-                  <span style={{ marginLeft: 12, color: 'var(--success)' }}>€{item.estimated_cost_min}–{item.estimated_cost_max}</span>
+                  <span className="tabular" style={{ marginLeft: 12, color: 'var(--success)', fontWeight: 600 }}>
+                    {item.estimated_cost_min} – {item.estimated_cost_max} €
+                  </span>
                 )}
               </div>
             </div>
@@ -243,53 +263,59 @@ export default function Planning() {
 
   if (error) {
     return (
-      <div className="card p-8 text-center">
-        <p style={{ color: 'var(--danger)' }}>{error}</p>
-        <button onClick={loadPlanning} className="btn btn-primary mt-4">Réessayer</button>
+      <div className="card text-center" style={{ padding: '40px 16px' }}>
+        <div className="icon-box lg danger mx-auto" style={{ marginBottom: 12 }}>
+          <Icon name="alert" size={20} />
+        </div>
+        <p style={{ color: 'var(--text-2)' }}>{error}</p>
+        <button onClick={loadPlanning} className="btn btn-primary mt-4">
+          <Icon name="refresh" size={16} />
+          Réessayer
+        </button>
       </div>
     );
   }
 
   return (
     <div className="space-y-4">
-      {/* Summary badges */}
+      <PageHeader
+        title="Planning"
+        subtitle="Toutes les échéances de votre parc, mois par mois."
+      />
+
+      {/* Résumé */}
       <div className="flex flex-wrap gap-3">
-        {summary.overdue.length > 0 && (
-          <div className="card px-4 py-2 flex items-center gap-2" style={{ borderLeft: '4px solid var(--danger)' }}>
-            <span style={{ color: 'var(--danger)', fontWeight: 700, fontSize: 20 }}>{summary.overdue.length}</span>
-            <span style={{ color: 'var(--text-2)', fontSize: 13 }}>en retard</span>
+        {[
+          summary.overdue.length > 0 && { n: summary.overdue.length, label: summary.overdue.length > 1 ? 'en retard' : 'en retard', color: 'var(--danger)', icon: 'alertCircle' },
+          summary.urgent.length > 0 && { n: summary.urgent.length, label: summary.urgent.length > 1 ? 'urgents' : 'urgent', color: 'var(--warning)', icon: 'alert' },
+          { n: summary.monthItems.length, label: 'ce mois', color: 'var(--accent)', icon: 'calendar' },
+        ].filter(Boolean).map(b => (
+          <div key={b.label} className="card flex items-center gap-3" style={{ padding: '10px 14px', borderLeft: `3px solid ${b.color}` }}>
+            <Icon name={b.icon} size={17} style={{ color: b.color }} />
+            <span className="tabular" style={{ color: b.color, fontWeight: 800, fontSize: 19 }}>{b.n}</span>
+            <span style={{ color: 'var(--text-2)', fontSize: 13 }}>{b.label}</span>
           </div>
-        )}
-        {summary.urgent.length > 0 && (
-          <div className="card px-4 py-2 flex items-center gap-2" style={{ borderLeft: '4px solid var(--warning)' }}>
-            <span style={{ color: 'var(--warning)', fontWeight: 700, fontSize: 20 }}>{summary.urgent.length}</span>
-            <span style={{ color: 'var(--text-2)', fontSize: 13 }}>urgents</span>
-          </div>
-        )}
-        <div className="card px-4 py-2 flex items-center gap-2" style={{ borderLeft: '4px solid var(--accent)' }}>
-          <span style={{ color: 'var(--accent)', fontWeight: 700, fontSize: 20 }}>{summary.monthItems.length}</span>
-          <span style={{ color: 'var(--text-2)', fontSize: 13 }}>ce mois</span>
-        </div>
+        ))}
       </div>
 
       {/* Calendar header with navigation */}
       <div className="card" style={{ overflow: 'hidden' }}>
         <div className="flex items-center justify-between px-4 py-3" style={{ borderBottom: '1px solid var(--border)' }}>
-          <button onClick={prevMonth} className="btn btn-secondary" style={{ padding: '6px 12px', minWidth: 'auto' }}>
-            ◀
+          <button onClick={prevMonth} className="btn-icon" aria-label="Mois précédent" title="Mois précédent">
+            <Icon name="chevronLeft" size={17} strokeWidth={2} />
           </button>
           <div className="flex items-center gap-3">
-            <h2 style={{ margin: 0, color: 'var(--text-1)', fontSize: 20, fontWeight: 700, textTransform: 'capitalize' }}>
+            <h2 style={{ margin: 0, fontSize: '1.15rem' }}>
               {MONTH_NAMES[currentMonth.getMonth()]} {currentMonth.getFullYear()}
             </h2>
             {(currentMonth.getMonth() !== today.getMonth() || currentMonth.getFullYear() !== today.getFullYear()) && (
-              <button onClick={goToToday} style={{ fontSize: 12, color: 'var(--accent)', background: 'none', border: '1px solid var(--accent)', borderRadius: 4, padding: '2px 8px', cursor: 'pointer' }}>
+              <button onClick={goToToday} className="btn btn-secondary btn-sm">
                 Aujourd'hui
               </button>
             )}
           </div>
-          <button onClick={nextMonth} className="btn btn-secondary" style={{ padding: '6px 12px', minWidth: 'auto' }}>
-            ▶
+          <button onClick={nextMonth} className="btn-icon" aria-label="Mois suivant" title="Mois suivant">
+            <Icon name="chevronRight" size={17} strokeWidth={2} />
           </button>
         </div>
 
@@ -326,11 +352,13 @@ export default function Planning() {
       </div>
 
       {/* Legend */}
-      <div className="flex flex-wrap gap-4" style={{ fontSize: 12, color: 'var(--text-3)' }}>
-        <span>🔴 En retard</span>
-        <span>🟠 Urgent</span>
-        <span>🟡 À surveiller</span>
-        <span>🟢 Planifié</span>
+      <div className="flex flex-wrap gap-4" style={{ fontSize: 12.5, color: 'var(--text-2)' }}>
+        {STATUSES.map(st => (
+          <span key={st.key} className="inline-flex items-center gap-1.5">
+            <StatusDot status={st.key} />
+            {st.label}
+          </span>
+        ))}
       </div>
 
       {/* Day detail modal */}

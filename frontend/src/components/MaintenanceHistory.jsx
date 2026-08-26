@@ -4,21 +4,14 @@ import { getInterventionDisplayName } from '../lib/interventionTranslations';
 import { formatDistanceToNow } from 'date-fns';
 import { fr } from 'date-fns/locale';
 import RevisionChecklistModal from './RevisionChecklistModal';
+import Icon from './Icon';
+import CategoryTag from './CategoryTag';
 import {
   REVISION_TRIGGERS,
   SUBITEM_TRIGGERS,
   getRevisionItems,
   buildCheckedFromSubInterventions,
 } from '../lib/revisionChecklist';
-
-const getCategoryDisplay = (category) => {
-  const map = {
-    scheduled:    { icon: '🔧', label: 'Entretien',    bg: 'var(--accent)',  bgLight: 'rgba(108,138,247,0.12)' },
-    repair:       { icon: '⚠️', label: 'Réparation',   bg: 'var(--warning)', bgLight: 'rgba(243,156,18,0.12)' },
-    modification: { icon: '🔨', label: 'Modification',  bg: '#8b5cf6',        bgLight: 'rgba(139,92,246,0.12)' },
-  };
-  return map[category] || map.scheduled;
-};
 
 export default function MaintenanceHistory({ vehicleId, vehicleType, motorization, onDataChanged, canEdit = true }) {
   const [maintenances, setMaintenances] = useState([]);
@@ -113,16 +106,29 @@ export default function MaintenanceHistory({ vehicleId, vehicleType, motorizatio
     || SUBITEM_TRIGGERS.includes(editingMaintenance.intervention_type)
   );
 
-  if (loading) return <div className="text-center py-12" style={{ color: 'var(--text-2)' }}>Chargement...</div>;
+  if (loading) {
+    return (
+      <div className="text-center py-12">
+        <div className="spinner mx-auto mb-3"></div>
+        <p className="text-sm" style={{ color: 'var(--text-3)' }}>Chargement de l'historique…</p>
+      </div>
+    );
+  }
 
   if (maintenances.length === 0) {
-    return <div className="card p-12 text-center"><p style={{ color: 'var(--text-2)' }}>Aucun enregistrement</p></div>;
+    return (
+      <div className="card text-center" style={{ padding: '40px 16px' }}>
+        <div className="icon-box lg neutral mx-auto" style={{ marginBottom: 12 }}>
+          <Icon name="note" size={20} />
+        </div>
+        <p style={{ color: 'var(--text-2)' }}>Aucune intervention enregistrée pour le moment.</p>
+      </div>
+    );
   }
 
   return (
     <div className="space-y-3">
       {maintenances.map((maintenance) => {
-        const catDisplay = getCategoryDisplay(maintenance.maintenance_category);
         const displayType = (maintenance.intervention_type === 'Autre' && maintenance.other_description)
           ? maintenance.other_description
           : maintenance.intervention_type;
@@ -132,46 +138,42 @@ export default function MaintenanceHistory({ vehicleId, vehicleType, motorizatio
             {editingId === maintenance.id ? (
               /* ── Mode édition ── */
               <div className="space-y-3">
-                <h4 className="font-semibold mb-2" style={{ color: 'var(--text-1)' }}>Modifier l'intervention</h4>
+                <h4 className="mb-1">Modifier l'intervention</h4>
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                   <div>
-                    <label className="block text-xs font-medium mb-1" style={{ color: 'var(--text-2)' }}>Date*</label>
+                    <label className="field-label">Date*</label>
                     <input
                       type="date"
                       value={editForm.execution_date}
                       onChange={e => setEditForm({ ...editForm, execution_date: e.target.value })}
-                      className="w-full px-2 py-1.5 text-sm rounded input-field"
                       style={{ width: '100%', boxSizing: 'border-box' }}
                     />
                   </div>
                   <div>
-                    <label className="block text-xs font-medium mb-1" style={{ color: 'var(--text-2)' }}>Kilométrage*</label>
+                    <label className="field-label">Kilométrage*</label>
                     <input
                       type="number"
                       value={editForm.mileage_at_intervention}
                       onChange={e => setEditForm({ ...editForm, mileage_at_intervention: e.target.value })}
-                      className="w-full px-2 py-1.5 text-sm rounded input-field"
                       style={{ width: '100%', boxSizing: 'border-box' }}
                     />
                   </div>
                   <div>
-                    <label className="block text-xs font-medium mb-1" style={{ color: 'var(--text-2)' }}>Coût (€)</label>
+                    <label className="field-label">Coût (€)</label>
                     <input
                       type="number"
                       step="0.01"
                       value={editForm.cost_paid}
                       onChange={e => setEditForm({ ...editForm, cost_paid: e.target.value })}
-                      className="w-full px-2 py-1.5 text-sm rounded input-field"
                       style={{ width: '100%', boxSizing: 'border-box' }}
                     />
                   </div>
                   <div>
-                    <label className="block text-xs font-medium mb-1" style={{ color: 'var(--text-2)' }}>Notes</label>
+                    <label className="field-label">Notes</label>
                     <input
                       type="text"
                       value={editForm.notes}
                       onChange={e => setEditForm({ ...editForm, notes: e.target.value })}
-                      className="w-full px-2 py-1.5 text-sm rounded input-field"
                       style={{ width: '100%', boxSizing: 'border-box' }}
                     />
                   </div>
@@ -179,7 +181,7 @@ export default function MaintenanceHistory({ vehicleId, vehicleType, motorizatio
 
                 {/* Détail révision / freins / pneus via popup */}
                 {editingNeedsRevisionModal && (
-                  <div className="card p-3" style={{ background: 'var(--bg-base)', border: '1px solid var(--border)' }}>
+                  <div className="inset" style={{ padding: 12 }}>
                     <div className="flex items-center justify-between gap-2">
                       <div>
                         <p className="text-sm font-medium" style={{ color: 'var(--text-1)' }}>
@@ -194,10 +196,10 @@ export default function MaintenanceHistory({ vehicleId, vehicleType, motorizatio
                       <button
                         type="button"
                         onClick={() => setShowRevisionModal(true)}
-                        className="btn btn-secondary"
-                        style={{ fontSize: '0.8rem', whiteSpace: 'nowrap' }}
+                        className="btn btn-secondary btn-sm"
                       >
-                        📋 Modifier le détail
+                        <Icon name="clipboard" size={14} />
+                        Modifier le détail
                       </button>
                     </div>
                     {editSubInterventions.length > 0 && (
@@ -205,8 +207,7 @@ export default function MaintenanceHistory({ vehicleId, vehicleType, motorizatio
                         {editSubInterventions.map((sub, idx) => (
                           <span
                             key={idx}
-                            className="text-xs px-2 py-1 rounded"
-                            style={{ background: 'var(--bg-surface)', color: 'var(--text-2)', border: '1px solid var(--border)' }}
+                            className="badge badge-neutral" style={{ fontWeight: 600 }}
                           >
                             {sub.name}
                           </span>
@@ -217,7 +218,7 @@ export default function MaintenanceHistory({ vehicleId, vehicleType, motorizatio
                 )}
 
                 <div style={{ borderTop: '1px solid var(--border)', paddingTop: '0.75rem' }}>
-                  <label className="block text-xs font-medium mb-2" style={{ color: 'var(--text-2)' }}>Ajouter des factures</label>
+                  <label className="field-label">Ajouter des factures</label>
                   <input
                     type="file"
                     multiple
@@ -230,7 +231,13 @@ export default function MaintenanceHistory({ vehicleId, vehicleType, motorizatio
                       {newInvoiceFiles.map((file, i) => (
                         <div key={i} className="flex justify-between items-center text-xs p-1.5 rounded" style={{ background: 'var(--bg-base)' }}>
                           <span className="truncate">{file.name}</span>
-                          <button onClick={() => setNewInvoiceFiles(p => p.filter((_, j) => j !== i))} style={{ color: 'var(--danger)', marginLeft: '8px', flexShrink: 0 }}>✕</button>
+                          <button
+                            onClick={() => setNewInvoiceFiles(p => p.filter((_, j) => j !== i))}
+                            className="btn-icon danger" style={{ marginLeft: 8, minHeight: 24, width: 24 }}
+                            aria-label={`Retirer ${file.name}`}
+                          >
+                            <Icon name="close" size={13} strokeWidth={2.2} />
+                          </button>
                         </div>
                       ))}
                     </div>
@@ -240,16 +247,11 @@ export default function MaintenanceHistory({ vehicleId, vehicleType, motorizatio
                 <div className="flex gap-2 justify-end pt-1">
                   <button
                     onClick={() => { setEditingId(null); setEditForm({}); setNewInvoiceFiles([]); setEditSubInterventions([]); }}
-                    className="px-3 py-1.5 text-sm rounded"
-                    style={{ border: '1px solid var(--border)', color: 'var(--text-2)' }}
+                    className="btn btn-secondary btn-sm"
                   >
                     Annuler
                   </button>
-                  <button
-                    onClick={() => handleUpdate(maintenance.id)}
-                    className="px-3 py-1.5 text-sm rounded"
-                    style={{ background: 'var(--accent)', color: '#fff' }}
-                  >
+                  <button onClick={() => handleUpdate(maintenance.id)} className="btn btn-primary btn-sm">
                     Enregistrer
                   </button>
                 </div>
@@ -263,13 +265,7 @@ export default function MaintenanceHistory({ vehicleId, vehicleType, motorizatio
                       <h4 className="font-semibold text-sm" style={{ color: 'var(--text-1)' }}>
                         {getInterventionDisplayName(displayType)}
                       </h4>
-                      <span style={{
-                        display: 'inline-block', padding: '1px 7px', borderRadius: 4,
-                        fontSize: 11, fontWeight: 600, flexShrink: 0,
-                        background: catDisplay.bgLight, color: catDisplay.bg,
-                      }}>
-                        {catDisplay.icon} {catDisplay.label}
-                      </span>
+                      <CategoryTag category={maintenance.maintenance_category} />
                     </div>
                     <div className="flex flex-wrap gap-x-2 gap-y-0.5 text-xs" style={{ color: 'var(--text-3)' }}>
                       <span>
@@ -285,12 +281,12 @@ export default function MaintenanceHistory({ vehicleId, vehicleType, motorizatio
                   </div>
 
                   {canEdit && (
-                    <div className="flex flex-col items-end gap-1 flex-shrink-0">
-                      <button onClick={() => handleEdit(maintenance)} className="text-xs font-semibold hover:opacity-70" style={{ color: 'var(--accent)' }}>
-                        ✏️ Modifier
+                    <div className="flex items-center gap-1 flex-shrink-0">
+                      <button onClick={() => handleEdit(maintenance)} className="btn-icon" title="Modifier cette intervention" aria-label="Modifier cette intervention">
+                        <Icon name="pencil" size={15} />
                       </button>
-                      <button onClick={() => handleDelete(maintenance.id)} className="text-xs font-semibold hover:opacity-70" style={{ color: 'var(--danger)' }}>
-                        🗑 Supprimer
+                      <button onClick={() => handleDelete(maintenance.id)} className="btn-icon danger" title="Supprimer cette intervention" aria-label="Supprimer cette intervention">
+                        <Icon name="trash" size={15} />
                       </button>
                     </div>
                   )}
@@ -319,19 +315,15 @@ export default function MaintenanceHistory({ vehicleId, vehicleType, motorizatio
 
                 {maintenance.sub_interventions && maintenance.sub_interventions.length > 0 && (
                   <div className="mt-2 pt-2" style={{ borderTop: '1px solid var(--border)' }}>
-                    <div className="text-xs font-semibold mb-1.5" style={{ color: 'var(--text-2)' }}>
-                      🔧 Interventions effectuées ({maintenance.sub_interventions.length})
+                    <div className="card-label flex items-center gap-1.5">
+                      <Icon name="wrench" size={12} />
+                      Interventions effectuées ({maintenance.sub_interventions.length})
                     </div>
                     <div className="flex flex-wrap gap-1.5">
                       {maintenance.sub_interventions.map((sub, idx) => (
                         <span
                           key={idx}
-                          className="text-xs px-2 py-1 rounded"
-                          style={{
-                            background: 'var(--bg-base)',
-                            color: 'var(--text-2)',
-                            border: '1px solid var(--border)',
-                          }}
+                          className="badge badge-neutral" style={{ fontWeight: 600 }}
                         >
                           {sub.name}
                         </span>
@@ -342,18 +334,20 @@ export default function MaintenanceHistory({ vehicleId, vehicleType, motorizatio
 
                 {maintenance.invoices?.length > 0 && (
                   <div className="mt-2 pt-2" style={{ borderTop: '1px solid var(--border)' }}>
-                    <div className="text-xs font-semibold mb-1" style={{ color: 'var(--text-2)' }}>
-                      📎 Factures ({maintenance.invoices.length})
+                    <div className="card-label flex items-center gap-1.5">
+                      <Icon name="paperclip" size={12} />
+                      Factures ({maintenance.invoices.length})
                     </div>
                     <div className="space-y-1">
                       {maintenance.invoices.map(invoice => (
                         <button
                           key={invoice.id}
                           onClick={e => { e.preventDefault(); api.downloadFile(invoice.download_url, invoice.filename); }}
-                          className="text-xs hover:opacity-70 block"
+                          className="text-xs hover:opacity-70 flex items-center gap-1.5"
                           style={{ color: 'var(--accent)', background: 'none', border: 'none', padding: 0, cursor: 'pointer' }}
                         >
-                          📥 {invoice.filename}
+                          <Icon name="download" size={13} />
+                          {invoice.filename}
                           <span className="ml-1" style={{ color: 'var(--text-3)' }}>({(invoice.file_size / 1024).toFixed(1)} KB)</span>
                         </button>
                       ))}

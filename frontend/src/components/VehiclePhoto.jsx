@@ -11,8 +11,12 @@ import { api } from '../lib/api';
  *
  * `version` sert à recharger après un remplacement de photo : l'URL de
  * l'endpoint ne change pas, on lui passe donc `vehicle.updated_at`.
+ *
+ * `backdrop` ajoute une doublure floutée de la même image derrière elle. La
+ * photo est affichée entière (`object-fit: contain`) : sans cette doublure, une
+ * photo qui n'a pas le format du bandeau laisse deux aplats gris sur les côtés.
  */
-export default function VehiclePhoto({ vehicleId, version, alt, className, style }) {
+export default function VehiclePhoto({ vehicleId, version, alt, className, style, backdrop = false }) {
   const [src, setSrc] = useState(null);
 
   useEffect(() => {
@@ -38,5 +42,10 @@ export default function VehiclePhoto({ vehicleId, version, alt, className, style
 
   if (!src) return null;
 
-  return <img src={src} alt={alt} className={className} style={style} />;
+  return (
+    <>
+      {backdrop && <img src={src} alt="" aria-hidden="true" className="photo-backdrop" />}
+      <img src={src} alt={alt} className={className} style={style} />
+    </>
+  );
 }

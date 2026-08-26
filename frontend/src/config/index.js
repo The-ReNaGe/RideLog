@@ -27,11 +27,11 @@ export const API_ROUTES = {
 
 // Status Labels
 export const STATUS_LABELS = {
-  overdue: '⛔ En retard',
-  urgent: '🔴 Urgent',
-  planned: '🔔 Planifié',
-  warning: '🟡 À prévoir',
-  ok: '✅ OK',
+  overdue: 'En retard',
+  urgent: 'Urgent',
+  planned: 'Planifié',
+  warning: 'À prévoir',
+  ok: 'À jour',
 };
 
 // Status Colors

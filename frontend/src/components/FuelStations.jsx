@@ -1,5 +1,6 @@
 import React, { useState, useCallback, useEffect, useRef } from 'react';
 import { api } from '../lib/api';
+import Icon from './Icon';
 
 export default function FuelStations() {
 	const [city, setCity] = useState('');
@@ -132,22 +133,22 @@ export default function FuelStations() {
 		<div>
 			{/* Header */}
 			<div style={{ marginBottom: '2rem' }}>
-				<h1 className="text-3xl font-bold mb-1" style={{ color: 'var(--text-1)' }}>⛽ Stations Essence</h1>
+				<h1 style={{ fontSize: '1.5rem' }}>Stations-service</h1>
 				<p className="text-sm" style={{ color: 'var(--text-2)' }}>Trouvez les stations les plus proches et moins chères en France</p>
 			</div>
 
 			{/* Search Form */}
 			<div className="card p-6">
-				<h3 className="text-lg font-bold mb-4" style={{ color: 'var(--text-1)' }}>Rechercher des stations</h3>
-				<form onSubmit={handleSearch} className="grid grid-cols-1 md:grid-cols-5 gap-4">
-					<div className="relative">
-						<label className="block text-sm font-medium mb-1" style={{ color: 'var(--text-1)' }}>Ville/Commune</label>
+				<h3 className="section-title mb-4">Rechercher des stations</h3>
+				<form onSubmit={handleSearch} className="flex flex-wrap items-end gap-3">
+					<div className="relative" style={{ flex: '2 1 220px' }}>
+						<label className="field-label">Ville ou commune</label>
 						<input
 							type="text"
 							value={city}
 							onChange={(e) => handleCityChange(e.target.value)}
 							placeholder="Ex: Paris, Lyon..."
-							className="input-field"
+							
 							autoComplete="off"
 						/>
 						{/* City suggestions dropdown */}
@@ -173,7 +174,7 @@ export default function FuelStations() {
 											color: 'var(--text-1)',
 											borderBottom: idx < citySuggestions.length - 1 ? '1px solid var(--border-light)' : 'none',
 										}}
-										onMouseEnter={(e) => e.target.style.background = 'rgba(108, 138, 247, 0.25)'}
+										onMouseEnter={(e) => e.target.style.background = 'var(--bg-hover)'}
 										onMouseLeave={(e) => e.target.style.background = 'var(--bg-primary)'}
 									>
 										<div className="text-sm font-bold">{suggestion.name}</div>
@@ -184,12 +185,12 @@ export default function FuelStations() {
 						)}
 					</div>
 
-					<div>
-						<label className="block text-sm font-medium mb-1" style={{ color: 'var(--text-1)' }}>Type de carburant</label>
+					<div style={{ flex: '1 1 160px' }}>
+						<label className="field-label">Type de carburant</label>
 						<select
 							value={fuelType}
 							onChange={(e) => setFuelType(e.target.value)}
-							className="input-field"
+							
 						>
 							<option value="">Tous</option>
 							{fuelTypes.map((type) => (
@@ -200,33 +201,31 @@ export default function FuelStations() {
 						</select>
 					</div>
 
-					<div>
-						<label className="block text-sm font-medium mb-1" style={{ color: 'var(--text-1)' }}>Distance (km)</label>
+					<div style={{ flex: '0 1 120px' }}>
+						<label className="field-label">Distance (km)</label>
 						<input
 							type="number"
 							min="5"
 							max="100"
 							value={maxDistance}
 							onChange={(e) => setMaxDistance(parseInt(e.target.value))}
-							className="input-field"
+							
 						/>
 					</div>
 
-					<div className="md:col-span-2 flex items-end gap-2">
-						<button
-							type="submit"
-							disabled={loading}
-							className="btn btn-primary w-full"
-						>
-							{loading ? 'Recherche en cours...' : 'Rechercher'}
-						</button>
-					</div>
+					{/* Le bouton s'ajuste à son texte : étiré sur deux colonnes de
+					    grille, il faisait trois fois la largeur de « Rechercher ». */}
+					<button type="submit" disabled={loading} className="btn btn-primary">
+						<Icon name="search" size={16} />
+						{loading ? 'Recherche…' : 'Rechercher'}
+					</button>
 				</form>
 			</div>
 
 			{/* Results */}
 			{error && (
-				<div className="mt-4 p-3 rounded text-sm" style={{ background: 'rgba(239, 68, 68, 0.1)', border: '1px solid rgba(239, 68, 68, 0.2)', color: 'var(--danger)' }}>
+				<div className="mt-4 text-sm flex items-center gap-2" style={{ background: 'var(--danger-light)', border: '1px solid var(--danger)', borderRadius: 'var(--radius)', padding: '12px 14px', color: 'var(--danger)' }}>
+					<Icon name="alertCircle" size={16} />
 					{error}
 				</div>
 			)}
@@ -234,8 +233,9 @@ export default function FuelStations() {
 			{searched && !error && (
 				<div className="mt-6">
 					{/* Info message */}
-					<div className="mb-4 p-4 rounded text-sm" style={{ background: 'rgba(108, 138, 247, 0.15)', border: '1px solid rgba(108, 138, 247, 0.3)', color: 'var(--text-1)' }}>
-						ℹ️ {searchInfo?.message || 'Les stations affichées proviennent de OpenStreetMap et prix-carburants.gouv.fr'}
+					<div className="mb-4 text-sm flex items-start gap-2" style={{ background: 'var(--accent-light)', border: '1px solid var(--border)', borderLeft: '3px solid var(--accent)', borderRadius: 'var(--radius)', padding: '12px 14px', color: 'var(--text-2)' }}>
+						<Icon name="info" size={16} style={{ color: 'var(--accent)', marginTop: 1 }} />
+						{searchInfo?.message || 'Les stations proviennent d’OpenStreetMap et de prix-carburants.gouv.fr'}
 					</div>
 
 					<div className="mb-4 p-4 card">
@@ -334,7 +334,7 @@ export default function FuelStations() {
 															</div>
 														)}
 														<div className="text-xs mt-1" style={{ color: available ? 'var(--success)' : 'var(--danger)' }}>
-															{available ? '✓ Disponible' : '✗ Indisponible'}
+															{available ? 'Disponible' : 'Indisponible'}
 														</div>
 														{updated && (
 															<div className="text-xs mt-1" style={{ color: 'var(--text-2)' }}>

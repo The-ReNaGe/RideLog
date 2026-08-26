@@ -1,5 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import { api } from '../lib/api';
+import Icon from '../components/Icon';
+import Notice from '../components/Notice';
+import PageHeader from '../components/PageHeader';
 
 function ToggleSwitch({ checked, onChange, disabled, title }) {
   return (
@@ -14,16 +17,22 @@ function ToggleSwitch({ checked, onChange, disabled, title }) {
       style={{
         width: '48px',
         height: '26px',
-        background: checked ? 'var(--success)' : 'var(--danger)',
+        // Un interrupteur « éteint » en rouge se lit comme une erreur : gris.
+        background: checked ? 'var(--success)' : 'var(--border-strong)',
         cursor: disabled ? 'not-allowed' : 'pointer',
         flexShrink: 0,
       }}
     >
       <span
-        className="inline-block rounded-full bg-white shadow transition-transform"
+        className="inline-block rounded-full transition-transform"
+        // Le curseur reste blanc dans les deux thèmes : il se pose toujours sur
+        // une piste colorée, jamais sur le fond de la page.
+
         style={{
           width: '20px',
           height: '20px',
+          background: '#fff',
+          boxShadow: '0 1px 2px rgba(0,0,0,0.25)',
           transform: checked ? 'translateX(25px)' : 'translateX(3px)',
           transition: 'transform 150ms ease',
         }}
@@ -211,9 +220,12 @@ export default function Admin({ currentUser }) {
 
   if (!currentUser?.is_admin) {
     return (
-      <div className="card p-8 text-center max-w-md mx-auto mt-8">
-        <h2 className="text-xl font-bold" style={{ color: 'var(--danger)' }}>🔒 Accès refusé</h2>
-        <p className="text-secondary text-sm mt-2">Vous n'êtes pas administrateur</p>
+      <div className="card text-center max-w-md mx-auto mt-8" style={{ padding: '40px 24px' }}>
+        <div className="icon-box lg danger mx-auto" style={{ marginBottom: 12 }}>
+          <Icon name="lock" size={20} />
+        </div>
+        <h2 style={{ fontSize: '1.15rem' }}>Accès refusé</h2>
+        <p className="text-secondary text-sm mt-1">Cette console est réservée aux administrateurs.</p>
       </div>
     );
   }
@@ -224,58 +236,43 @@ export default function Admin({ currentUser }) {
 
   return (
     <div>
-      <h2 className="text-2xl font-bold mb-6" style={{ color: 'var(--text-1)' }}>
-        🛡️ Console Admin
-      </h2>
+      <PageHeader
+        title="Administration"
+        subtitle="Comptes, rôles et mots de passe de cette instance."
+      />
 
-      {error && (
-        <div
-          className="mb-4 p-3 rounded text-sm"
-          style={{
-            background: 'var(--danger-light)',
-            border: '1px solid var(--danger)',
-            color: 'var(--danger)',
-          }}
-        >
-          ⚠️ {error}
-        </div>
-      )}
+      {error && <Notice tone="danger" className="mb-4">{error}</Notice>}
 
       {/* ── Création de compte (Privé ou Ouvert uniquement) ── */}
       {registrationMode !== null && (
-        <div className="card p-6 gap-section mb-6">
-          <div className="flex items-center justify-between">
-            <h3 className="text-lg font-semibold" style={{ color: 'var(--text-1)' }}>
-              ➕ Créer un compte
-            </h3>
+        <div className="card mb-5">
+          <div className="flex items-center justify-between gap-3 flex-wrap">
+            <h3 className="section-title">Créer un compte</h3>
             {canCreateManually && (
               <button
                 onClick={() => { setShowCreateForm(!showCreateForm); setCreatedResult(null); setCreateError(null); }}
-                className="btn btn-secondary text-xs"
+                className={`btn btn-sm ${showCreateForm ? 'btn-secondary' : 'btn-primary'}`}
               >
+                <Icon name={showCreateForm ? 'close' : 'plus'} size={15} strokeWidth={2} />
                 {showCreateForm ? 'Fermer' : 'Nouveau compte'}
               </button>
             )}
           </div>
 
           {!canCreateManually && (
-            <p className="text-xs mt-2" style={{ color: 'var(--text-3)' }}>
-              🔒 Le mode d'inscription actuel est <strong>"Sur invitation"</strong>. Pour créer un compte,
-              générez un lien d'invitation depuis Paramètres → Inscription, ou changez le mode d'inscription.
-            </p>
+            <Notice tone="neutral" icon="lock" className="mt-3">
+              Le mode d'inscription est <strong>« Sur invitation »</strong>. Pour faire entrer quelqu'un,
+              générez un lien depuis Paramètres → Inscription, ou changez le mode d'inscription.
+            </Notice>
           )}
 
           {canCreateManually && showCreateForm && (
             <form onSubmit={handleCreateUser} className="mt-4 space-y-3">
-              {createError && (
-                <div className="p-2 rounded text-xs" style={{ background: 'var(--danger-light)', border: '1px solid var(--danger)', color: 'var(--danger)' }}>
-                  ⚠️ {createError}
-                </div>
-              )}
+              {createError && <Notice tone="danger">{createError}</Notice>}
 
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <div>
-                  <label className="block text-xs font-medium mb-1" style={{ color: 'var(--text-2)' }}>Identifiant*</label>
+                  <label className="field-label">Identifiant*</label>
                   <input
                     type="text"
                     required
@@ -283,25 +280,25 @@ export default function Admin({ currentUser }) {
                     maxLength={50}
                     value={createForm.username}
                     onChange={e => setCreateForm({ ...createForm, username: e.target.value })}
-                    className="w-full px-2 py-1.5 text-sm rounded input-field"
+                    className="w-full"
                     placeholder="ex: jdupont"
                     autoComplete="off"
                   />
                 </div>
                 <div>
-                  <label className="block text-xs font-medium mb-1" style={{ color: 'var(--text-2)' }}>Nom affiché*</label>
+                  <label className="field-label">Nom affiché*</label>
                   <input
                     type="text"
                     required
                     maxLength={100}
                     value={createForm.display_name}
                     onChange={e => setCreateForm({ ...createForm, display_name: e.target.value })}
-                    className="w-full px-2 py-1.5 text-sm rounded input-field"
+                    className="w-full"
                     placeholder="ex: Jean Dupont"
                   />
                 </div>
                 <div className="sm:col-span-2">
-                  <label className="block text-xs font-medium mb-1" style={{ color: 'var(--text-2)' }}>
+                  <label className="field-label">
                     Mot de passe
                     <span className="ml-1 font-normal" style={{ color: 'var(--text-3)' }}>
                       (optionnel — généré automatiquement si laissé vide, affiché une seule fois pour que vous le transmettiez)
@@ -312,7 +309,7 @@ export default function Admin({ currentUser }) {
                     minLength={6}
                     value={createForm.password}
                     onChange={e => setCreateForm({ ...createForm, password: e.target.value })}
-                    className="w-full px-2 py-1.5 text-sm rounded input-field"
+                    className="w-full"
                     placeholder="Laisser vide pour génération automatique"
                     autoComplete="new-password"
                   />
@@ -338,9 +335,9 @@ export default function Admin({ currentUser }) {
           )}
 
           {createdResult && (
-            <div className="mt-4 p-3 rounded text-sm" style={{ background: 'var(--success-light)', border: '1px solid var(--success)' }}>
+            <Notice tone="success" className="mt-4">
               <p style={{ color: 'var(--text-1)' }}>
-                ✅ Compte <strong>@{createdResult.username}</strong> créé avec succès.
+                Compte <strong>@{createdResult.username}</strong> créé.
               </p>
               {createdResult.generated_password && (
                 <div className="mt-2">
@@ -349,34 +346,37 @@ export default function Admin({ currentUser }) {
                   </p>
                   <code
                     className="block mt-1 px-2 py-1.5 rounded text-sm select-all"
-                    style={{ background: 'var(--bg-base)', border: '1px solid var(--border)', color: 'var(--text-1)' }}
+                    style={{ background: 'var(--bg-surface)', border: '1px solid var(--border)', color: 'var(--text-1)' }}
                   >
                     {createdResult.generated_password}
                   </code>
                 </div>
               )}
-            </div>
+            </Notice>
           )}
         </div>
       )}
 
-      <div className="card p-4 mb-6 flex items-center justify-between gap-3 flex-wrap">
-        <div>
-          <h3 className="text-sm font-semibold" style={{ color: 'var(--text-1)' }}>
-            🔑 Réinitialisation de mot de passe
+      <div className="card mb-5 flex items-center justify-between gap-3 flex-wrap">
+        <div className="flex items-start gap-3">
+          <div className="icon-box"><Icon name="key" size={17} /></div>
+          <div>
+          <h3 className="section-title" style={{ fontSize: '0.95rem' }}>
+            Réinitialisation de mot de passe
           </h3>
           <p className="text-xs mt-1" style={{ color: 'var(--text-3)' }}>
             {passwordResetEnabled
               ? 'Les admins peuvent réinitialiser le mot de passe d\'un utilisateur (pas de SMTP/lien par email disponible).'
               : 'Désactivée : aucun admin ne peut réinitialiser un mot de passe actuellement.'}
           </p>
+          </div>
         </div>
         <div className="flex items-center gap-2">
           <span
             className="text-xs font-semibold whitespace-nowrap"
             style={{ color: passwordResetEnabled ? 'var(--success)' : 'var(--danger)' }}
           >
-            {togglingReset ? '⏳...' : passwordResetEnabled ? 'Activé' : 'Désactivé'}
+            {togglingReset ? 'Patientez…' : passwordResetEnabled ? 'Activé' : 'Désactivé'}
           </span>
           <ToggleSwitch
             checked={passwordResetEnabled}
@@ -387,44 +387,35 @@ export default function Admin({ currentUser }) {
         </div>
       </div>
 
-      {resetError && (
-        <div
-          className="mb-4 p-3 rounded text-sm"
-          style={{ background: 'var(--danger-light)', border: '1px solid var(--danger)', color: 'var(--danger)' }}
-        >
-          ⚠️ {resetError}
-        </div>
-      )}
+      {resetError && <Notice tone="danger" className="mb-4">{resetError}</Notice>}
 
       {resetResult && (
-        <div className="card p-4 mb-6 text-sm" style={{ background: 'var(--success-light)', border: '1px solid var(--success)' }}>
+        <Notice tone="success" className="mb-5">
           <p style={{ color: 'var(--text-1)' }}>
-            ✅ Mot de passe de <strong>@{resetResult.username}</strong> réinitialisé.
+            Mot de passe de <strong>@{resetResult.username}</strong> réinitialisé.
           </p>
           <p className="text-xs mt-2" style={{ color: 'var(--text-2)' }}>
             Copiez-le maintenant et transmettez-le à l'utilisateur par un canal sécurisé (il ne sera plus jamais affiché) :
           </p>
           <code
             className="block mt-1 px-2 py-1.5 rounded text-sm select-all"
-            style={{ background: 'var(--bg-base)', border: '1px solid var(--border)', color: 'var(--text-1)' }}
+            style={{ background: 'var(--bg-surface)', border: '1px solid var(--border)', color: 'var(--text-1)' }}
           >
             {resetResult.generated_password}
           </code>
-        </div>
+        </Notice>
       )}
 
-      <div className="card p-6 gap-section">
-        <h3 className="text-lg font-semibold" style={{ color: 'var(--text-1)' }}>
-          Gestion des utilisateurs
-        </h3>
+      <div className="card">
+        <h3 className="section-title mb-3">Gestion des utilisateurs</h3>
 
         {loading ? (
           <div className="text-center py-6">
             <div className="spinner mx-auto mb-2"></div>
-            <p style={{ color: 'var(--text-2)' }}>Chargement...</p>
+            <p className="text-sm" style={{ color: 'var(--text-3)' }}>Chargement…</p>
           </div>
         ) : users.length === 0 ? (
-          <p style={{ color: 'var(--text-3)' }}>Aucun utilisateur</p>
+          <p style={{ color: 'var(--text-3)' }}>Aucun utilisateur.</p>
         ) : (
           <div className="overflow-x-auto">
             <table className="w-full text-sm">
@@ -441,104 +432,89 @@ export default function Admin({ currentUser }) {
                 {users.map((user) => {
                   const isServiceAccount = user.username === 'homeassistant';
                   return (
-                  <tr key={user.id} style={{ borderBottom: '1px solid var(--border)' }}>
-                    <td className="py-3 px-3">
-                      <span style={{ color: 'var(--text-1)' }}>@{user.username}</span>
-                      {user.id === currentUser.id && (
-                        <span className="text-xs ml-2" style={{ color: 'var(--text-3)' }}>(Vous)</span>
-                      )}
-                      {isServiceAccount && (
-                        <span className="text-xs ml-2" style={{ color: '#9333ea' }}>🤖 Service</span>
-                      )}
-                      {user.password_reset_requested_at && (
-                        <span
-                          className="text-xs ml-2 px-1.5 py-0.5 rounded font-semibold"
-                          style={{ background: 'var(--warning-light)', color: 'var(--warning)' }}
-                          title={`Demande de réinitialisation le ${new Date(user.password_reset_requested_at).toLocaleString('fr-FR')}`}
-                        >
-                          🔔 Demande de reset
-                        </span>
-                      )}
-                      {user.must_change_password && (
-                        <span className="text-xs ml-2" style={{ color: 'var(--text-3)' }} title="Doit encore choisir son propre mot de passe">
-                          ⏳ mdp temporaire
-                        </span>
-                      )}
+                  <tr key={user.id}>
+                    <td>
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <span style={{ color: 'var(--text-1)', fontWeight: 600 }}>@{user.username}</span>
+                        {user.id === currentUser.id && (
+                          <span className="text-xs" style={{ color: 'var(--text-3)' }}>(vous)</span>
+                        )}
+                        {user.password_reset_requested_at && (
+                          <span
+                            className="badge badge-warning"
+                            title={`Demande de réinitialisation le ${new Date(user.password_reset_requested_at).toLocaleString('fr-FR')}`}
+                          >
+                            <Icon name="bell" size={11} strokeWidth={2.2} />
+                            Reset demandé
+                          </span>
+                        )}
+                        {user.must_change_password && (
+                          <span className="badge badge-neutral" title="Doit encore choisir son propre mot de passe">
+                            <Icon name="clock" size={11} strokeWidth={2.2} />
+                            Mot de passe temporaire
+                          </span>
+                        )}
+                      </div>
                     </td>
-                    <td className="py-3 px-3" style={{ color: 'var(--text-2)' }}>
+                    <td style={{ color: 'var(--text-2)' }}>
                       {user.display_name}
                     </td>
-                    <td className="py-3 px-3">
+                    <td>
                       {isServiceAccount ? (
-                        <span
-                          className="inline-block px-2 py-1 rounded text-xs font-semibold"
-                          style={{
-                            background: '#ddd6fe',
-                            color: '#5b21b6'
-                          }}
-                        >
-                          🤖 SERVICE
+                        <span className="badge" style={{ background: 'var(--purple-light)', color: 'var(--purple)' }}>
+                          <Icon name="cpu" size={11} strokeWidth={2.2} />
+                          Service
                         </span>
                       ) : user.is_admin ? (
-                        <span
-                          className="inline-block px-2 py-1 rounded text-xs font-semibold"
-                          style={{
-                            background: 'var(--success)',
-                            color: 'white'
-                          }}
-                        >
-                          ADMIN
+                        <span className="badge badge-success">
+                          <Icon name="shield" size={11} strokeWidth={2.2} />
+                          Admin
                         </span>
                       ) : (
-                        <span
-                          className="text-xs"
-                          style={{ color: 'var(--text-3)' }}
-                        >
-                          Utilisateur
-                        </span>
+                        <span className="text-xs" style={{ color: 'var(--text-3)' }}>Utilisateur</span>
                       )}
                     </td>
-                    <td className="py-3 px-3 text-xs" style={{ color: 'var(--text-3)' }}>
+                    <td className="text-xs" style={{ color: 'var(--text-3)' }}>
                       {new Date(user.created_at).toLocaleDateString('fr-FR')}
                     </td>
-                    <td className="py-3 px-3">
-                      <div className="flex gap-2">
+                    <td>
+                      <div className="flex gap-1.5 items-center flex-wrap">
                         {user.id !== currentUser.id && !isServiceAccount && (
                           <button
                             onClick={() => handlePromoteUser(user.id, user.username, user.is_admin)}
                             disabled={deleting === user.id}
-                            className={`text-xs ${user.is_admin ? 'btn btn-secondary' : 'btn btn-primary'}`}
+                            className="btn btn-secondary btn-sm"
                             title={user.is_admin ? 'Rétrograder en utilisateur' : 'Promouvoir administrateur'}
                           >
-                            {user.is_admin ? '👤 Rétrograder' : '🛡️ Promouvoir'}
+                            <Icon name={user.is_admin ? 'user' : 'shield'} size={14} />
+                            {user.is_admin ? 'Rétrograder' : 'Promouvoir'}
                           </button>
                         )}
                         {isServiceAccount && (
-                          <span className="text-xs px-2 py-1" style={{ color: 'var(--text-3)' }}>
-                            ⛔ Compte protégé
+                          <span className="text-xs inline-flex items-center gap-1.5" style={{ color: 'var(--text-3)' }}>
+                            <Icon name="lock" size={13} />
+                            Compte protégé
                           </span>
                         )}
                         {!isServiceAccount && passwordResetEnabled && user.id !== currentUser.id && (
                           <button
                             onClick={() => handleResetPassword(user.id, user.username)}
                             disabled={resetting === user.id}
-                            className={`btn text-xs ${user.password_reset_requested_at ? 'btn-primary' : 'btn-secondary'}`}
-                            title="Réinitialiser le mot de passe (utile en l'absence d'email, ex: mot de passe oublié)"
+                            className={`btn btn-sm ${user.password_reset_requested_at ? 'btn-primary' : 'btn-secondary'}`}
+                            title="Réinitialiser le mot de passe (utile en l'absence d'email)"
                           >
-                            {resetting === user.id ? '...' : '🔑 Réinitialiser MDP'}
+                            <Icon name="key" size={14} />
+                            {resetting === user.id ? 'Patientez…' : 'Réinitialiser'}
                           </button>
                         )}
                         <button
                           onClick={() => handleDeleteUser(user.id, user.username)}
                           disabled={user.id === currentUser.id || deleting === user.id || user.is_admin || isServiceAccount}
-                          className="btn btn-danger text-xs"
-                          style={{
-                            opacity: (user.id === currentUser.id || user.is_admin || isServiceAccount) ? 0.5 : 1,
-                            cursor: (user.id === currentUser.id || user.is_admin || isServiceAccount) ? 'not-allowed' : 'pointer'
-                          }}
-                          title={isServiceAccount ? "Impossible : compte de service protégé" : (user.is_admin ? "Impossible : rétrogradez-le d'abord" : 'Supprimer cet utilisateur')}
+                          className="btn-icon danger"
+                          aria-label={`Supprimer @${user.username}`}
+                          title={isServiceAccount ? 'Impossible : compte de service protégé' : (user.is_admin ? "Impossible : rétrogradez-le d'abord" : 'Supprimer cet utilisateur')}
                         >
-                          {deleting === user.id ? '...' : '🗑️ Supprimer'}
+                          <Icon name="trash" size={15} />
                         </button>
                       </div>
                     </td>
@@ -551,24 +527,18 @@ export default function Admin({ currentUser }) {
         )}
       </div>
 
-      <div className="card p-6 gap-section mt-6 bg-blue-50 dark:bg-blue-900/20" style={{ background: 'var(--info-light)' }}>
-        <h4 className="font-semibold" style={{ color: 'var(--text-1)' }}>ℹ️ Informations</h4>
-        <ul className="text-xs space-y-1" style={{ color: 'var(--text-2)' }}>
-          <li>✅ Le premier utilisateur créé est automatiquement administrateur</li>
-          <li>✅ Seul un admin peut accéder à cette console</li>
-          <li>✅ Un admin peut promouvoir/rétrograder d'autres utilisateurs</li>
-          <li>✅ Un admin peut créer un compte directement en mode "Privé" ou "Ouvert"</li>
-          <li>✅ Un admin peut réinitialiser le mot de passe d'un utilisateur (pas d'email/SMTP disponible en self-hosted) — ça déconnecte immédiatement toutes ses sessions en cours</li>
-          <li>🔑 Un mot de passe créé ou réinitialisé par un admin est temporaire : l'utilisateur est forcé d'en choisir un nouveau à sa prochaine connexion</li>
-          <li>🔔 Un utilisateur peut signaler un mot de passe oublié depuis l'écran de connexion — ça fait apparaître un badge ici, à traiter avec "Réinitialiser MDP"</li>
-          <li>🔒 Un admin ne peut pas réinitialiser son propre mot de passe ici (risque de se déconnecter sans pouvoir revenir) — utilisez Paramètres → Compte</li>
-          <li>⚙️ La réinitialisation de mot de passe peut être désactivée globalement (bouton ci-dessus)</li>
-          <li>🔒 En mode "Sur invitation", passez par les liens d'invitation (Paramètres → Inscription)</li>
-          <li>🔒 Un admin ne peut pas modifier son propre statut</li>
-          <li>🔒 <strong>Les administrateurs ne peuvent PAS être supprimés</strong> (rétrogradez-le d'abord)</li>
-          <li>⚠️ Supprimer un utilisateur supprime aussi tous ses véhicules</li>
+      <Notice tone="neutral" title="Ce que cette console permet, et ce qu'elle interdit" className="mt-5">
+        <ul className="space-y-1 mt-1 list-disc list-inside">
+          <li>Le premier compte créé sur l'instance est automatiquement administrateur.</li>
+          <li>Un administrateur peut promouvoir ou rétrograder les autres, mais pas lui-même.</li>
+          <li>En mode « Privé » ou « Ouvert », un administrateur crée un compte directement ; en mode « Sur invitation », il passe par un lien (Paramètres → Inscription).</li>
+          <li>Un mot de passe créé ou réinitialisé par un administrateur est <strong>temporaire</strong> : la personne devra en choisir un à sa prochaine connexion, et ses sessions en cours sont déconnectées.</li>
+          <li>Depuis l'écran de connexion, un utilisateur peut signaler un mot de passe oublié : un badge apparaît ici. Il n'y a pas d'envoi d'email en self-hosted.</li>
+          <li>Un administrateur ne peut pas réinitialiser <strong>son propre</strong> mot de passe ici — il risquerait de se déconnecter sans pouvoir revenir. Passez par Paramètres → Compte.</li>
+          <li>Les administrateurs ne peuvent pas être supprimés : rétrogradez-les d'abord.</li>
+          <li>Supprimer un utilisateur supprime aussi tous ses véhicules.</li>
         </ul>
-      </div>
+      </Notice>
     </div>
   );
 }

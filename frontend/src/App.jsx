@@ -8,6 +8,7 @@ import AuthPage from './pages/AuthPage';
 import Planning from './pages/Planning';
 import Dashboard from './pages/Dashboard';
 import version from './version';
+import Icon from './components/Icon';
 import { api } from './lib/api';
 
 class ErrorBoundary extends React.Component {
@@ -24,7 +25,7 @@ class ErrorBoundary extends React.Component {
   render() {
     if (this.state.hasError) {
       return (
-        <div className="min-h-screen flex items-center justify-center p-4" style={{ background: 'var(--bg-main)' }}>
+        <div className="min-h-screen flex items-center justify-center p-4" style={{ background: 'var(--bg-base)' }}>
           <div className="card p-8 max-w-md text-center">
             <h2 className="text-xl font-bold" style={{ color: 'var(--danger)' }}>Une erreur est survenue</h2>
             <p className="text-secondary mb-4 text-sm mt-2">{this.state.error?.message}</p>
@@ -40,11 +41,11 @@ class ErrorBoundary extends React.Component {
 }
 
 const NAV_ITEMS = [
-  { key: 'vehicles',      icon: '🚗', label: 'Véhicules',  matchKeys: ['vehicles', 'vehicle-detail'] },
-  { key: 'dashboard',     icon: '📊', label: 'Dashboard' },
-  { key: 'fuel-stations', icon: '⛽', label: 'Stations' },
-  { key: 'planning',      icon: '📅', label: 'Planning' },
-  { key: 'settings',      icon: '⚙️', label: 'Paramètres' },
+  { key: 'vehicles',      icon: 'car',      label: 'Véhicules',  matchKeys: ['vehicles', 'vehicle-detail'] },
+  { key: 'dashboard',     icon: 'chart',    label: 'Tableau de bord', shortLabel: 'Bilan' },
+  { key: 'fuel-stations', icon: 'fuel',     label: 'Stations' },
+  { key: 'planning',      icon: 'calendar', label: 'Planning' },
+  { key: 'settings',      icon: 'settings', label: 'Paramètres', shortLabel: 'Réglages' },
 ];
 
 function AppContent({ isAuthenticated, currentUser, onLogout }) {
@@ -111,95 +112,92 @@ function AppContent({ isAuthenticated, currentUser, onLogout }) {
   };
 
   const navItems = currentUser?.is_admin
-    ? [...NAV_ITEMS, { key: 'admin', icon: '🛡️', label: 'Admin' }]
+    ? [...NAV_ITEMS, { key: 'admin', icon: 'shield', label: 'Admin' }]
     : NAV_ITEMS;
 
   return (
-    <div className="min-h-screen flex flex-col pb-16 sm:pb-0" style={{ background: 'var(--bg-base)' }}>
+    <div className="min-h-screen flex flex-col pb-16 sm:pb-0">
 
-      {/* Header */}
-      <header style={{ background: 'var(--bg-topbar)', borderRadius: 0, boxShadow: '0 1px 3px rgba(154,161,171,0.1)' }}>
-        <div className="flex items-center justify-between px-6 sm:px-10 lg:px-16" style={{ paddingTop: '12px', paddingBottom: '12px' }}>
-          <div className="cursor-pointer flex items-center gap-3 sm:gap-6 group" onClick={handleBack}
-               style={{ minHeight: '60px' }}>
+      {/* En-tête + navigation : une seule barre collante, pour ne pas empiler
+          deux bandeaux blancs de hauteur différente en haut de chaque page. */}
+      <header className="app-bar sticky top-0 z-20">
+        <div className="app-bar-inner px-4 sm:px-8 lg:px-12">
+          {/* Marque */}
+          <button
+            onClick={handleBack}
+            className="flex items-center gap-2.5 min-w-0 justify-self-start"
+            style={{ background: 'none', border: 'none', padding: 0, cursor: 'pointer', textAlign: 'left' }}
+          >
+            <span className="logo-plate">
+              <img
+                src="/RideLog.png" alt=""
+                style={{ maxHeight: 24, maxWidth: 24, objectFit: 'contain', display: 'block' }}
+                className="select-none pointer-events-none" draggable="false"
+              />
+            </span>
+            <span style={{ color: 'var(--text-1)', fontSize: '1.05rem', fontWeight: 700, letterSpacing: '-0.02em' }}>
+              RideLog
+            </span>
+          </button>
 
-            {/* Logo : taille via CSS responsive, un seul élément */}
-            {/* Logo mobile */}
-            <div className="sm:hidden flex items-center justify-center bg-white/90 rounded-xl shadow-sm border border-gray-200 flex-shrink-0"
-                 style={{ width: '44px', height: '44px' }}>
-              <img src="/RideLog.png" alt="RideLog"
-                   style={{ maxHeight: '34px', maxWidth: '34px', objectFit: 'contain', display: 'block' }}
-                   className="select-none pointer-events-none" draggable="false" />
+          {/* Sélecteur de section, centré sur la fenêtre */}
+          <nav className="hidden sm:block min-w-0">
+            <div className="segmented">
+              {navItems.map(item => (
+                <button
+                  key={item.key}
+                  onClick={() => item.key === 'vehicles' ? handleBack() : navigateTo(item.key)}
+                  className={`segment ${isActive(item) ? 'active' : ''}`}
+                  aria-current={isActive(item) ? 'page' : undefined}
+                >
+                  <Icon name={item.icon} size={15} />
+                  {item.label}
+                </button>
+              ))}
             </div>
-            {/* Logo desktop */}
-            <div className="hidden sm:flex items-center justify-center bg-white/90 rounded-2xl shadow-md border border-gray-200 group-hover:scale-105 transition-transform duration-200 flex-shrink-0"
-                 style={{ width: '72px', height: '72px' }}>
-              <img src="/RideLog.png" alt="RideLog"
-                   style={{ maxHeight: '58px', maxWidth: '58px', objectFit: 'contain', display: 'block' }}
-                   className="select-none pointer-events-none" draggable="false" />
-            </div>
+          </nav>
 
-            <div className="flex flex-col justify-center">
-              <span className="hidden sm:block font-semibold" style={{ color: 'var(--text-2)', fontSize: '1.2rem', letterSpacing: '0.01em' }}>
-                Suivi d'entretien véhicules
-              </span>
-              <span className="sm:hidden font-bold" style={{ color: 'var(--text-1)', fontSize: '1.05rem' }}>
-                RideLog
-              </span>
-            </div>
-          </div>
-
-          <div className="flex items-center gap-2">
-            <span className="text-xs hidden sm:inline" style={{ color: 'var(--text-3)' }}>v{version}</span>
+          {/* Session */}
+          <div className="flex items-center justify-end gap-2 min-w-0">
+            <span className="badge badge-neutral hidden lg:inline-flex">v{version}</span>
             <button
               onClick={toggleTheme}
-              title={theme === 'light' ? 'Mode nuit' : 'Mode jour'}
-              style={{
-                background: 'var(--bg-surface)', border: '1px solid var(--border)',
-                borderRadius: '0.5rem', width: '36px', height: '36px',
-                display: 'flex', alignItems: 'center', justifyContent: 'center',
-                cursor: 'pointer', fontSize: '1rem', flexShrink: 0,
-              }}
+              className="btn-icon"
+              title={theme === 'light' ? 'Passer en mode nuit' : 'Passer en mode jour'}
+              aria-label={theme === 'light' ? 'Passer en mode nuit' : 'Passer en mode jour'}
             >
-              {theme === 'light' ? '🌙' : '☀️'}
+              <Icon name={theme === 'light' ? 'moon' : 'sun'} size={17} />
             </button>
             {isAuthenticated && currentUser && (
-              <button
-                onClick={onLogout}
-                title={`Connecté en tant que ${currentUser.display_name} — Déconnexion`}
-                style={{
-                  background: 'var(--bg-surface)', border: '1px solid var(--border)',
-                  borderRadius: '0.5rem', height: '36px',
-                  display: 'flex', alignItems: 'center', justifyContent: 'center',
-                  cursor: 'pointer', flexShrink: 0, padding: '0 10px', gap: '6px',
-                  fontSize: '0.8rem', color: 'var(--text-2)',
-                }}
-              >
-                <span>👤</span>
-                <span className="hidden sm:inline">Déconnexion</span>
-              </button>
+              <>
+                {/* L'initiale dit à qui appartient la session : c'est la seule
+                    information personnelle de la barre. */}
+                <span
+                  className="avatar"
+                  style={{ width: 30, minWidth: 30, height: 30, fontSize: 13 }}
+                  title={`Connecté en tant que ${currentUser.display_name}`}
+                >
+                  {(currentUser.display_name || currentUser.username || '?').charAt(0)}
+                </span>
+                <span className="hidden xl:inline text-ellipsis" style={{ color: 'var(--text-2)', fontSize: 13.5, fontWeight: 600, maxWidth: 120 }}>
+                  {currentUser.display_name}
+                </span>
+                <button
+                  onClick={onLogout}
+                  className="btn-icon"
+                  title="Se déconnecter"
+                  aria-label="Se déconnecter"
+                >
+                  <Icon name="logout" size={17} />
+                </button>
+              </>
             )}
           </div>
         </div>
       </header>
 
-      {/* Nav desktop */}
-      <nav className="hidden sm:block sticky top-0 z-10" style={{ background: 'var(--bg-topbar)', borderBottom: '1px solid var(--border)' }}>
-        <div className="flex gap-2 sm:gap-4 py-3 overflow-x-auto items-center px-6 sm:px-10 lg:px-16">
-          {navItems.map(item => (
-            <button
-              key={item.key}
-              onClick={() => item.key === 'vehicles' ? handleBack() : navigateTo(item.key)}
-              className={`px-4 sm:px-6 py-2 rounded text-sm font-semibold transition-all whitespace-nowrap ${isActive(item) ? 'btn btn-primary' : 'btn btn-secondary'}`}
-            >
-              {item.icon} {item.label}
-            </button>
-          ))}
-        </div>
-      </nav>
-
       {/* Contenu */}
-      <main className="py-4 sm:py-8 flex-1 px-6 sm:px-10 lg:px-16">
+      <main className="py-5 sm:py-8 flex-1 w-full px-4 sm:px-8 lg:px-12" style={{ maxWidth: 1440, marginInline: 'auto' }}>
         {currentPage === 'dashboard' && <Dashboard onSelectVehicle={handleSelectVehicle} currentUser={currentUser} />}
         {currentPage === 'vehicles' && <VehicleList onSelectVehicle={handleSelectVehicle} currentUser={currentUser} />}
         {currentPage === 'vehicle-detail' && selectedVehicleId && <VehicleDetail vehicleId={selectedVehicleId} onBack={handleBack} currentUser={currentUser} />}
@@ -210,16 +208,17 @@ function AppContent({ isAuthenticated, currentUser, onLogout }) {
       </main>
 
       {/* Footer desktop */}
-      <footer className="hidden sm:block" style={{ background: 'var(--bg-surface)', borderTop: '1px solid var(--border)' }}>
-        <div className="py-4 text-center text-xs px-4" style={{ color: 'var(--text-3)' }}>
-          RideLog v{version} — Suivi d'entretien open source • {currentUser?.username && `Utilisateur: ${currentUser.display_name}`}
+      <footer className="hidden sm:block" style={{ borderTop: '1px solid var(--border)' }}>
+        <div className="py-4 text-center px-4" style={{ color: 'var(--text-3)', fontSize: 12 }}>
+          RideLog v{version} — suivi d'entretien open source
+          {currentUser?.display_name && <> · connecté en tant que {currentUser.display_name}</>}
         </div>
       </footer>
 
       {/* Barre nav mobile — scrollable si beaucoup d'items */}
       <nav
-        className="sm:hidden fixed bottom-0 left-0 right-0 z-50"
-        style={{ background: 'var(--bg-topbar)', borderTop: '1px solid var(--border)', boxShadow: '0 -2px 10px rgba(0,0,0,0.08)' }}
+        className="app-bar sm:hidden fixed bottom-0 left-0 right-0 z-50"
+        style={{ borderTop: '1px solid var(--border)' }}
       >
         <div style={{ display: 'flex', overflowX: 'auto', scrollbarWidth: 'none', paddingBottom: 'env(safe-area-inset-bottom, 0px)', WebkitOverflowScrolling: 'touch' }}>
           {navItems.map(item => {
@@ -228,18 +227,12 @@ function AppContent({ isAuthenticated, currentUser, onLogout }) {
               <button
                 key={item.key}
                 onClick={() => item.key === 'vehicles' ? handleBack() : navigateTo(item.key)}
-                style={{
-                  flex: '0 0 auto', minWidth: '64px',
-                  display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
-                  padding: '8px 8px', border: 'none', background: 'none', cursor: 'pointer', gap: '2px', position: 'relative',
-                }}
+                className={`nav-bottom-item ${active ? 'active' : ''}`}
+                aria-current={active ? 'page' : undefined}
               >
-                {active && (
-                  <div style={{ position: 'absolute', top: 0, left: '20%', right: '20%', height: '2px', background: 'var(--accent)', borderRadius: '0 0 2px 2px' }} />
-                )}
-                <span style={{ fontSize: '1.3rem', lineHeight: 1 }}>{item.icon}</span>
-                <span style={{ fontSize: '0.6rem', fontWeight: active ? 700 : 500, color: active ? 'var(--accent)' : 'var(--text-3)' }}>
-                  {item.label}
+                <Icon name={item.icon} size={20} />
+                <span className="nav-bottom-label">
+                  {item.shortLabel || item.label}
                 </span>
               </button>
             );
@@ -287,29 +280,32 @@ function ForcePasswordChange({ currentUser, onDone, onLogout }) {
   return (
     <div className="min-h-screen flex items-center justify-center p-4" style={{ background: 'var(--bg-base)' }}>
       <div className="w-full max-w-md card p-8 gap-section">
-        <h2 className="text-xl font-bold" style={{ color: 'var(--text-1)' }}>🔑 Mot de passe temporaire</h2>
+        <div className="flex items-center gap-3" style={{ marginBottom: 10 }}>
+          <div className="icon-box"><Icon name="key" size={18} /></div>
+          <h2 style={{ fontSize: '1.15rem' }}>Mot de passe temporaire</h2>
+        </div>
         <p className="text-sm" style={{ color: 'var(--text-2)' }}>
           Un administrateur vous a attribué un mot de passe temporaire. Choisissez votre propre mot de passe pour continuer — l'administrateur ne le connaîtra pas.
         </p>
 
         {error && (
           <div className="p-2 rounded text-xs" style={{ background: 'var(--danger-light)', border: '1px solid var(--danger)', color: 'var(--danger)' }}>
-            ⚠️ {error}
+            <span className="flex items-center gap-2"><Icon name="alertCircle" size={14} />{error}</span>
           </div>
         )}
 
         <form onSubmit={handleSubmit} className="space-y-3 mt-3">
           <div>
             <label className="block text-xs font-medium mb-1" style={{ color: 'var(--text-2)' }}>Mot de passe temporaire (reçu de l'admin)</label>
-            <input type="password" required value={currentPassword} onChange={e => setCurrentPassword(e.target.value)} className="input w-full" autoComplete="current-password" />
+            <input type="password" required value={currentPassword} onChange={e => setCurrentPassword(e.target.value)} className="w-full" autoComplete="current-password" />
           </div>
           <div>
             <label className="block text-xs font-medium mb-1" style={{ color: 'var(--text-2)' }}>Nouveau mot de passe</label>
-            <input type="password" required minLength={6} value={newPassword} onChange={e => setNewPassword(e.target.value)} className="input w-full" autoComplete="new-password" />
+            <input type="password" required minLength={6} value={newPassword} onChange={e => setNewPassword(e.target.value)} className="w-full" autoComplete="new-password" />
           </div>
           <div>
             <label className="block text-xs font-medium mb-1" style={{ color: 'var(--text-2)' }}>Confirmer le nouveau mot de passe</label>
-            <input type="password" required minLength={6} value={newPasswordConfirm} onChange={e => setNewPasswordConfirm(e.target.value)} className="input w-full" autoComplete="new-password" />
+            <input type="password" required minLength={6} value={newPasswordConfirm} onChange={e => setNewPasswordConfirm(e.target.value)} className="w-full" autoComplete="new-password" />
           </div>
           <button type="submit" disabled={saving} className="btn btn-primary w-full mt-4">
             {saving ? 'Enregistrement...' : 'Définir mon mot de passe'}
@@ -454,17 +450,18 @@ export default function App() {
             color: '#fff',
           }}
         >
+          <Icon name={familyJoin.status === 'ok' ? 'checkCircle' : 'alertCircle'} size={17} />
           <span>
             {familyJoin.status === 'ok'
-              ? `👨‍👩‍👧 Vous avez rejoint le groupe ${familyJoin.name || ''}`.trim()
-              : `⚠️ ${familyJoin.message}`}
+              ? `Vous avez rejoint le groupe ${familyJoin.name || ''}`.trim()
+              : familyJoin.message}
           </span>
           <button
             onClick={() => setFamilyJoin(null)}
             style={{ background: 'none', border: 'none', color: '#fff', cursor: 'pointer', fontWeight: 700 }}
             aria-label="Fermer"
           >
-            ✕
+            <Icon name="close" size={15} strokeWidth={2.2} />
           </button>
         </div>
       )}

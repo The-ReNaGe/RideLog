@@ -1,36 +1,68 @@
 import React, { useState, useCallback } from 'react';
 import { api } from '../lib/api';
 import { getInterventionDisplayName } from '../lib/interventionTranslations';
+import Icon from './Icon';
 
-function getStatusLabel(status) {
-  const labels = {
-    overdue: '🔴 En retard',
-    urgent: '🟠 Urgent',
-    warning: '🟡 À surveiller',
-    ok: '🟢 Bon',
-  };
-  return labels[status] || status;
+const STATUS = {
+  overdue: { label: 'En retard',    badge: 'badge-danger',  color: 'var(--danger)' },
+  urgent:  { label: 'Urgent',       badge: 'badge-warning', color: 'var(--warning)' },
+  warning: { label: 'À surveiller', badge: 'badge-warning', color: 'var(--warning)' },
+  ok:      { label: 'À jour',       badge: 'badge-success', color: 'var(--success)' },
+};
+
+const statusOf = (s) => STATUS[s] || STATUS.ok;
+
+/** Pastille d'état : la couleur porte l'information, le mot la confirme. */
+function StatusBadge({ status }) {
+  const st = statusOf(status);
+  return (
+    <span className={`badge ${st.badge}`}>
+      <span
+        aria-hidden="true"
+        style={{ width: 6, height: 6, borderRadius: 999, background: 'currentColor', display: 'inline-block' }}
+      />
+      {st.label}
+    </span>
+  );
 }
 
+const OVERDUE = Symbol('overdue');
+
 function formatDueDate(value) {
-  if (!value) return 'Sans échéance date';
+  if (!value) return 'sans échéance';
   const date = new Date(value);
-  if (Number.isNaN(date.getTime())) return 'Sans échéance date';
+  if (Number.isNaN(date.getTime())) return 'sans échéance';
   return date.toLocaleDateString('fr-FR');
 }
 
 function formatDistance(km) {
   if (km === 999999 || km === Infinity) return '—';
-  if (km < 0) return '⚠️ En retard';
+  if (km < 0) return OVERDUE;
   return `${km.toLocaleString('fr-FR')} km`;
 }
 
 function formatDays(days) {
-  if (days === 999999 || days === Infinity) return 'Sans échéance date';
-  if (days < 0) return '⚠️ En retard';
+  if (days === 999999 || days === Infinity) return '—';
+  if (days < 0) return OVERDUE;
   if (days > 365) return `${Math.floor(days / 365)} an${Math.floor(days / 365) > 1 ? 's' : ''}`;
   if (days > 30) return `${Math.floor(days / 30)} mois`;
   return `${days} j`;
+}
+
+/** Une colonne de l'encart de chiffres. */
+function Stat({ label, value, color }) {
+  const overdue = value === OVERDUE;
+  return (
+    <div style={{ padding: '0 10px', textAlign: 'center', width: 104 }}>
+      <div className="card-label" style={{ marginBottom: 2 }}>{label}</div>
+      <div
+        className="tabular"
+        style={{ fontSize: 15, fontWeight: 700, color: overdue ? 'var(--danger)' : (color || 'var(--text-1)') }}
+      >
+        {overdue ? 'En retard' : value}
+      </div>
+    </div>
+  );
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -87,175 +119,94 @@ function IntervalEditModal({ vehicleId, item, onClose, onSaved }) {
     }
   };
 
+  const criterion = (label, unit, value, setValue, disabled, setDisabled, inputProps) => (
+    <div>
+      <div className="flex items-center justify-between" style={{ marginBottom: 6 }}>
+        <label className="field-label" style={{ marginBottom: 0 }}>{label}</label>
+        <label className="flex items-center gap-1.5 cursor-pointer" style={{ fontSize: 12, color: 'var(--text-3)' }}>
+          <input type="checkbox" checked={disabled} onChange={(e) => setDisabled(e.target.checked)} />
+          Désactivé
+        </label>
+      </div>
+      <div className="flex items-center gap-2">
+        <input
+          type="number"
+          {...inputProps}
+          value={disabled ? '' : value}
+          onChange={(e) => setValue(e.target.value)}
+          disabled={disabled}
+          placeholder={disabled ? 'Désactivé' : inputProps.placeholder}
+          style={{ flex: 1, opacity: disabled ? 0.45 : 1 }}
+        />
+        <span style={{ fontSize: 13, color: 'var(--text-3)', flexShrink: 0 }}>{unit}</span>
+      </div>
+    </div>
+  );
+
   return (
     <div
       style={{
         position: 'fixed', inset: 0, zIndex: 1200,
         display: 'flex', alignItems: 'center', justifyContent: 'center',
         padding: '1rem',
-        background: 'rgba(0,0,0,0.5)',
+        background: 'rgba(12,15,22,0.55)',
         backdropFilter: 'blur(3px)',
       }}
       onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}
     >
-      <div
-        className="card"
-        style={{
-          width: '100%', maxWidth: 420, padding: 0,
-          boxShadow: '0 20px 50px rgba(0,0,0,0.3)',
-        }}
-      >
-        {/* Header */}
-        <div style={{
-          padding: '1.1rem 1.25rem 0.9rem',
-          borderBottom: '1px solid var(--border)',
-          display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: '0.75rem',
-        }}>
-          <div>
-            <h4 style={{ color: 'var(--text-1)', fontWeight: 700, fontSize: '0.95rem', marginBottom: '0.15rem' }}>
-              ✏️ Modifier l'intervalle
-            </h4>
-            <p style={{ color: 'var(--text-3)', fontSize: '0.78rem' }}>
-              {item.intervention_type}
+      <div className="card" style={{ width: '100%', maxWidth: 420, padding: 0, boxShadow: 'var(--shadow-lg)' }}>
+        <div className="panel-header" style={{ alignItems: 'flex-start' }}>
+          <div className="flex-1 min-w-0">
+            <h4 style={{ fontSize: '0.98rem' }}>Modifier l'intervalle</h4>
+            <p className="text-ellipsis" style={{ color: 'var(--text-3)', fontSize: 12.5 }}>
+              {getInterventionDisplayName(item.intervention_type)}
             </p>
           </div>
-          <button
-            onClick={onClose}
-            style={{
-              background: 'var(--bg-surface)', border: '1px solid var(--border)',
-              borderRadius: '0.4rem', color: 'var(--text-3)',
-              width: 28, height: 28, flexShrink: 0,
-              display: 'flex', alignItems: 'center', justifyContent: 'center',
-              cursor: 'pointer', fontSize: '0.85rem',
-            }}
-          >✕</button>
+          <button onClick={onClose} className="btn-icon" aria-label="Fermer">
+            <Icon name="close" size={16} strokeWidth={2.2} />
+          </button>
         </div>
 
-        {/* Contenu */}
-        <div style={{ padding: '1rem 1.25rem', display: 'flex', flexDirection: 'column', gap: '0.85rem' }}>
+        <div style={{ padding: '16px 18px', display: 'flex', flexDirection: 'column', gap: 14 }}>
+          {criterion('Intervalle kilométrique', 'km', kmValue, setKmValue, kmDisabled, setKmDisabled,
+            { min: '100', max: '500000', step: '500', placeholder: 'ex : 5000' })}
+          {criterion('Intervalle temporel', 'mois', monthsValue, setMonthsValue, monthsDisabled, setMonthsDisabled,
+            { min: '1', max: '240', step: '1', placeholder: 'ex : 12' })}
 
-          {/* Critère km */}
-          <div>
-            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '0.4rem' }}>
-              <label style={{ fontSize: '0.82rem', fontWeight: 600, color: 'var(--text-2)' }}>
-                Intervalle kilométrique
-              </label>
-              <label style={{ display: 'flex', alignItems: 'center', gap: 5, fontSize: '0.78rem', color: 'var(--text-3)', cursor: 'pointer' }}>
-                <input
-                  type="checkbox"
-                  checked={kmDisabled}
-                  onChange={(e) => setKmDisabled(e.target.checked)}
-                  style={{ cursor: 'pointer' }}
-                />
-                Désactivé
-              </label>
-            </div>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-              <input
-                type="number"
-                min="100"
-                max="500000"
-                step="500"
-                value={kmDisabled ? '' : kmValue}
-                onChange={(e) => setKmValue(e.target.value)}
-                disabled={kmDisabled}
-                placeholder={kmDisabled ? 'Désactivé' : 'ex: 5000'}
-                className="input-field"
-                style={{
-                  flex: 1, padding: '0.45rem 0.65rem', fontSize: '0.85rem',
-                  opacity: kmDisabled ? 0.4 : 1,
-                }}
-              />
-              <span style={{ fontSize: '0.8rem', color: 'var(--text-3)', flexShrink: 0 }}>km</span>
-            </div>
-          </div>
-
-          {/* Critère mois */}
-          <div>
-            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '0.4rem' }}>
-              <label style={{ fontSize: '0.82rem', fontWeight: 600, color: 'var(--text-2)' }}>
-                Intervalle temporel
-              </label>
-              <label style={{ display: 'flex', alignItems: 'center', gap: 5, fontSize: '0.78rem', color: 'var(--text-3)', cursor: 'pointer' }}>
-                <input
-                  type="checkbox"
-                  checked={monthsDisabled}
-                  onChange={(e) => setMonthsDisabled(e.target.checked)}
-                  style={{ cursor: 'pointer' }}
-                />
-                Désactivé
-              </label>
-            </div>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-              <input
-                type="number"
-                min="1"
-                max="240"
-                step="1"
-                value={monthsDisabled ? '' : monthsValue}
-                onChange={(e) => setMonthsValue(e.target.value)}
-                disabled={monthsDisabled}
-                placeholder={monthsDisabled ? 'Désactivé' : 'ex: 12'}
-                className="input-field"
-                style={{
-                  flex: 1, padding: '0.45rem 0.65rem', fontSize: '0.85rem',
-                  opacity: monthsDisabled ? 0.4 : 1,
-                }}
-              />
-              <span style={{ fontSize: '0.8rem', color: 'var(--text-3)', flexShrink: 0 }}>mois</span>
-            </div>
-          </div>
-
-          {/* Info */}
-          <p style={{ fontSize: '0.73rem', color: 'var(--text-3)', lineHeight: 1.4 }}>
-            ℹ️ Ces valeurs remplacent les intervalles par défaut uniquement pour ce véhicule. Elles sont conservées indéfiniment.
+          <p className="flex items-start gap-2" style={{ fontSize: 12, color: 'var(--text-3)', lineHeight: 1.45 }}>
+            <Icon name="info" size={14} style={{ marginTop: 1 }} />
+            <span>Ces valeurs remplacent les intervalles par défaut pour ce véhicule uniquement. Elles sont conservées indéfiniment.</span>
           </p>
 
           {error && (
-            <p style={{ fontSize: '0.78rem', color: 'var(--danger)' }}>{error}</p>
+            <p className="flex items-center gap-2" style={{ fontSize: 13, color: 'var(--danger)' }}>
+              <Icon name="alertCircle" size={14} />{error}
+            </p>
           )}
         </div>
 
-        {/* Footer */}
-        <div style={{
-          padding: '0.8rem 1.25rem',
-          borderTop: '1px solid var(--border)',
-          display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '0.5rem',
-        }}>
+        <div className="panel-footer flex items-center justify-between gap-2">
           {/* Réinitialiser à gauche, seulement si un override existe */}
           {item.has_override ? (
-            <button
-              onClick={handleReset}
-              disabled={saving}
-              style={{
-                fontSize: '0.78rem', color: 'var(--text-3)', background: 'none',
-                border: 'none', cursor: 'pointer', padding: '0.35rem 0', textDecoration: 'underline',
-                opacity: saving ? 0.5 : 1,
-              }}
-            >
-              Réinitialiser par défaut
+            <button onClick={handleReset} disabled={saving} className="btn btn-ghost btn-sm">
+              <Icon name="refresh" size={14} />
+              Valeurs par défaut
             </button>
           ) : (
             <span />
           )}
 
-          <div style={{ display: 'flex', gap: '0.4rem' }}>
-            <button
-              onClick={onClose}
-              disabled={saving}
-              className="btn btn-secondary"
-              style={{ fontSize: '0.82rem' }}
-            >
+          <div className="flex gap-2">
+            <button onClick={onClose} disabled={saving} className="btn btn-secondary btn-sm">
               Annuler
             </button>
             <button
               onClick={handleSave}
               disabled={saving || (kmDisabled && monthsDisabled)}
-              className="btn btn-primary"
-              style={{ fontSize: '0.82rem', minWidth: 100, opacity: (kmDisabled && monthsDisabled) ? 0.5 : 1 }}
+              className="btn btn-primary btn-sm"
               title={kmDisabled && monthsDisabled ? 'Au moins un critère doit rester actif' : ''}
             >
-              {saving ? '⏳ Sauvegarde…' : '💾 Enregistrer'}
+              {saving ? 'Enregistrement…' : 'Enregistrer'}
             </button>
           </div>
         </div>
@@ -279,23 +230,21 @@ export default React.memo(function UpcomingMaintenance({ data, vehicleId, onRefr
 
   if (!upcoming || upcoming.length === 0) {
     return (
-      <div className="card p-12 text-center">
-        <p style={{ color: 'var(--text-2)' }}>Aucune intervention prévue</p>
+      <div className="card text-center" style={{ padding: '40px 16px' }}>
+        <div className="icon-box lg success mx-auto" style={{ marginBottom: 12 }}>
+          <Icon name="checkCircle" size={20} />
+        </div>
+        <p style={{ color: 'var(--text-2)' }}>Aucune intervention prévue.</p>
       </div>
     );
   }
 
   return (
     <>
-      <div className="space-y-4">
+      <div className="space-y-3">
         {upcoming.map((item, idx) => {
-          const badgeClass =
-            item.status === 'overdue' ? 'badge-danger' :
-            item.status === 'urgent' ? 'badge-warning' :
-            item.status === 'warning' ? 'badge-warning' :
-            'badge-success';
+          const st = statusOf(item.status);
 
-          // Afficher le résumé de l'intervalle (avec indication override)
           const hasKm = item.km_interval !== null && item.km_interval !== undefined;
           const hasMonths = item.months_interval !== null && item.months_interval !== undefined;
           const intervalLabel = [
@@ -303,112 +252,92 @@ export default React.memo(function UpcomingMaintenance({ data, vehicleId, onRefr
             hasMonths ? `${item.months_interval} mois` : null,
           ].filter(Boolean).join(' ou ');
 
+          const costMin = item.estimated_cost_min;
+          const costMax = item.estimated_cost_max;
+          const costLabel = costMin && costMax
+            ? (costMin === costMax ? `${costMin} €` : `${costMin} – ${costMax} €`)
+            : '—';
+
+          const editable =
+            canEdit && item.intervention_key &&
+            !['inspection_technical_car', 'inspection_technical_moto'].includes(item.intervention_key);
+
           return (
-            <div key={idx} className="card p-4">
-              <div className="flex flex-col sm:flex-row sm:items-start gap-4">
-                <div className="flex-1">
-                  <div className="flex items-center gap-2 flex-wrap mb-3">
-                    <h4 className="font-semibold" style={{ color: 'var(--text-1)' }}>
+            <article
+              key={idx}
+              className="card"
+              style={{ padding: 0, overflow: 'hidden', borderLeft: `3px solid ${st.color}` }}
+            >
+              <div className="flex flex-wrap items-start justify-between gap-4" style={{ padding: '14px 16px' }}>
+                <div className="min-w-0" style={{ flex: '1 1 300px' }}>
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <h4 style={{ color: 'var(--text-1)' }}>
                       {getInterventionDisplayName(item.intervention_type)}
                     </h4>
-                    <span className={`badge ${badgeClass}`}>
-                      {getStatusLabel(item.status)}
-                    </span>
+                    <StatusBadge status={item.status} />
                     {item.has_override && (
-                      <span
-                        title="Intervalle personnalisé"
-                        style={{
-                          fontSize: '0.68rem', fontWeight: 600,
-                          padding: '1px 6px', borderRadius: 10,
-                          background: 'rgba(108,138,247,0.12)',
-                          color: 'var(--accent)',
-                        }}
-                      >
-                        ✏️ Personnalisé
+                      <span className="badge badge-info" title="Intervalle personnalisé pour ce véhicule">
+                        <Icon name="pencil" size={11} strokeWidth={2.2} />
+                        Personnalisé
                       </span>
                     )}
                   </div>
 
-                  {(hasKm || hasMonths) && (
-                    <p className="text-xs" style={{ color: 'var(--text-3)' }}>
-                      Tous les {intervalLabel}
-                    </p>
-                  )}
-                  {!hasKm && !hasMonths && !item.condition_based && (
-                    <p className="text-xs" style={{ color: 'var(--text-3)' }}>
-                      Aucun critère d'intervalle actif
-                    </p>
-                  )}
+                  <p style={{ fontSize: 13, color: 'var(--text-2)', marginTop: 3 }}>
+                    {hasKm || hasMonths
+                      ? `Tous les ${intervalLabel}`
+                      : (item.condition_based ? 'Selon l’usage' : 'Aucun critère d’intervalle actif')}
+                  </p>
 
                   {item.never_recorded && (
-                    <p className="text-xs mt-1" style={{ color: 'var(--text-3)', fontStyle: 'italic' }}>
-                      ℹ️ Jamais enregistré — échéance estimée depuis l'année du véhicule
+                    <p className="flex items-center gap-1.5" style={{ fontSize: 12.5, color: 'var(--text-3)', marginTop: 3 }}>
+                      <Icon name="info" size={13} />
+                      Jamais enregistré — échéance estimée depuis l'année du véhicule
                     </p>
                   )}
                 </div>
 
-                <div className="flex gap-3 items-start">
-                  {/* Stats */}
-                  <div className="flex gap-6 text-sm">
+                <div className="flex items-center gap-2">
+                  <div className="inset flex items-center self-start" style={{ padding: '8px 0' }}>
                     {!item.condition_based && (
                       <>
-                        <div className="text-center">
-                          <div className="card-label">Distance</div>
-                          <div className="stat-number" style={{ color: 'var(--accent)', fontSize: '16px' }}>
-                            {formatDistance(item.km_remaining)}
-                          </div>
-                        </div>
-                        <div className="text-center">
-                          <div className="card-label">Temps</div>
-                          <div className="stat-number" style={{ color: 'var(--accent)', fontSize: '16px' }}>
-                            {formatDays(item.days_remaining)}
-                          </div>
-                        </div>
+                        <Stat label="Distance" value={formatDistance(item.km_remaining)} />
+                        <span style={{ width: 1, alignSelf: 'stretch', background: 'var(--border)' }} />
+                        <Stat label="Temps" value={formatDays(item.days_remaining)} />
+                        <span style={{ width: 1, alignSelf: 'stretch', background: 'var(--border)' }} />
                       </>
                     )}
-                    <div className="text-center">
-                      <div className="card-label">Coût est.</div>
-                      <div className="stat-number" style={{ color: 'var(--success)', fontSize: '16px' }}>
-                        {item.estimated_cost_min && item.estimated_cost_max ? `€${item.estimated_cost_min}` : '—'}
-                      </div>
-                    </div>
+                    <Stat label="Coût est." value={costLabel} color="var(--success)" />
                   </div>
 
                   {/* Bouton édition intervalle — masqué pour le contrôle
                       technique, et sur un véhicule partagé qu'on ne possède pas */}
-                  {canEdit && item.intervention_key &&
-                   !['inspection_technical_car', 'inspection_technical_moto'].includes(item.intervention_key) && (
+                  {editable && (
                     <button
                       onClick={() => setEditingItem(item)}
+                      className="btn-icon"
                       title="Modifier l'intervalle"
-                      style={{
-                        background: 'var(--bg-surface)',
-                        border: '1px solid var(--border)',
-                        borderRadius: '0.4rem',
-                        color: item.has_override ? 'var(--accent)' : 'var(--text-3)',
-                        width: 30, height: 30, flexShrink: 0,
-                        display: 'flex', alignItems: 'center', justifyContent: 'center',
-                        cursor: 'pointer', fontSize: '0.8rem',
-                        marginTop: 2,
-                      }}
+                      aria-label={`Modifier l'intervalle de ${getInterventionDisplayName(item.intervention_type)}`}
+                      style={{ color: item.has_override ? 'var(--accent)' : undefined }}
                     >
-                      ✏️
+                      <Icon name="pencil" size={16} />
                     </button>
                   )}
                 </div>
               </div>
 
               {!item.condition_based && (item.next_due_mileage || item.next_due_date) && (
-                <div className="mt-2 pt-2 divider">
-                  <p className="text-xs" style={{ color: 'var(--text-3)' }}>
+                <div style={{ padding: '8px 16px', background: 'var(--bg-inset)', borderTop: '1px solid var(--border-light)' }}>
+                  <p className="flex items-center gap-1.5" style={{ fontSize: 12.5, color: 'var(--text-3)' }}>
+                    <Icon name="calendar" size={13} />
                     Prochaine échéance :{' '}
                     {item.next_due_mileage ? `${item.next_due_mileage.toLocaleString('fr-FR')} km` : ''}
-                    {item.next_due_mileage && item.next_due_date ? ' • ' : ' '}
+                    {item.next_due_mileage && item.next_due_date ? ' · ' : ' '}
                     {formatDueDate(item.next_due_date)}
                   </p>
                 </div>
               )}
-            </div>
+            </article>
           );
         })}
       </div>

@@ -1,4 +1,5 @@
 import { useState, useEffect, useMemo } from "react";
+import Icon from './Icon';
 import {
   REVISION_TRIGGERS,
   BRAKE_SUBITEMS,
@@ -91,10 +92,10 @@ export default function RevisionChecklistModal({
     ? items.reduce((acc, item) => {
         const g = acc.find((g) => g.label === item.group);
         if (g) g.items.push(item);
-        else acc.push({ label: item.group, emoji: item.emoji, items: [item] });
+        else acc.push({ label: item.group, icon: item.icon, items: [item] });
         return acc;
       }, [])
-    : [{ label: null, emoji: null, items }];
+    : [{ label: null, icon: null, items }];
 
   return (
     <div style={{
@@ -121,7 +122,7 @@ export default function RevisionChecklistModal({
         }}>
           <div>
             <h3 style={{ color: "var(--text-1)", fontWeight: 700, fontSize: "1rem", marginBottom: "0.2rem" }}>
-              {isFullRevision ? "🔧 Détail de la révision" : `🔧 Détail : ${interventionType}`}
+              {isFullRevision ? 'Détail de la révision' : `Détail : ${interventionType}`}
             </h3>
             <p style={{ color: "var(--text-3)", fontSize: "0.8rem" }}>
               {isFullRevision
@@ -138,7 +139,7 @@ export default function RevisionChecklistModal({
               display: "flex", alignItems: "center", justifyContent: "center",
               cursor: "pointer", fontSize: "0.9rem",
             }}
-          >✕</button>
+          ><Icon name="close" size={16} strokeWidth={2.2} /></button>
         </div>
 
         {/* Liste scrollable */}
@@ -153,7 +154,7 @@ export default function RevisionChecklistModal({
                   textTransform: "uppercase", letterSpacing: "0.07em",
                   color: "var(--text-3)",
                 }}>
-                  <span>{group.emoji}</span>
+                  <Icon name={group.icon} size={14} style={{ color: 'var(--text-3)' }} />
                   <span>{group.label}</span>
                 </div>
               )}
@@ -186,7 +187,7 @@ export default function RevisionChecklistModal({
                             color: "white", fontSize: "0.65rem", fontWeight: 700,
                             transition: "all 0.15s",
                           }}>
-                            {isChecked && "✓"}
+                            {isChecked && <Icon name="check" size={12} strokeWidth={3} />}
                           </div>
                           <input
                             type="checkbox"
@@ -262,7 +263,8 @@ export default function RevisionChecklistModal({
               className="btn btn-primary"
               style={{ fontSize: "0.82rem", minWidth: 145 }}
             >
-              ✓ Valider ({selectedCount})
+              <Icon name="check" size={16} strokeWidth={2.4} />
+              Valider ({selectedCount})
             </button>
           </div>
         </div>
