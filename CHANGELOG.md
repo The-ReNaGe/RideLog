@@ -1,5 +1,20 @@
 # Changelog
 
+## [2.1.0](https://github.com/The-ReNaGe/RideLog/compare/v2.0.2...v2.1.0) (2026-08-26)
+
+
+### Features
+
+* clarifie la vue partagée, recadre deux blocs et fixe le système de design ([3561aca](https://github.com/The-ReNaGe/RideLog/commit/3561acaec8dc9448f3ef08d3c18a347712800775))
+* gestion des groupes famille et de leurs invitations ([940ea77](https://github.com/The-ReNaGe/RideLog/commit/940ea776c924350957af12e09db96f84ffa9bf31))
+* groupes famille — partage en lecture des véhicules du foyer ([a5d9df5](https://github.com/The-ReNaGe/RideLog/commit/a5d9df568dff1f7b2ae0243ed7013ab0a3ddca72))
+* interface de gestion du groupe famille ([234c38c](https://github.com/The-ReNaGe/RideLog/commit/234c38cbf392ba28a80af563e7379ba762521879))
+* modèle de données des groupes famille ([71d21b6](https://github.com/The-ReNaGe/RideLog/commit/71d21b6866b84d5c9c62346c856bd0f479ba0673))
+* partage en lecture des véhicules du groupe famille ([e3f2187](https://github.com/The-ReNaGe/RideLog/commit/e3f2187c4f77e328b787df16109225b828c61d76))
+* regroupe la liste par garage et recadre la case « véhicule privé » ([4cc2005](https://github.com/The-ReNaGe/RideLog/commit/4cc20052d8b54947c5b85a682a545f300a433d54))
+* réserve l'inscription aux admins et ouvre le renommage à tous ([f104cec](https://github.com/The-ReNaGe/RideLog/commit/f104ceca6e79ce72f6006e4d92e257b7828984d7))
+* unifie la largeur des paramètres et resserre la liste des membres ([26b7a57](https://github.com/The-ReNaGe/RideLog/commit/26b7a575d2f5742556653f47c0446a9d44cfa87b))
+
 ## [2.0.2](https://github.com/The-ReNaGe/RideLog/compare/v2.0.1...v2.0.2) (2026-08-25)
 
 
