@@ -218,37 +218,56 @@ export default function FamilySettings({ currentUser }) {
               </div>
             )}
 
-            <p className="text-xs mt-3 p-2 rounded" style={{ background: 'var(--accent-light)', color: 'var(--text-2)' }}>
-              ℹ️ Les membres <strong>consultent</strong> les véhicules du groupe. Seul le propriétaire
-              d'un véhicule peut y enregistrer un entretien ou un plein. Un véhicule marqué
-              <strong> 🔒 Privé</strong> dans sa fiche reste invisible aux autres.
+            {/* max-w-prose : une explication de trois lignes lue sur toute la
+                largeur de la carte fatigue à chaque retour à la ligne. */}
+            <p
+              className="text-sm mt-3 p-3 rounded max-w-prose"
+              style={{ background: 'var(--accent-light)', color: 'var(--text-2)' }}
+            >
+              Les membres <strong>consultent</strong> les véhicules du groupe. Seul le propriétaire
+              d'un véhicule peut y enregistrer un entretien ou un plein, et un véhicule marqué
+              <strong> 🔒 Privé</strong> reste invisible aux autres.
             </p>
           </div>
 
           <div className="card p-4">
-            <h3 className="font-semibold mb-3" style={{ color: 'var(--text-1)' }}>Membres</h3>
-            <div className="space-y-2">
-              {family.members.map((m) => (
+            <h3 className="font-semibold mb-3" style={{ color: 'var(--text-1)' }}>
+              Membres <span className="text-sm font-normal" style={{ color: 'var(--text-3)' }}>
+                · {family.members.length}
+              </span>
+            </h3>
+            {/* Une vignette d'initiale, le nom et son identifiant sur la même
+                ligne : la version précédente étalait chaque membre sur une
+                ligne pleine largeur pour deux mots, laissant un grand vide. */}
+            <div>
+              {family.members.map((m, index) => (
                 <div
                   key={m.user_id}
-                  className="flex items-center justify-between gap-3 py-2"
-                  style={{ borderBottom: '1px solid var(--border)' }}
+                  className="flex items-center gap-3 py-2.5"
+                  style={{
+                    borderTop: index === 0 ? 'none' : '1px solid var(--border-light)',
+                  }}
                 >
-                  <div>
-                    <span style={{ color: 'var(--text-1)' }}>{m.display_name}</span>
-                    <span className="text-xs ml-2" style={{ color: 'var(--text-3)' }}>@{m.username}</span>
-                    {m.role === 'owner' && (
-                      <span
-                        className="inline-block px-2 py-0.5 rounded text-xs font-semibold ml-2"
-                        style={{ background: 'var(--accent-light)', color: 'var(--accent)' }}
-                      >
-                        créateur
-                      </span>
-                    )}
+                  <span
+                    className="icon-box"
+                    // min-width est fixé à 40px sur .icon-box : sans le
+                    // neutraliser ici, la vignette resterait large.
+                    style={{ width: 32, minWidth: 32, height: 32, fontSize: 13, flexShrink: 0 }}
+                  >
+                    {(m.display_name || m.username || '?').charAt(0).toUpperCase()}
+                  </span>
+
+                  <div className="flex items-baseline gap-2 flex-wrap min-w-0 flex-1">
+                    <span className="font-medium" style={{ color: 'var(--text-1)' }}>
+                      {m.display_name}
+                    </span>
+                    <span className="text-xs" style={{ color: 'var(--text-3)' }}>@{m.username}</span>
                     {m.user_id === currentUser?.id && (
-                      <span className="text-xs ml-2" style={{ color: 'var(--text-3)' }}>(vous)</span>
+                      <span className="text-xs" style={{ color: 'var(--text-3)' }}>· vous</span>
                     )}
+                    {m.role === 'owner' && <span className="badge badge-info">créateur</span>}
                   </div>
+
                   {isOwner && m.user_id !== currentUser?.id && (
                     <button
                       onClick={() => {
@@ -260,6 +279,7 @@ export default function FamilySettings({ currentUser }) {
                       }}
                       disabled={busy}
                       className="btn btn-danger text-xs"
+                      style={{ flexShrink: 0 }}
                     >
                       Retirer
                     </button>
@@ -273,14 +293,16 @@ export default function FamilySettings({ currentUser }) {
             <h3 className="font-semibold mb-3" style={{ color: 'var(--text-1)' }}>
               📨 Inviter quelqu'un
             </h3>
-            <p className="text-sm mb-2" style={{ color: 'var(--text-2)' }}>
+            <p className="text-sm mb-3 max-w-prose" style={{ color: 'var(--text-2)' }}>
               Transmettez ce lien à une personne qui a <strong>déjà un compte</strong> sur cette
               instance : elle rejoindra votre groupe en l'ouvrant.
             </p>
-            <p className="text-xs mb-3 p-2 rounded" style={{ background: 'var(--warning-light)', color: 'var(--text-1)' }}>
-              ℹ️ Ce lien ne crée pas de compte. Si la personne n'en a pas encore, demandez à un
-              administrateur de lui en créer un d'abord — ouvrir l'instance à quelqu'un de nouveau
-              reste une décision d'administrateur.
+            <p
+              className="text-sm mb-4 p-3 rounded max-w-prose"
+              style={{ background: 'var(--warning-light)', color: 'var(--text-1)' }}
+            >
+              ⚠️ Ce lien <strong>ne crée pas de compte</strong>. Si la personne n'en a pas encore,
+              demandez à un administrateur de lui en créer un d'abord.
             </p>
 
             {copyError && (
@@ -319,14 +341,16 @@ export default function FamilySettings({ currentUser }) {
             {invitations.length === 0 ? (
               <p className="text-sm" style={{ color: 'var(--text-3)' }}>Aucune invitation en attente</p>
             ) : (
-              <div className="space-y-2">
-                {invitations.map((inv) => (
+              <div>
+                {invitations.map((inv, index) => (
                   <div
                     key={inv.id}
-                    className="flex items-center justify-between gap-3 flex-wrap py-2"
-                    style={{ borderBottom: '1px solid var(--border)' }}
+                    className="flex items-center justify-between gap-3 flex-wrap py-2.5"
+                    style={{
+                      borderTop: index === 0 ? 'none' : '1px solid var(--border-light)',
+                    }}
                   >
-                    <span className="text-xs" style={{ color: 'var(--text-3)' }}>
+                    <span className="text-sm" style={{ color: 'var(--text-2)' }}>
                       Expire le {new Date(inv.expires_at).toLocaleDateString('fr-FR', {
                         day: '2-digit', month: '2-digit', year: 'numeric',
                         hour: '2-digit', minute: '2-digit',

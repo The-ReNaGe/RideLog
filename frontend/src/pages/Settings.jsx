@@ -10,7 +10,11 @@ export default function Settings({ currentUser }) {
   const [activeTab, setActiveTab] = useState('discord');
 
   return (
-    <div>
+    // Largeur commune à tous les onglets. Sans elle, le contenu s'étirait sur
+    // toute la page : des lignes de texte de 1400 px, que l'œil perd au retour
+    // à la ligne. Un onglet centré et les autres pleine largeur — l'écart
+    // sautait aux yeux en passant de l'un à l'autre.
+    <div className="max-w-5xl mx-auto">
       <h2 className="text-2xl font-bold mb-6" style={{ color: 'var(--text-1)' }}>⚙️ Paramètres</h2>
 
       {/* Navigation Tabs */}
@@ -244,10 +248,9 @@ function AccountSettings() {
   };
 
   return (
-    // Colonne centrée : le formulaire gardait une largeur de lecture correcte
-    // mais restait collé au bord gauche d'une page pleine largeur, ce qui le
-    // faisait paraître tassé dans un coin. La bannière et la carte partagent
-    // désormais la même largeur.
+    // Plus étroit que les autres onglets : un formulaire de mot de passe à
+    // trois champs n'a aucune raison de s'étendre sur toute la largeur
+    // disponible. La bannière et la carte partagent la même largeur.
     <div className="max-w-2xl mx-auto">
       <div className="card p-4 text-sm mb-6" style={{ background: 'var(--accent-light)', border: '1px solid var(--accent)', color: 'var(--text-1)' }}>
         <p className="font-bold mb-1">🔑 Sécurité du compte</p>
