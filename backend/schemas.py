@@ -21,6 +21,8 @@ class VehicleCreate(BaseModel):
     service_interval_km: Optional[int] = Field(None, ge=1000, le=100000)
     service_interval_months: Optional[int] = Field(None, ge=1, le=60)
     notes: Optional[str] = Field(None, max_length=2000)
+    # Exclut le véhicule du partage famille (voir routes/access.py).
+    is_private: bool = Field(False)
 
 class VehicleUpdate(BaseModel):
     name: Optional[str] = Field(None, min_length=1, max_length=255)
@@ -31,6 +33,7 @@ class VehicleUpdate(BaseModel):
     service_interval_km: Optional[int] = Field(None, ge=1000, le=100000)
     service_interval_months: Optional[int] = Field(None, ge=1, le=60)
     notes: Optional[str] = Field(None, max_length=2000)
+    is_private: Optional[bool] = Field(None)
 
     @field_validator('registration_date', mode='before')
     @classmethod

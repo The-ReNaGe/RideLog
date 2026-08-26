@@ -3,13 +3,18 @@ import { api } from '../lib/api';
 import DiscordIntegration from '../components/integrations/DiscordIntegration';
 import HomeAssistantIntegration from '../components/integrations/HomeAssistantIntegration';
 import APIDocumentation from '../components/APIDocumentation';
+import FamilySettings from '../components/FamilySettings';
 import { copyToClipboard } from '../lib/clipboard';
 
 export default function Settings({ currentUser }) {
   const [activeTab, setActiveTab] = useState('discord');
 
   return (
-    <div>
+    // Largeur commune à tous les onglets. Sans elle, le contenu s'étirait sur
+    // toute la page : des lignes de texte de 1400 px, que l'œil perd au retour
+    // à la ligne. Un onglet centré et les autres pleine largeur — l'écart
+    // sautait aux yeux en passant de l'un à l'autre.
+    <div className="max-w-5xl mx-auto">
       <h2 className="text-2xl font-bold mb-6" style={{ color: 'var(--text-1)' }}>⚙️ Paramètres</h2>
 
       {/* Navigation Tabs */}
@@ -43,6 +48,16 @@ export default function Settings({ currentUser }) {
           }}
         >
           🔔 Rappels
+        </button>
+        <button
+          onClick={() => setActiveTab('famille')}
+          className="px-4 py-3 font-medium transition-colors border-b-2 whitespace-nowrap"
+          style={{
+            borderColor: activeTab === 'famille' ? 'var(--accent)' : 'transparent',
+            color: activeTab === 'famille' ? 'var(--accent)' : 'var(--text-2)',
+          }}
+        >
+          👨‍👩‍👧 Famille
         </button>
         <button
           onClick={() => setActiveTab('compte')}
@@ -86,6 +101,9 @@ export default function Settings({ currentUser }) {
 
       {/* REMINDERS TAB */}
       {activeTab === 'reminders' && <ReminderSettings />}
+
+      {/* FAMILLE TAB */}
+      {activeTab === 'famille' && <FamilySettings currentUser={currentUser} />}
 
       {/* COMPTE TAB */}
       {activeTab === 'compte' && <AccountSettings />}
@@ -230,7 +248,10 @@ function AccountSettings() {
   };
 
   return (
-    <div>
+    // Plus étroit que les autres onglets : un formulaire de mot de passe à
+    // trois champs n'a aucune raison de s'étendre sur toute la largeur
+    // disponible. La bannière et la carte partagent la même largeur.
+    <div className="max-w-2xl mx-auto">
       <div className="card p-4 text-sm mb-6" style={{ background: 'var(--accent-light)', border: '1px solid var(--accent)', color: 'var(--text-1)' }}>
         <p className="font-bold mb-1">🔑 Sécurité du compte</p>
         <p style={{ color: 'var(--text-2)' }}>
@@ -239,7 +260,7 @@ function AccountSettings() {
         </p>
       </div>
 
-      <div className="card p-6 gap-section max-w-lg">
+      <div className="card p-6 gap-section">
         <h3 className="text-lg font-semibold mb-4" style={{ color: 'var(--text-1)' }}>Changer mon mot de passe</h3>
 
         {error && (

@@ -19,13 +19,31 @@
 # d'un Raspberry Pi 32 bits, par exemple), ce fichier est le chemin de repli.
 # ══════════════════════════════════════════════════════════════════════════
 
+# ──────────────────────────────────────────────────────────────────────────
+# `restart: "no"` annule le `unless-stopped` du fichier principal.
+#
+# Une instance de développement ne doit tourner que quand on la lance : elle
+# n'a pas à revenir après un plantage, ni au démarrage de la machine, ni à
+# occuper de la mémoire entre deux sessions de travail. C'est le contraire du
+# déploiement réel, où `unless-stopped` est exactement ce qu'on veut — d'où
+# la surcharge ici plutôt qu'une modification du fichier principal.
+#
+# ⚠️ Les guillemets sont obligatoires : en YAML, `no` sans guillemets vaut le
+# booléen `false`, que Compose refuse.
+#
+# Arrêter l'environnement de dev :
+#   podman-compose -f docker-compose.yml -f docker-compose.dev.yml down
+# ──────────────────────────────────────────────────────────────────────────
+
 services:
   backend:
+    restart: "no"
     build:
       context: ./backend
       dockerfile: Dockerfile
 
   frontend:
+    restart: "no"
     build:
       context: ./frontend
       dockerfile: Dockerfile

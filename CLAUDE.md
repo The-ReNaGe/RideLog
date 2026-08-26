@@ -28,6 +28,7 @@
 19. [Tests backend](#19-tests-backend)
 20. [Préparation à l'internationalisation](#20-préparation-à-linternationalisation)
 21. [Distribution par images publiées](#21-distribution-par-images-publiées)
+22. [Contrôle d'accès et groupes famille](#22-contrôle-daccès-et-groupes-famille)
 
 ---
 
@@ -175,6 +176,8 @@ backend/
 │   └── test_auth_integration.py
 └── routes/
     ├── __init__.py        # secure_delete() — suppression sécurisée de fichiers
+    ├── access.py          # ★ CONTRÔLE D'ACCÈS AUX VÉHICULES — point unique, voir §22 ★
+    ├── families.py        # Groupes famille : membres et invitations (voir §22)
     ├── auth.py            # Login, register, invitations, admin users, gestion HA
     ├── vehicles.py        # CRUD véhicules, VIN/plaque, photos, planning global
     ├── maintenances.py    # CRUD maintenances, factures, "À venir", overrides
@@ -1017,7 +1020,9 @@ api.getMaintenanceRecap(vehicleId),  // ← chargé d'emblée pour les KPI cards
 | `fuel_logs` | id, vehicle_id (FK) | Pleins de carburant |
 | `webhooks` | id, user_id (FK) | Webhooks Discord configurés |
 | `notification_logs` | id, vehicle_id (FK) | Log des notifications envoyées (anti-doublon) |
-| `invitations` | id, token (unique) | Tokens d'invitation |
+| `invitations` | id, token (unique), family_id (FK, nullable) | Tokens d'invitation. `family_id` renseigné = invitation à rejoindre un groupe (voir §22) |
+| `families` | id, created_by (FK) | Groupes famille — partage en lecture (voir §22) |
+| `family_members` | id, family_id (FK), user_id (FK, **unique**) | Appartenance : un utilisateur, un seul groupe |
 | `vehicle_estimates` | id, brand, model | Estimations de valeur résiduelle |
 | `vehicle_maintenance_overrides` | id, vehicle_id (FK), intervention_key | Surcharges d'intervalles par véhicule |
 
@@ -1722,6 +1727,159 @@ docker compose start backend
 Un backend qui refuse de démarrer après un retour arrière n'est pas une panne,
 c'est cette protection. À dire tel quel dans toute doc de rollback, sinon le
 premier essai passe pour un bug.
+
+---
+
+## 22. Contrôle d'accès et groupes famille
+
+### 22.1 `routes/access.py` — le point de passage unique
+
+**La question « cet appelant a-t-il le droit de voir ce véhicule ? » ne
+s'écrit qu'ici.** Elle était auparavant recopiée dans 28 routes réparties sur
+six fichiers ; toute évolution devait être appliquée 28 fois, et un seul oubli
+produisait soit une fuite de données, soit une fonctionnalité morte — sans que
+rien ne le signale.
+
+| Fonction | Autorise | Usage |
+|---|---|---|
+| `get_owned_vehicle` | propriétaire | toute route qui **écrit** |
+| `get_readable_vehicle` | propriétaire, groupe famille, compte HA | toute route qui **lit** |
+| `require_owned_vehicle` / `require_readable_vehicle` | idem | quand l'objet n'est pas utilisé, seulement le contrôle |
+| `list_owned_vehicles` | propriétaire | dashboard, planning — restent personnels |
+| `list_readable_vehicles` | propriétaire + groupe + HA | liste des véhicules |
+
+> ⚠️ **Une nouvelle route touchant un véhicule ne doit JAMAIS réécrire
+> `Vehicle.user_id == current_user.id`.** Elle appelle l'un de ces helpers.
+> C'est ce qui garantit qu'une future évolution du partage n'oublie personne.
+
+**Pourquoi les variantes `require_*`** : écrit `vehicle = get_owned_vehicle(...)`
+sans jamais relire `vehicle`, l'appel ressemble à une ligne morte. Un
+contributeur pressé — ou un correcteur automatique de linter — la supprime, et
+c'est le contrôle d'accès qui disparaît, sans qu'aucun test fonctionnel ne
+rougisse.
+
+**Non-divulgation** : « n'existe pas » et « ne vous appartient pas » renvoient
+le **même** 404, même message. Un 403 distinct laisserait énumérer le parc de
+toute l'instance en bouclant sur les identifiants. Verrouillé par
+`test_foreign_vehicle_is_indistinguishable_from_a_missing_one`.
+
+**Trois lectures en propriétaire strict**, conservées telles quelles depuis
+l'origine et donc invisibles au compte Home Assistant : `get_planning`,
+`get_dashboard`, `get_interval_overrides`. Les uniformiser serait un choix
+délibéré, pas une correction de détail.
+
+### 22.2 Le partage famille
+
+Un groupe famille permet aux membres d'un foyer de **consulter** les véhicules
+des autres. **Lecture seule** : `get_owned_vehicle` est inchangé, seul le
+propriétaire écrit. Un entretien saisi par erreur sur le véhicule d'un autre
+fausserait durablement ses échéances sans qu'on sache d'où vient l'erreur.
+
+| Table / colonne | Rôle |
+|---|---|
+| `families` | id, name, created_by, created_at |
+| `family_members` | family_id, user_id (**unique**), role (`owner`/`member`), joined_at |
+| `vehicles.is_private` | exclut le véhicule du partage |
+| `invitations.family_id` | NULL = invitation d'inscription ordinaire (comportement d'origine) |
+
+**Un utilisateur n'appartient qu'à un groupe** — l'unicité porte sur `user_id`
+seul, pas sur le couple. Autoriser le contraire rendrait la visibilité
+transitive : deux foyers sans lien se verraient mutuellement dès qu'une
+personne appartiendrait aux deux.
+
+**`is_private` se teste avec `isnot(True)`, jamais `is_(False)`** : les
+véhicules antérieurs à la migration 008 peuvent porter NULL, qu'une égalité
+stricte écarterait du partage sans que personne ne l'ait demandé.
+
+**Sans groupe, la condition se réduit littéralement à l'expression d'avant** —
+une instance qui n'en crée aucun se comporte exactement comme auparavant.
+Vérifié par `test_without_any_group_nothing_changes`.
+
+### 22.3 Invitations de groupe
+
+> ⚠️ **Un lien de groupe ne permet PAS de s'inscrire.** `register()` écarte
+> explicitement les invitations portant un `family_id` (filtre
+> `Invitation.family_id.is_(None)` dans la requête). Faire entrer quelqu'un de
+> **nouveau** sur l'instance reste le privilège d'un administrateur, quel que
+> soit `REGISTRATION_MODE`. Un utilisateur ordinaire constitue son foyer sans
+> jamais pouvoir ouvrir l'instance à un inconnu.
+
+Le filtre est posé **dans la requête** plutôt qu'en test après coup pour que le
+refus soit indiscernable d'un jeton inconnu — un message distinct apprendrait à
+un inconnu qu'un groupe existe derrière ce jeton. Verrouillé par
+`test_a_group_link_is_indistinguishable_from_an_unknown_one`.
+
+Accueillir une personne sans compte se fait donc **en deux temps** : un
+administrateur lui crée un compte (ou lui envoie une invitation d'inscription),
+puis elle rejoint le groupe avec le lien famille.
+
+Deux chemins d'URL distincts, à ne pas confondre :
+
+| Chemin | Émis par | Effet |
+|---|---|---|
+| `/invite/<token>` | admin | crée un compte |
+| `/rejoindre/<token>` | tout membre | rattache un compte **existant** |
+
+Le jeton de `/rejoindre/` est mis de côté dans `sessionStorage` par `App.jsx`
+pour survivre à la connexion : l'invité arrive souvent déconnecté, et lui
+redemander le lien après login serait une façon sûre de le perdre. Il est
+consommé dans tous les cas — succès comme échec — pour ne pas rejouer en
+boucle un jeton expiré à chaque rechargement.
+
+Plafond de `MAX_PENDING_INVITATIONS` (10) par groupe.
+
+**Qui peut quoi** :
+
+| Action | Créateur | Membre |
+|---|:--:|:--:|
+| Renommer le groupe | ✅ | ✅ |
+| Inviter / révoquer | ✅ | ✅ |
+| Retirer un membre | ✅ | ❌ |
+| Quitter | ✅ | ✅ |
+
+Le renommage est ouvert à tous : le nom du foyer est un bien commun et le
+groupe survit au départ de celui qui l'a créé. Retirer un membre reste au
+créateur — c'est un pouvoir sur les autres.
+
+**Départ du créateur** : la propriété passe au plus ancien membre restant. Un
+groupe sans propriétaire ne pourrait plus être ni renommé ni dissous. Le
+dernier parti dissout le groupe **et ses invitations en attente**, sinon un lien
+encore valide ressusciterait un groupe vide.
+
+### 22.4 Endpoints
+
+| Méthode | Route | Description |
+|---|---|---|
+| GET | `/api/family` | Mon groupe et ses membres, ou `{"family": null}` |
+| POST | `/api/family` | Créer un groupe |
+| PATCH | `/api/family` | Renommer (créateur) |
+| POST | `/api/family/leave` | Quitter |
+| DELETE | `/api/family/members/{user_id}` | Retirer un membre (créateur) |
+| POST | `/api/family/invitations` | Créer un lien |
+| GET | `/api/family/invitations` | Lister les liens en attente |
+| DELETE | `/api/family/invitations/{id}` | Révoquer |
+| POST | `/api/family/join` | Rejoindre avec un lien (compte existant) |
+
+### 22.5 Côté frontend
+
+`components/FamilySettings.jsx` (onglet « Famille » des paramètres). Les
+commandes d'écriture disparaissent sur un véhicule qu'on ne possède pas —
+`canEdit` est calculé dans `VehicleDetail.jsx` et propagé à
+`UpcomingMaintenance`, `MaintenanceHistory` et `FuelTracking`.
+
+`canEdit` **retombe sur « modifiable » quand l'information manque** : une
+réponse d'API sans `owner_id` ne doit pas figer l'interface de son propre
+véhicule. Le backend fait autorité, cet indice ne sert qu'à ne pas afficher un
+bouton voué à échouer en 404.
+
+### 22.6 Pour modifier
+
+- **Élargir le partage** (écriture, rôles) : `access.py` → `_readable_condition()`
+  et éventuellement `get_owned_vehicle`. **Nulle part ailleurs.**
+- **Ajouter une route touchant un véhicule** : appeler un helper d'`access.py`
+- **Changer le plafond d'invitations** : `routes/families.py` → `MAX_PENDING_INVITATIONS`
+- **Tests** : `tests/test_access.py` (règle pure), `tests/test_families.py`
+  (routes réelles, dont l'interdiction d'écriture vérifiée verbe par verbe)
 
 ---
 

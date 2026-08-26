@@ -50,6 +50,73 @@ class User(Base):
         return data
 
 
+class Family(Base):
+    """
+    Groupe « famille » — un foyer qui partage la consultation de ses véhicules.
+
+    Le partage est en LECTURE SEULE : un membre voit les véhicules des autres,
+    leur historique et leurs échéances, mais seul le propriétaire d'un véhicule
+    peut y enregistrer un entretien, un plein, ou modifier quoi que ce soit.
+    La règle elle-même vit dans `routes/access.py`, point de passage unique.
+    """
+    __tablename__ = "families"
+
+    id = Column(Integer, primary_key=True, index=True)
+    name = Column(String(100), nullable=False)
+    created_by = Column(Integer, ForeignKey("users.id"), nullable=False)
+    created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
+
+    members = relationship(
+        "FamilyMember", back_populates="family", cascade="all, delete-orphan"
+    )
+
+    def to_dict(self):
+        return {
+            "id": self.id,
+            "name": self.name,
+            "created_by": self.created_by,
+            "created_at": self.created_at.isoformat(),
+            "members": [m.to_dict() for m in self.members],
+        }
+
+
+class FamilyMember(Base):
+    """
+    Appartenance d'un utilisateur à un groupe famille.
+
+    Un utilisateur n'appartient qu'à UN SEUL groupe à la fois : c'est ce que
+    garantit l'unicité posée sur `user_id` seul, et non sur le couple
+    (family_id, user_id).
+
+    Ce n'est pas une limitation arbitraire. Autoriser plusieurs groupes rendrait
+    la visibilité transitive : deux foyers sans aucun lien se verraient
+    mutuellement dès qu'une personne appartiendrait aux deux, sans que personne
+    ne l'ait voulu ni ne puisse le constater. Rejoindre un autre groupe suppose
+    donc de quitter le sien.
+    """
+    __tablename__ = "family_members"
+
+    id = Column(Integer, primary_key=True, index=True)
+    family_id = Column(Integer, ForeignKey("families.id"), nullable=False, index=True)
+    user_id = Column(
+        Integer, ForeignKey("users.id"), nullable=False, index=True, unique=True
+    )
+    role = Column(String(20), nullable=False, default="member")  # owner | member
+    joined_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
+
+    family = relationship("Family", back_populates="members")
+    user = relationship("User")
+
+    def to_dict(self):
+        return {
+            "user_id": self.user_id,
+            "username": self.user.username if self.user else None,
+            "display_name": self.user.display_name if self.user else None,
+            "role": self.role,
+            "joined_at": self.joined_at.isoformat() if self.joined_at else None,
+        }
+
+
 class Vehicle(Base):
     __tablename__ = "vehicles"
 
@@ -69,6 +136,10 @@ class Vehicle(Base):
     service_interval_months = Column(Integer, nullable=True)  # Custom service interval months
     photo_path = Column(String(500), nullable=True)
     notes = Column(Text, nullable=True)
+    # Exclut ce véhicule du partage famille. Le propriétaire le voit toujours ;
+    # les autres membres du groupe ne le voient jamais. Sans groupe famille,
+    # ce drapeau n'a aucun effet.
+    is_private = Column(Boolean, default=False)
     created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
     updated_at = Column(DateTime, default=lambda: datetime.now(timezone.utc), onupdate=lambda: datetime.now(timezone.utc))
     user_id = Column(Integer, ForeignKey("users.id"), nullable=False, index=True)
@@ -97,6 +168,12 @@ class Vehicle(Base):
             "service_interval_months": self.service_interval_months,
             "photo_url": f"/api/vehicles/{self.id}/photo" if self.photo_path else None,
             "notes": self.notes,
+            "is_private": bool(self.is_private),
+            # Le front en a besoin pour distinguer un véhicule consulté via le
+            # groupe famille du sien propre, et masquer les actions d'écriture
+            # qui échoueraient de toute façon en 404.
+            "owner_id": self.user_id,
+            "owner_display_name": self.owner.display_name if self.owner else None,
             "created_at": self.created_at.isoformat(),
             "updated_at": self.updated_at.isoformat(),
         }
@@ -313,6 +390,9 @@ class Invitation(Base):
     token = Column(String(64), nullable=False, unique=True, index=True)
     created_by = Column(Integer, ForeignKey("users.id"), nullable=False)
     used_by = Column(Integer, ForeignKey("users.id"), nullable=True)
+    # Invitation à rejoindre un groupe famille. NULL = invitation d'inscription
+    # ordinaire, créée par un admin — le comportement d'origine, inchangé.
+    family_id = Column(Integer, ForeignKey("families.id"), nullable=True)
     expires_at = Column(DateTime, nullable=False)
     created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
     used_at = Column(DateTime, nullable=True)
@@ -329,6 +409,7 @@ class Invitation(Base):
             "created_by": self.created_by,
             "creator_username": self.creator.username if self.creator else None,
             "used_by": self.used_by,
+            "family_id": self.family_id,
             "expires_at": self.expires_at.isoformat(),
             "created_at": self.created_at.isoformat(),
             "used_at": self.used_at.isoformat() if self.used_at else None,

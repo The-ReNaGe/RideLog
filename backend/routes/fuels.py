@@ -4,7 +4,12 @@ from datetime import datetime, timezone
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 
-from models import Vehicle, FuelLog, User, get_db
+from models import FuelLog, User, get_db
+from routes.access import (
+    get_owned_vehicle,
+    require_owned_vehicle,
+    require_readable_vehicle,
+)
 from schemas import FuelLogCreate, FuelLogUpdate
 from security import get_current_user
 
@@ -144,14 +149,7 @@ def get_fuel_logs(
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
-    if current_user.is_integration_account:
-        vehicle = db.query(Vehicle).filter(Vehicle.id == vehicle_id).first()
-    else:
-        vehicle = db.query(Vehicle).filter(
-            Vehicle.id == vehicle_id, Vehicle.user_id == current_user.id
-        ).first()
-    if not vehicle:
-        raise HTTPException(status_code=404, detail="Vehicle not found")
+    require_readable_vehicle(vehicle_id, current_user, db)
 
     logs = db.query(FuelLog).filter(FuelLog.vehicle_id == vehicle_id).order_by(FuelLog.fill_date.desc()).all()
     return [log.to_dict() for log in logs]
@@ -164,11 +162,7 @@ def create_fuel_log(
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
-    vehicle = db.query(Vehicle).filter(
-        Vehicle.id == vehicle_id, Vehicle.user_id == current_user.id
-    ).first()
-    if not vehicle:
-        raise HTTPException(status_code=404, detail="Vehicle not found")
+    vehicle = get_owned_vehicle(vehicle_id, current_user, db)
 
     fill_date = data.fill_date
     if isinstance(fill_date, str):
@@ -216,11 +210,7 @@ def update_fuel_log(
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
-    vehicle = db.query(Vehicle).filter(
-        Vehicle.id == vehicle_id, Vehicle.user_id == current_user.id
-    ).first()
-    if not vehicle:
-        raise HTTPException(status_code=404, detail="Vehicle not found")
+    vehicle = get_owned_vehicle(vehicle_id, current_user, db)
 
     fuel_log = db.query(FuelLog).filter(
         FuelLog.id == fuel_log_id,
@@ -274,11 +264,7 @@ def delete_fuel_log(
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
-    vehicle = db.query(Vehicle).filter(
-        Vehicle.id == vehicle_id, Vehicle.user_id == current_user.id
-    ).first()
-    if not vehicle:
-        raise HTTPException(status_code=404, detail="Vehicle not found")
+    require_owned_vehicle(vehicle_id, current_user, db)
 
     fuel_log = db.query(FuelLog).filter(
         FuelLog.id == fuel_log_id,
@@ -298,14 +284,7 @@ def get_fuel_stats(
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
-    if current_user.is_integration_account:
-        vehicle = db.query(Vehicle).filter(Vehicle.id == vehicle_id).first()
-    else:
-        vehicle = db.query(Vehicle).filter(
-            Vehicle.id == vehicle_id, Vehicle.user_id == current_user.id
-        ).first()
-    if not vehicle:
-        raise HTTPException(status_code=404, detail="Vehicle not found")
+    require_readable_vehicle(vehicle_id, current_user, db)
 
     logs = db.query(FuelLog).filter(FuelLog.vehicle_id == vehicle_id).order_by(FuelLog.fill_date.asc()).all()
     stats = _compute_stats(logs)

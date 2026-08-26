@@ -5,8 +5,9 @@ from fastapi import APIRouter, Depends
 from sqlalchemy.orm import Session
 from sqlalchemy import func
 
-from models import Vehicle, Maintenance, FuelLog, User, VehicleMaintenanceOverride, get_db
+from models import Maintenance, FuelLog, User, VehicleMaintenanceOverride, get_db
 from security import get_current_user
+from routes.access import list_owned_vehicles
 from maintenance_calculator import MaintenanceCalculator, get_intervention_key, build_last_maintenances_dict
 
 router = APIRouter(tags=["dashboard"])
@@ -19,7 +20,7 @@ def get_dashboard(
     db: Session = Depends(get_db),
 ):
     """Aggregated dashboard data for the current user."""
-    vehicles = db.query(Vehicle).filter(Vehicle.user_id == current_user.id).all()
+    vehicles = list_owned_vehicles(current_user, db)
 
     total_vehicles = len(vehicles)
     total_mileage = sum(v.current_mileage for v in vehicles)

@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { api } from '../lib/api';
 
-export default function AuthPage({ onLoginSuccess }) {
+export default function AuthPage({ onLoginSuccess, pendingFamilyToken = null }) {
   const [isRegister, setIsRegister] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
@@ -14,6 +14,10 @@ export default function AuthPage({ onLoginSuccess }) {
   const [registrationMode, setRegistrationMode] = useState(null); // null = loading, 'open'/'invite'/'closed'
   const [isFirstUser, setIsFirstUser] = useState(false);
   const [inviteValid, setInviteValid] = useState(null); // null = not checked, true/false
+  // Groupe famille à rejoindre après connexion (lien /rejoindre/<token>).
+  // Le rattachement lui-même a lieu dans App.jsx une fois authentifié ; ici on
+  // se contente de dire à l'invité pourquoi on lui demande de se connecter.
+  const [pendingFamily, setPendingFamily] = useState(null);
 
   // Form state - Login
   const [loginUsername, setLoginUsername] = useState('');
@@ -30,6 +34,17 @@ export default function AuthPage({ onLoginSuccess }) {
   const [regDisplayName, setRegDisplayName] = useState('');
   const [regPassword, setRegPassword] = useState('');
   const [regPasswordConfirm, setRegPasswordConfirm] = useState('');
+
+  // Lien de groupe famille ouvert sans être connecté : on récupère le nom du
+  // foyer pour expliquer la demande de connexion. Un « connectez-vous » sans
+  // motif, après avoir cliqué sur un lien reçu d'un proche, passerait pour une
+  // erreur.
+  useEffect(() => {
+    if (!pendingFamilyToken) return;
+    api.checkInvite(pendingFamilyToken)
+      .then((res) => setPendingFamily(res.data?.family || null))
+      .catch(() => setPendingFamily(null));
+  }, [pendingFamilyToken]);
 
   // Extract invite token from URL on mount
   useEffect(() => {
@@ -184,6 +199,28 @@ export default function AuthPage({ onLoginSuccess }) {
             Suivi d'entretien véhicules
           </p>
         </div>
+
+        {/* Lien de rattachement à un groupe famille ouvert sans être connecté */}
+        {pendingFamilyToken && (
+          <div
+            className="card p-4 mb-4 text-sm"
+            style={{ background: 'var(--accent-light)', color: 'var(--text-1)' }}
+          >
+            👨‍👩‍👧{' '}
+            {pendingFamily ? (
+              <>
+                Connectez-vous pour rejoindre le groupe <strong>{pendingFamily.name}</strong> et
+                consulter les véhicules de ses membres.
+              </>
+            ) : (
+              <>Connectez-vous pour rejoindre le groupe famille auquel vous avez été invité.</>
+            )}
+            <span className="block text-xs mt-2" style={{ color: 'var(--text-2)' }}>
+              Ce lien ne crée pas de compte. Si vous n'en avez pas encore, demandez-en un à
+              l'administrateur de cette instance.
+            </span>
+          </div>
+        )}
 
         {/* Card */}
         <div className="card p-8 gap-section">

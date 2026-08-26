@@ -97,6 +97,34 @@ export const api = {
   
   deleteInvitation: (invitationId) =>
     client.delete(`/admin/invitations/${invitationId}`),
+
+  // Groupes famille — partage en lecture des véhicules du foyer
+  getFamily: () =>
+    client.get('/family'),
+
+  createFamily: (name) =>
+    client.post('/family', { name }),
+
+  renameFamily: (name) =>
+    client.patch('/family', { name }),
+
+  leaveFamily: () =>
+    client.post('/family/leave'),
+
+  removeFamilyMember: (userId) =>
+    client.delete(`/family/members/${userId}`),
+
+  getFamilyInvitations: () =>
+    client.get('/family/invitations'),
+
+  createFamilyInvitation: (expiresHours = 168) =>
+    client.post('/family/invitations', { expires_hours: expiresHours }),
+
+  revokeFamilyInvitation: (invitationId) =>
+    client.delete(`/family/invitations/${invitationId}`),
+
+  joinFamily: (token) =>
+    client.post('/family/join', { token }),
   
   getRegistrationMode: () =>
     client.get('/admin/registration-mode'),

@@ -30,6 +30,7 @@ Conçu pour les particuliers passionnés comme pour les petits parcs de véhicul
 - **Dashboard** — statistiques agrégées du parc
 - **Export** — récapitulatif en ZIP (CSV + factures)
 - **Multi-utilisateurs** — inscription par invitation, rôles admin, compte de service HA
+- **Groupes famille** — partagez la consultation de vos véhicules avec votre foyer, en lecture seule, sur invitation (véhicules privés possibles)
 - **Mode sombre** — thème clair/sombre avec persistance
 
 ---

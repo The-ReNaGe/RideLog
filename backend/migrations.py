@@ -497,6 +497,24 @@ def _m007_backfill_is_complete(conn: Connection) -> bool:
     return remaining == 0
 
 
+def _m008_family_groups(conn: Connection) -> None:
+    """
+    Colonnes du partage famille.
+
+    Les tables `families` et `family_members` ne figurent volontairement pas
+    ici : entièrement nouvelles, elles sont créées par `create_all()` depuis le
+    modèle — sur base neuve comme sur base existante, l'appel a lieu dans les
+    deux cas. Une déclaration ne peut pas diverger d'elle-même.
+
+    Ne restent donc que les deux colonnes greffées sur des tables existantes.
+    Les deux sont nullables et sans valeur pour les lignes déjà en base, ce qui
+    est exactement le comportement voulu : aucun véhicule n'est privé et aucune
+    invitation n'est rattachée à un groupe tant que personne n'en a créé un.
+    """
+    add_column_if_missing(conn, "vehicles", "is_private", "BOOLEAN DEFAULT 0")
+    add_column_if_missing(conn, "invitations", "family_id", "INTEGER")
+
+
 MIGRATIONS: list[Migration] = [
     Migration(
         1, "maintenance_category",
@@ -545,6 +563,15 @@ MIGRATIONS: list[Migration] = [
         # qu'il ne reste aucune ligne à renseigner.
         lambda c: has_all_columns(c, "maintenances", "intervention_key")
         and _m007_backfill_is_complete(c),
+    ),
+    Migration(
+        8, "family_groups",
+        _m008_family_groups,
+        # Les deux colonnes vivent dans des tables différentes : exiger les
+        # deux, sinon une base où seule `vehicles.is_private` existe serait
+        # estampillée « faite » et n'obtiendrait jamais `invitations.family_id`.
+        lambda c: has_all_columns(c, "vehicles", "is_private")
+        and has_all_columns(c, "invitations", "family_id"),
     ),
 ]
 
