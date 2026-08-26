@@ -1,5 +1,13 @@
 # Changelog
 
+## [2.2.0](https://github.com/The-ReNaGe/RideLog/compare/v2.1.0...v2.2.0) (2026-08-26)
+
+
+### Features
+
+* refond l'interface autour d'un jeu d'icônes et de blocs délimités ([d59a9ca](https://github.com/The-ReNaGe/RideLog/commit/d59a9ca076162579a2e755ea3136d196d84d5683))
+* refond l'interface autour d'un jeu d'icônes et de blocs délimités ([754c60e](https://github.com/The-ReNaGe/RideLog/commit/754c60eff855a7c6a2998882ced85309205196ba))
+
 ## [2.1.0](https://github.com/The-ReNaGe/RideLog/compare/v2.0.2...v2.1.0) (2026-08-26)
 
 
