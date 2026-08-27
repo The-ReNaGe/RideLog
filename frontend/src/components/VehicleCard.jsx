@@ -19,6 +19,46 @@ const categoryLabels = {
   premium: 'Premium',
 };
 
+/**
+ * Niveaux d'alerte, du plus grave au plus discret.
+ *
+ * La rampe est volontairement à trois crans et non à trois couleurs : le
+ * retard remplit son bandeau et teinte la bordure de la carte, l'urgence
+ * remplit son bandeau seul, la surveillance ne colore que le texte. Trois
+ * teintes à égalité auraient donné la rangée d'arc-en-ciel qu'on a déjà
+ * écartée ailleurs (§23.2) — ici c'est l'intensité qui hiérarchise.
+ */
+const ALERT_LEVELS = {
+  overdue: {
+    color: 'var(--danger)',
+    fill: 'var(--danger-light)',
+    outline: true,
+    icon: 'alert',
+    label: (n) => `${n} entretien${n > 1 ? 's' : ''} en retard`,
+  },
+  urgent: {
+    color: 'var(--warning)',
+    fill: 'var(--warning-light)',
+    outline: false,
+    icon: 'alertCircle',
+    label: (n) => `${n} entretien${n > 1 ? 's' : ''} urgent${n > 1 ? 's' : ''}`,
+  },
+  warning: {
+    color: 'var(--warning)',
+    fill: 'transparent',
+    outline: false,
+    icon: 'clock',
+    label: (n) => `${n} entretien${n > 1 ? 's' : ''} à surveiller`,
+  },
+  ok: {
+    color: 'var(--text-3)',
+    fill: 'transparent',
+    outline: false,
+    icon: 'check',
+    label: () => 'À jour',
+  },
+};
+
 export default React.memo(function VehicleCard({ vehicle, onSelect, currentUser }) {
   const age = new Date().getFullYear() - vehicle.year;
   const typeIcon = vehicle.vehicle_type === 'car' ? 'car' : 'motorcycle';
@@ -32,6 +72,15 @@ export default React.memo(function VehicleCard({ vehicle, onSelect, currentUser 
   // « Mercedes Classe C » affiché deux fois de suite ne dit rien la seconde.
   const fullName = `${vehicle.brand} ${vehicle.model}`.trim();
   const showSurname = vehicle.name && vehicle.name.trim() !== fullName;
+
+  // Un véhicule dont l'API n'a pas renvoyé d'état ne doit rien affirmer :
+  // un bandeau « À jour » posé par défaut serait un mensonge.
+  const level = ALERT_LEVELS[vehicle.alert_level] || null;
+  const alertCount =
+    vehicle.alert_level === 'overdue' ? vehicle.overdue_count
+    : vehicle.alert_level === 'urgent' ? vehicle.urgent_count
+    : vehicle.alert_level === 'warning' ? vehicle.warning_count
+    : 0;
 
   const meta = [
     vehicle.year ? `${vehicle.year}${age > 0 ? ` · ${age} an${age > 1 ? 's' : ''}` : ''}` : null,
@@ -53,7 +102,10 @@ export default React.memo(function VehicleCard({ vehicle, onSelect, currentUser 
       onKeyDown={handleKeyDown}
       role="button"
       tabIndex={0}
-      style={{ padding: 0, overflow: 'hidden', display: 'flex', flexDirection: 'column' }}
+      style={{
+        padding: 0, overflow: 'hidden', display: 'flex', flexDirection: 'column',
+        ...(level?.outline ? { borderColor: level.color } : null),
+      }}
     >
       {/* Bandeau visuel — toujours présent, y compris sans photo, pour que
           toutes les cartes d'une grille aient la même hauteur. */}
@@ -128,6 +180,22 @@ export default React.memo(function VehicleCard({ vehicle, onSelect, currentUser 
           </div>
         </div>
       </div>
+
+      {level && (
+        <div
+          style={{
+            display: 'flex', alignItems: 'center', gap: 7,
+            padding: '9px 16px',
+            borderTop: '1px solid var(--border)',
+            background: level.fill,
+            color: level.color,
+            fontSize: 13, fontWeight: 600,
+          }}
+        >
+          <Icon name={level.icon} size={14} strokeWidth={2} />
+          {level.label(alertCount)}
+        </div>
+      )}
     </article>
   );
 });

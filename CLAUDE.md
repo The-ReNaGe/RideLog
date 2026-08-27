@@ -181,6 +181,7 @@ backend/
     ├── families.py        # Groupes famille : membres et invitations (voir §22)
     ├── auth.py            # Login, register, invitations, admin users, gestion HA
     ├── vehicles.py        # CRUD véhicules, VIN/plaque, photos, planning global
+    ├── vehicle_status.py  # Compteurs d'alerte par véhicule, joints à GET /vehicles (voir §23.9)
     ├── maintenances.py    # CRUD maintenances, factures, "À venir", overrides
     ├── dashboard.py       # Statistiques agrégées du parc
     ├── exports.py         # Export ZIP, estimation valeur, carte HA YAML
@@ -386,7 +387,7 @@ _ha_integration_enabled: bool = True  # défaut au démarrage
 
 | Méthode | Route | Description |
 |---------|-------|-------------|
-| GET | `/api/vehicles` | Lister les véhicules de l'utilisateur |
+| GET | `/api/vehicles` | Lister les véhicules lisibles, **avec leur état d'entretien** (`overdue_count`, `urgent_count`, `warning_count`, `alert_level`) |
 | POST | `/api/vehicles` | Créer un véhicule |
 | GET | `/api/vehicles/{id}` | Détail d'un véhicule |
 | PUT | `/api/vehicles/{id}` | Modifier un véhicule |
@@ -1518,6 +1519,7 @@ python -m pytest tests/ -v
 | `test_fuel_stations.py` | Routes `/fuel-stations/*` — authentification exigée sur les trois endpoints, bornes de `max_distance`/`limit`, cache (clé insensible aux accents, plafond, expiration). Les appels sortants sont monkeypatchés : aucun test ne sort sur le réseau. |
 | `test_regions_fr.py` | `regions/fr.py` — normalisation de plaque, analyse de la réponse carte grise (détection moto par genre, replis de cylindrée, priorité du genre sur l'indication utilisateur), repli du registre sur `FR`. Aucun appel réseau : cette logique n'était auparavant atteignable que via un service tiers payant, donc jamais testée. |
 | `test_maintenance_routes.py` | Enregistrement d'un entretien via `TestClient` — la clé technique est stockée, deux libellés d'une même intervention partagent une clé, un libellé inconnu n'échoue pas, et l'entretien enregistré ressort bien rattaché à son échéance. |
+| `test_vehicle_status.py` | État d'entretien joint à `GET /vehicles` — présence des compteurs, accord avec `/upcoming`, et surtout : un véhicule **partagé par le groupe famille** porte le sien aussi (voir §23.9). |
 | `test_auth_integration.py` | Routes `/auth/*` et `/admin/users/*` via `TestClient` sur une DB SQLite temporaire — register/login, changement de mot de passe, reset admin, mot de passe temporaire (`must_change_password`), demande de reset anti-énumération, et non-énumération des identifiants à l'inscription (voir §4). |
 
 ### `conftest.py` — points importants
@@ -2024,7 +2026,38 @@ de trop — on ne sait plus lequel fait quoi.
 Même règle pour toute action irréversible ajoutée plus tard : elle ne se place
 pas sur un élément dont le corps entier est une cible de navigation.
 
-### 23.9 Pour modifier
+### 23.9 L'alerte d'entretien sur une carte
+
+La liste des véhicules ne disait rien de leur état : il fallait ouvrir chaque
+fiche, ou passer par le tableau de bord, pour savoir qu'un entretien était en
+retard. C'est la question à laquelle l'application sert à répondre, et l'écran
+d'atterrissage ne la posait pas.
+
+Chaque carte porte donc un **bandeau d'état en pied** (`VehicleCard.jsx`,
+table `ALERT_LEVELS`). La rampe est à trois **crans d'intensité**, pas à trois
+couleurs :
+
+| Niveau | Bordure de carte | Fond du bandeau | Texte |
+|---|---|---|---|
+| En retard | `--danger` | `--danger-light` | `--danger` |
+| Urgent | — | `--warning-light` | `--warning` |
+| À surveiller | — | — | `--warning` |
+| À jour | — | — | `--text-3` |
+
+Trois teintes à égalité auraient redonné la rangée d'arc-en-ciel écartée en
+§23.2 ; ici c'est le remplissage qui hiérarchise, et une seule carte porte une
+bordure colorée.
+
+> ⚠️ **Le bandeau ne s'affiche que si `alert_level` est présent.** Un « À jour »
+> posé par défaut quand l'information manque serait une affirmation fausse —
+> une pastille absente se lit « à jour », jamais « inconnu ». C'est la même
+> raison qui interdit d'alimenter ces compteurs depuis `/dashboard` :
+> celui-ci passe par `list_owned_vehicles` (§22.1) et laisserait les garages
+> des autres membres du groupe famille sans pastille. Le calcul vit dans
+> `routes/vehicle_status.py` et se branche sur `GET /vehicles`, qui lui passe
+> par `list_readable_vehicles`.
+
+### 23.10 Pour modifier
 
 - **Ajouter une icône** : une entrée dans la table `P` d'`Icon.jsx`. Ne pas
   poser de couleur dans le tracé.
