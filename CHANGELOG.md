@@ -5,8 +5,9 @@
 
 ### Bug Fixes
 
-* signale sur l'accueil les véhicules dont un entretien est en retard ([ec684a8](https://github.com/The-ReNaGe/RideLog/commit/ec684a8283c731597ba54c48619b19f52ac44916))
 * signale sur l'accueil les véhicules dont un entretien est en retard ([98b3a26](https://github.com/The-ReNaGe/RideLog/commit/98b3a2617eba06614ad2c9816a0844dc5998a927))
+* étend cette alerte aux véhicules partagés par le groupe famille, que le tableau de bord ne voyait pas ([98b3a26](https://github.com/The-ReNaGe/RideLog/commit/98b3a2617eba06614ad2c9816a0844dc5998a927))
+* joint l'état d'entretien de chaque véhicule à `GET /vehicles` ([98b3a26](https://github.com/The-ReNaGe/RideLog/commit/98b3a2617eba06614ad2c9816a0844dc5998a927))
 
 ## [2.2.0](https://github.com/The-ReNaGe/RideLog/compare/v2.1.0...v2.2.0) (2026-08-26)
 
