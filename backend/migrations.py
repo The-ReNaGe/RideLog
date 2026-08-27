@@ -532,6 +532,18 @@ def _m009_override_is_disabled(conn: Connection) -> None:
     )
 
 
+def _m010_override_custom_name(conn: Connection) -> None:
+    """
+    Le libellé d'un entretien personnalisé.
+
+    Reste NULL sur les lignes en place : une surcharge ancienne porte toujours
+    sur une entrée du JSON, elle n'en définit aucune.
+    """
+    add_column_if_missing(
+        conn, "vehicle_maintenance_overrides", "custom_name", "VARCHAR(80)"
+    )
+
+
 MIGRATIONS: list[Migration] = [
     Migration(
         1, "maintenance_category",
@@ -594,6 +606,11 @@ MIGRATIONS: list[Migration] = [
         9, "override_is_disabled",
         _m009_override_is_disabled,
         lambda c: has_all_columns(c, "vehicle_maintenance_overrides", "is_disabled"),
+    ),
+    Migration(
+        10, "override_custom_name",
+        _m010_override_custom_name,
+        lambda c: has_all_columns(c, "vehicle_maintenance_overrides", "custom_name"),
     ),
 ]
 

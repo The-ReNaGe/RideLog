@@ -1,5 +1,6 @@
 import logging
 import os
+import secrets
 import uuid
 import json
 from datetime import datetime, timezone
@@ -12,7 +13,7 @@ from sqlalchemy.orm import Session
 
 from maintenance_calculator import MaintenanceCalculator, get_intervention_key, build_last_maintenances_dict
 from models import User, Vehicle, Maintenance, MaintenanceInvoice, VehicleMaintenanceOverride, get_db
-from schemas import IntervalOverrideUpdate
+from schemas import IntervalOverrideUpdate, CustomMaintenanceCreate
 from security import get_current_user
 from routes import secure_delete
 from routes.access import (
@@ -41,6 +42,81 @@ def _load_overrides(vehicle_id: int, db: Session) -> dict:
         VehicleMaintenanceOverride.vehicle_id == vehicle_id
     ).all()
     return {row.intervention_key: row for row in rows}
+
+
+CUSTOM_KEY_PREFIX = "custom_"
+
+
+def _new_custom_key() -> str:
+    """Clé technique d'un entretien personnalisé.
+
+    Tirée au sort plutôt que dérivée du libellé : c'est elle que les
+    maintenances enregistrées porteront en base, elle doit donc survivre à un
+    renommage. Un slug se serait détaché de son historique au premier
+    « Vérif. plaquettes » → « Contrôle plaquettes ».
+    """
+    return f"{CUSTOM_KEY_PREFIX}{secrets.token_hex(4)}"
+
+
+def _catalog_names(vehicle: Vehicle) -> dict:
+    """{libellé normalisé: clé} du catalogue d'entretiens du véhicule."""
+    intervals = calculator.get_intervals_for_vehicle(
+        vehicle.vehicle_type, vehicle.displacement, brand=vehicle.brand,
+        service_interval_km=vehicle.service_interval_km,
+        service_interval_months=vehicle.service_interval_months,
+    )
+    return {
+        (info.get("name") or "").strip().lower(): key
+        for key, info in intervals.items()
+        if isinstance(info, dict) and info.get("name")
+    }
+
+
+def _reject_duplicate_name(
+    vehicle: Vehicle, name: str, db: Session, exclude_key: Optional[str] = None
+) -> None:
+    """Refuse un libellé déjà porté par le catalogue ou par un autre personnalisé.
+
+    Deux entretiens de même nom rendraient `_resolve_key_for_vehicle()`
+    arbitraire : un entretien enregistré se rattacherait à l'une ou l'autre
+    échéance selon l'ordre des lignes en base.
+    """
+    normalized = name.strip().lower()
+    if normalized in _catalog_names(vehicle):
+        raise HTTPException(
+            status_code=409,
+            detail="Un entretien de ce nom existe déjà pour ce véhicule",
+        )
+    for row in db.query(VehicleMaintenanceOverride).filter(
+        VehicleMaintenanceOverride.vehicle_id == vehicle.id,
+        VehicleMaintenanceOverride.custom_name.isnot(None),
+    ).all():
+        if row.intervention_key == exclude_key:
+            continue
+        if (row.custom_name or "").strip().lower() == normalized:
+            raise HTTPException(
+                status_code=409,
+                detail="Un entretien de ce nom existe déjà pour ce véhicule",
+            )
+
+
+def _resolve_key_for_vehicle(vehicle: Vehicle, intervention_type: Optional[str], db: Session) -> Optional[str]:
+    """Clé technique à stocker pour une intervention enregistrée sur ce véhicule.
+
+    Les entretiens personnalisés passent d'abord : leur libellé est libre et
+    n'existe dans aucun dictionnaire, `get_intervention_key()` en ferait un
+    slug qui ne correspondrait à aucune échéance — l'entretien serait enregistré
+    puis ignoré, exactement le défaut que la migration 007 a corrigé ailleurs.
+    """
+    label = (intervention_type or "").strip().lower()
+    if label:
+        for row in db.query(VehicleMaintenanceOverride).filter(
+            VehicleMaintenanceOverride.vehicle_id == vehicle.id,
+            VehicleMaintenanceOverride.custom_name.isnot(None),
+        ).all():
+            if (row.custom_name or "").strip().lower() == label:
+                return row.intervention_key
+    return get_intervention_key(intervention_type)
 
 
 def _estimate_mileage(vehicle_id: int, target_date: datetime, vehicle: Vehicle, db: Session) -> Optional[int]:
@@ -134,8 +210,9 @@ def get_available_interventions(
         service_interval_km=vehicle.service_interval_km,
         service_interval_months=vehicle.service_interval_months,
     )
-    # Un entretien écarté ne doit pas non plus être proposé à l'enregistrement :
-    # ce qui ne concerne pas le véhicule n'a pas à figurer dans son formulaire.
+    # Les entretiens personnalisés doivent être enregistrables comme les autres :
+    # sans cela, ils resteraient indéfiniment « en retard », faute de pouvoir
+    # être marqués faits. Les entretiens écartés en sortent, symétriquement.
     intervals = calculator.apply_overrides(intervals, _load_overrides(vehicle.id, db))
     range_cat = vehicle.range_category or 'generalist'
     result = []
@@ -152,6 +229,7 @@ def get_available_interventions(
             "km_interval": interval_info.get("km_interval"),
             "months_interval": interval_info.get("months_interval"),
             "condition_based": interval_info.get("condition_based", False),
+            "is_custom": bool(interval_info.get("is_custom")),
             "prices": interval_info.get("prices", {}),
             "price_range": {"min": price_data.get("min"), "max": price_data.get("max")},
         })
@@ -238,7 +316,7 @@ async def create_maintenance(
     maintenance = Maintenance(
         vehicle_id=vehicle_id,
         intervention_type=data.get("intervention_type"),
-        intervention_key=get_intervention_key(data.get("intervention_type")),
+        intervention_key=_resolve_key_for_vehicle(vehicle, data.get("intervention_type"), db),
         execution_date=execution_date,
         mileage_at_intervention=mileage,
         cost_paid=data.get("cost_paid"),
@@ -433,12 +511,17 @@ def upsert_interval_override(
     vehicle_id: int, intervention_key: str, body: IntervalOverrideUpdate,
     current_user: User = Depends(get_current_user), db: Session = Depends(get_db),
 ):
-    require_owned_vehicle(vehicle_id, current_user, db)
+    vehicle = get_owned_vehicle(vehicle_id, current_user, db)
     override = db.query(VehicleMaintenanceOverride).filter(
         VehicleMaintenanceOverride.vehicle_id == vehicle_id,
         VehicleMaintenanceOverride.intervention_key == intervention_key,
     ).first()
     if override is None:
+        if intervention_key.startswith(CUSTOM_KEY_PREFIX):
+            # Un entretien personnalisé n'existe que par sa ligne : sans elle,
+            # cette clé ne désigne rien. La recréer à la volée ressusciterait un
+            # entretien supprimé, sans son libellé.
+            raise HTTPException(status_code=404, detail="Entretien personnalisé introuvable")
         override = VehicleMaintenanceOverride(vehicle_id=vehicle_id, intervention_key=intervention_key)
         db.add(override)
     override.km_interval = body.km_interval
@@ -446,7 +529,47 @@ def upsert_interval_override(
     override.is_km_disabled = body.is_km_disabled
     override.is_months_disabled = body.is_months_disabled
     override.is_disabled = body.is_disabled
+    if body.name and override.custom_name:
+        # Renommage : réservé aux entretiens personnalisés. Le libellé d'une
+        # intervention du catalogue vient du JSON, et c'est lui qui doit rester
+        # la référence — sans quoi deux véhicules afficheraient deux noms
+        # différents pour la même clé.
+        new_name = body.name.strip()
+        if new_name and new_name.lower() != (override.custom_name or "").lower():
+            _reject_duplicate_name(vehicle, new_name, db, exclude_key=intervention_key)
+        override.custom_name = new_name
     override.updated_at = datetime.now(timezone.utc)
+    db.commit()
+    db.refresh(override)
+    return override.to_dict()
+
+
+@router.post("/{vehicle_id}/custom-maintenances", status_code=201)
+def create_custom_maintenance(
+    vehicle_id: int, body: CustomMaintenanceCreate,
+    current_user: User = Depends(get_current_user), db: Session = Depends(get_db),
+):
+    """Ajoute au véhicule un entretien qui n'est pas au catalogue.
+
+    Il rejoint les échéances et les rappels comme n'importe quel autre : c'est
+    une ligne de surcharge de plus, et les cinq appelants du calculateur les
+    chargent déjà.
+    """
+    vehicle = get_owned_vehicle(vehicle_id, current_user, db)
+    name = body.name.strip()
+    _reject_duplicate_name(vehicle, name, db)
+
+    override = VehicleMaintenanceOverride(
+        vehicle_id=vehicle_id,
+        intervention_key=_new_custom_key(),
+        custom_name=name,
+        km_interval=body.km_interval,
+        months_interval=body.months_interval,
+        is_km_disabled=body.km_interval is None,
+        is_months_disabled=body.months_interval is None,
+        is_disabled=False,
+    )
+    db.add(override)
     db.commit()
     db.refresh(override)
     return override.to_dict()
@@ -464,8 +587,13 @@ def delete_interval_override(
     ).first()
     if not override:
         raise HTTPException(status_code=404, detail="Override not found")
+    was_custom = override.custom_name is not None
     db.delete(override)
     db.commit()
+    if was_custom:
+        # L'historique déjà enregistré sous cette clé n'est pas touché : il
+        # cesse simplement d'alimenter une échéance.
+        return {"detail": "Custom maintenance deleted"}
     return {"detail": "Override deleted, reverted to default interval"}
 
 

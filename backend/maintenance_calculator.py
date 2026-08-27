@@ -509,11 +509,15 @@ class MaintenanceCalculator:
         """Applique à un catalogue d'intervalles ce qu'un véhicule en change.
 
         `overrides` est un dict {intervention_key: VehicleMaintenanceOverride}.
-        Deux effets :
+        Trois effets, dans cet ordre de lecture :
 
+        - une clé **absente** du catalogue et portant `custom_name` définit un
+          entretien personnalisé, ajouté au catalogue comme s'il en faisait
+          partie (`forecasted`, donc pris en compte par les échéances et les
+          rappels) ;
         - `is_disabled` marque l'entrée `disabled` — c'est à l'appelant de la
           sauter, ce que fait `get_all_upcoming_maintenances` ;
-        - km/months remplacent ou effacent les valeurs du JSON.
+        - sinon, km/months remplacent ou effacent les valeurs du JSON.
 
         Le catalogue n'est jamais muté : `get_intervals_for_vehicle` renvoie le
         dict du JSON tel quel pour une voiture, le muter contaminerait tous les
@@ -524,15 +528,28 @@ class MaintenanceCalculator:
 
         intervals = dict(intervals)  # shallow copy du niveau supérieur
         for key, override in overrides.items():
+            custom_name = getattr(override, "custom_name", None)
             if key not in intervals:
-                # Surcharge orpheline : l'entrée JSON qu'elle visait a disparu
-                # du catalogue (renommage de clé, filtrage par motorisation).
-                # Rien à appliquer.
-                continue
-            entry = dict(intervals[key])  # copie de l'entrée
+                if not custom_name:
+                    # Surcharge orpheline : l'entrée JSON qu'elle visait a
+                    # disparu du catalogue (renommage de clé, filtrage par
+                    # motorisation). Rien à appliquer.
+                    continue
+                entry = {
+                    "name": custom_name,
+                    "km_interval": None,
+                    "months_interval": None,
+                    "forecasted": True,
+                    "prices": {},
+                    "is_custom": True,
+                }
+            else:
+                entry = dict(intervals[key])  # copie de l'entrée
 
             if getattr(override, "is_disabled", False):
                 entry["disabled"] = True
+            if custom_name:
+                entry["name"] = custom_name
             if override.is_km_disabled:
                 entry["km_interval"] = None
             elif override.km_interval is not None:
@@ -578,6 +595,7 @@ class MaintenanceCalculator:
                 "intervention_type": info.get("name"),
                 "km_interval": info.get("km_interval"),
                 "months_interval": info.get("months_interval"),
+                "is_custom": bool(info.get("is_custom")),
             })
         disabled.sort(key=lambda d: (d["intervention_type"] or "").lower())
         return disabled
@@ -656,6 +674,40 @@ class MaintenanceCalculator:
                     last_date = max(last_date_moto, last_date_car)
                 else:
                     last_date = last_date_moto or last_date_car
+
+                # Périodicité fixée à la main : elle remplace le calendrier
+                # réglementaire. Le CT n'a pas de critère kilométrique — d'où le
+                # seul `months_interval` — et sans surcharge, rien ne change :
+                # la règle française reste la source par défaut.
+                custom_months = (
+                    interval_info.get("months_interval")
+                    if interval_info.get("has_override")
+                    else None
+                )
+                if custom_months:
+                    status, km_remaining, days_remaining, _, next_due_date = self.calculate_maintenance_status(
+                        last_date, None, current_mileage, None, custom_months,
+                        reference_start_date=(
+                            None if last_date
+                            else self._reference_start_date(registration_date, vehicle_year)
+                        ),
+                    )
+                    upcoming.append({
+                        "intervention_type": interval_info["name"],
+                        "intervention_key": intervention_key,
+                        "status": status,
+                        "km_remaining": 999999,
+                        "days_remaining": days_remaining,
+                        "next_due_mileage": None,
+                        "next_due_date": next_due_date.isoformat() if next_due_date else None,
+                        "km_interval": None,
+                        "months_interval": custom_months,
+                        "condition_based": False,
+                        "never_recorded": last_date is None,
+                        "has_override": True,
+                        "is_custom": False,
+                    })
+                    continue
 
                 next_due_date = self.calculate_inspection_technical_date(
                     vehicle_type,
@@ -741,6 +793,7 @@ class MaintenanceCalculator:
                 "condition_based": condition_based,
                 "never_recorded": never_recorded,
                 "has_override": interval_info.get("has_override", False),
+                "is_custom": bool(interval_info.get("is_custom")),
             })
 
         upcoming.sort(key=lambda x: (

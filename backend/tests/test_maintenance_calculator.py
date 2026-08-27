@@ -361,6 +361,7 @@ class _Override:
         self.is_km_disabled = False
         self.is_months_disabled = False
         self.is_disabled = False
+        self.custom_name = None
         for key, value in kwargs.items():
             setattr(self, key, value)
 
@@ -391,8 +392,35 @@ def test_a_disabled_intervention_stays_listable_to_be_restored():
     assert disabled[0]["intervention_type"]  # le libellé, pour l'afficher
 
 
-def test_an_override_on_a_missing_key_is_ignored():
-    """Une surcharge visant une clé absente du catalogue ne crée rien."""
+def test_a_custom_maintenance_becomes_a_deadline_like_any_other():
+    upcoming = calculator.get_all_upcoming_maintenances(
+        vehicle_type="motorcycle",
+        current_mileage=20400,
+        last_maintenances={"custom_abcd1234": (datetime(2026, 1, 1), 20000)},
+        vehicle_year=2020,
+        service_interval_km=10000,
+        overrides={
+            "custom_abcd1234": _Override(
+                custom_name="Vérification plaquettes", km_interval=500,
+                is_months_disabled=True,
+            )
+        },
+    )
+    item = next(i for i in upcoming if i["intervention_key"] == "custom_abcd1234")
+    assert item["intervention_type"] == "Vérification plaquettes"
+    assert item["km_interval"] == 500
+    assert item["months_interval"] is None
+    assert item["is_custom"] is True
+    assert item["next_due_mileage"] == 20500
+    assert item["km_remaining"] == 100
+
+
+def test_an_orphan_override_without_a_name_is_ignored():
+    """Une surcharge visant une clé absente du catalogue ne crée rien.
+
+    Sans le garde-fou, elle deviendrait un entretien sans nom — donc sauté plus
+    loin par le filtre `"name" not in interval_info`, mais silencieusement.
+    """
     upcoming = calculator.get_all_upcoming_maintenances(
         vehicle_type="car",
         current_mileage=5000,
