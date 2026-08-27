@@ -505,6 +505,22 @@ class MaintenanceCalculator:
 
         return None
 
+    @staticmethod
+    def _reference_start_date(
+        registration_date: Optional[datetime], vehicle_year: Optional[int]
+    ) -> Optional[datetime]:
+        """Depuis quand compter un entretien jamais enregistré.
+
+        La MEC prime : c'est une date exacte. Le 1er janvier de l'année du
+        véhicule n'est qu'un repli, à un semestre près en moyenne.
+        """
+        if registration_date:
+            return registration_date
+        if vehicle_year:
+            safe_year = min(max(int(vehicle_year), 1970), datetime.now(timezone.utc).year)
+            return datetime(safe_year, 1, 1)
+        return None
+
     def apply_overrides(self, intervals: Dict, overrides: Optional[Dict]) -> Dict:
         """Applique à un catalogue d'intervalles ce qu'un véhicule en change.
 
@@ -744,6 +760,7 @@ class MaintenanceCalculator:
                     "condition_based": False,
                     "never_recorded": last_date is None,
                     "has_override": interval_info.get("has_override", False),
+                    "is_custom": False,
                 })
                 continue
             
@@ -762,13 +779,7 @@ class MaintenanceCalculator:
 
             reference_start_date = None
             if months_interval is not None and last_date is None:
-                if registration_date:
-                    # Priorité absolue à la MEC — date exacte connue
-                    reference_start_date = registration_date
-                elif vehicle_year:
-                    # Fallback : seulement si pas de MEC, on prend le 1er janvier de l'année
-                    safe_year = min(max(int(vehicle_year), 1970), datetime.now(timezone.utc).year)
-                    reference_start_date = datetime(safe_year, 1, 1)
+                reference_start_date = self._reference_start_date(registration_date, vehicle_year)
 
             status, km_remaining, days_remaining, next_due_mileage, next_due_date = self.calculate_maintenance_status(
                 last_date,

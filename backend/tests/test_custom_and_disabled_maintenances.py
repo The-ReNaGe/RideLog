@@ -282,3 +282,100 @@ def test_writing_a_custom_maintenance_needs_ownership(client, headers, vehicle_i
     intruder = _account(client, username="intrus")
     res = _create_custom(client, intruder, vehicle_id)
     assert res.status_code == 404
+
+
+# ═══════════════════════════════════════════════════════════════════════════
+# Contrôle technique : périodicité fixée à la main
+# ═══════════════════════════════════════════════════════════════════════════
+
+@pytest.fixture()
+def dated_vehicle_id(client, headers):
+    """Une moto avec sa date de mise en circulation.
+
+    Le calendrier réglementaire du CT part de la MEC : sans elle il ne produit
+    aucune date, et le test ne comparerait que des `None`.
+    """
+    res = client.post("/api/vehicles", headers=headers, json={
+        "name": "Ma moto datée", "brand": "Yamaha", "model": "MT-07",
+        "year": 2021, "vehicle_type": "motorcycle", "displacement": 689,
+        "motorization": "essence", "current_mileage": 20000,
+        "registration_date": "2021-06-15T00:00:00",
+    })
+    assert res.status_code in (200, 201), res.text
+    return res.json()["id"]
+
+
+def _inspection(client, headers, vehicle_id):
+    return next(
+        i for i in _upcoming(client, headers, vehicle_id)["upcoming"]
+        if i["intervention_key"].startswith("inspection_technical")
+    )
+
+
+def test_the_inspection_follows_the_legal_calendar_by_default(client, headers, dated_vehicle_id):
+    item = _inspection(client, headers, dated_vehicle_id)
+    assert item["has_override"] is False
+    assert item["km_interval"] is None  # jamais de critère kilométrique
+    assert item["next_due_date"]
+
+
+def test_the_inspection_periodicity_can_be_set_by_hand(client, headers, dated_vehicle_id):
+    """Un véhicule de collection, ou immatriculé ailleurs, ne suit pas le
+    calendrier français. La surcharge le remplace ; sans elle rien ne change."""
+    legal_due = _inspection(client, headers, dated_vehicle_id)["next_due_date"]
+
+    res = client.put(
+        f"/api/vehicles/{dated_vehicle_id}/interval-overrides/inspection_technical_moto",
+        headers=headers,
+        json={"months_interval": 24, "is_km_disabled": True},
+    )
+    assert res.status_code == 200, res.text
+
+    item = _inspection(client, headers, dated_vehicle_id)
+    assert item["months_interval"] == 24
+    assert item["km_interval"] is None
+    assert item["has_override"] is True
+    assert item["next_due_date"] != legal_due
+
+
+def test_the_inspection_returns_to_the_legal_calendar_when_reset(client, headers, dated_vehicle_id):
+    legal_due = _inspection(client, headers, dated_vehicle_id)["next_due_date"]
+    client.put(
+        f"/api/vehicles/{dated_vehicle_id}/interval-overrides/inspection_technical_moto",
+        headers=headers, json={"months_interval": 24, "is_km_disabled": True},
+    )
+    client.delete(
+        f"/api/vehicles/{dated_vehicle_id}/interval-overrides/inspection_technical_moto",
+        headers=headers,
+    )
+    item = _inspection(client, headers, dated_vehicle_id)
+    assert item["has_override"] is False
+    assert item["next_due_date"] == legal_due
+
+
+def test_a_hand_set_inspection_counts_from_the_last_recorded_one(client, headers, vehicle_id):
+    client.put(
+        f"/api/vehicles/{vehicle_id}/interval-overrides/inspection_technical_moto",
+        headers=headers, json={"months_interval": 24, "is_km_disabled": True},
+    )
+    client.post(
+        f"/api/vehicles/{vehicle_id}/maintenances", headers=headers, json={
+            "intervention_type": "Contrôle technique",
+            "execution_date": "2026-01-15T10:00:00",
+            "mileage_at_intervention": 20000,
+            "maintenance_category": "scheduled",
+        },
+    )
+    item = _inspection(client, headers, vehicle_id)
+    assert item["never_recorded"] is False
+    assert item["next_due_date"].startswith("2028-01-15")
+
+
+def test_the_inspection_can_be_set_aside_like_any_other(client, headers, vehicle_id):
+    client.put(
+        f"/api/vehicles/{vehicle_id}/interval-overrides/inspection_technical_moto",
+        headers=headers, json={"is_disabled": True},
+    )
+    payload = _upcoming(client, headers, vehicle_id)
+    assert all(not k.startswith("inspection_technical") for k in _keys(payload))
+    assert [d["intervention_key"] for d in payload["disabled"]] == ["inspection_technical_moto"]
