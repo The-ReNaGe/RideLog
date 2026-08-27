@@ -505,6 +505,83 @@ class MaintenanceCalculator:
 
         return None
 
+    def apply_overrides(self, intervals: Dict, overrides: Optional[Dict]) -> Dict:
+        """Applique à un catalogue d'intervalles ce qu'un véhicule en change.
+
+        `overrides` est un dict {intervention_key: VehicleMaintenanceOverride}.
+        Deux effets :
+
+        - `is_disabled` marque l'entrée `disabled` — c'est à l'appelant de la
+          sauter, ce que fait `get_all_upcoming_maintenances` ;
+        - km/months remplacent ou effacent les valeurs du JSON.
+
+        Le catalogue n'est jamais muté : `get_intervals_for_vehicle` renvoie le
+        dict du JSON tel quel pour une voiture, le muter contaminerait tous les
+        véhicules du processus.
+        """
+        if not overrides:
+            return intervals
+
+        intervals = dict(intervals)  # shallow copy du niveau supérieur
+        for key, override in overrides.items():
+            if key not in intervals:
+                # Surcharge orpheline : l'entrée JSON qu'elle visait a disparu
+                # du catalogue (renommage de clé, filtrage par motorisation).
+                # Rien à appliquer.
+                continue
+            entry = dict(intervals[key])  # copie de l'entrée
+
+            if getattr(override, "is_disabled", False):
+                entry["disabled"] = True
+            if override.is_km_disabled:
+                entry["km_interval"] = None
+            elif override.km_interval is not None:
+                entry["km_interval"] = override.km_interval
+            if override.is_months_disabled:
+                entry["months_interval"] = None
+            elif override.months_interval is not None:
+                entry["months_interval"] = override.months_interval
+            entry["has_override"] = True
+            intervals[key] = entry
+
+        return intervals
+
+    def list_disabled_interventions(
+        self,
+        vehicle_type: str,
+        overrides: Optional[Dict],
+        displacement: Optional[int] = None,
+        brand: Optional[str] = None,
+        service_interval_km: Optional[int] = None,
+        service_interval_months: Optional[int] = None,
+    ) -> List[Dict]:
+        """Les interventions écartées, avec leur libellé, pour pouvoir les rendre.
+
+        `get_all_upcoming_maintenances` les saute : sans cette liste, une
+        intervention désactivée n'existerait plus nulle part dans l'interface et
+        ne pourrait jamais être réactivée.
+        """
+        if not overrides:
+            return []
+        intervals = self.apply_overrides(
+            self.get_intervals_for_vehicle(
+                vehicle_type, displacement, brand, service_interval_km, service_interval_months
+            ),
+            overrides,
+        )
+        disabled = []
+        for key, info in intervals.items():
+            if not isinstance(info, dict) or not info.get("disabled"):
+                continue
+            disabled.append({
+                "intervention_key": key,
+                "intervention_type": info.get("name"),
+                "km_interval": info.get("km_interval"),
+                "months_interval": info.get("months_interval"),
+            })
+        disabled.sort(key=lambda d: (d["intervention_type"] or "").lower())
+        return disabled
+
     def get_all_upcoming_maintenances(
         self,
         vehicle_type: str,
@@ -528,25 +605,7 @@ class MaintenanceCalculator:
         intervals = self.get_intervals_for_vehicle(
             vehicle_type, displacement, brand, service_interval_km, service_interval_months
         )
-
-        # ── Appliquer les surcharges d'intervalles par véhicule ──
-        # On travaille sur une copie pour ne pas muter le dict retourné par get_intervals_for_vehicle
-        if overrides:
-            intervals = dict(intervals)  # shallow copy du niveau supérieur
-            for key, override in overrides.items():
-                if key not in intervals:
-                    continue
-                entry = dict(intervals[key])  # copie de l'entrée
-                if override.is_km_disabled:
-                    entry["km_interval"] = None
-                elif override.km_interval is not None:
-                    entry["km_interval"] = override.km_interval
-                if override.is_months_disabled:
-                    entry["months_interval"] = None
-                elif override.months_interval is not None:
-                    entry["months_interval"] = override.months_interval
-                entry["has_override"] = True
-                intervals[key] = entry
+        intervals = self.apply_overrides(intervals, overrides)
 
         upcoming = []
 
@@ -555,6 +614,12 @@ class MaintenanceCalculator:
                 continue
             
             if not interval_info.get("forecasted", False):
+                continue
+
+            # Intervention écartée pour ce véhicule : elle ne produit ni
+            # échéance ni rappel. Le filtre est ici, dans le calculateur, pour
+            # que ses cinq appelants l'obtiennent sans avoir à y penser.
+            if interval_info.get("disabled"):
                 continue
             
             allowed_motorizations = interval_info.get("motorization")
@@ -582,28 +647,16 @@ class MaintenanceCalculator:
 
             # Logique spéciale contrôle technique
             if intervention_key in ("inspection_technical_car", "inspection_technical_moto"):
-                last_date = None
-                if vehicle_type == "motorcycle":
-                    last_date_moto = last_maintenances.get("inspection_technical_moto", (None, None))[0]
-                    last_date_car = last_maintenances.get("inspection_technical_car", (None, None))[0]
-                    if last_date_moto and last_date_car:
-                        last_date = max(last_date_moto, last_date_car)
-                    elif last_date_moto:
-                        last_date = last_date_moto
-                    elif last_date_car:
-                        last_date = last_date_car
+                # Le dernier CT peut avoir été enregistré sous l'une ou l'autre
+                # clé (un véhicule changé de type, un import ancien) : on prend
+                # la plus récente des deux.
+                last_date_moto = last_maintenances.get("inspection_technical_moto", (None, None))[0]
+                last_date_car = last_maintenances.get("inspection_technical_car", (None, None))[0]
+                if last_date_moto and last_date_car:
+                    last_date = max(last_date_moto, last_date_car)
                 else:
-                    last_date_moto = last_maintenances.get("inspection_technical_moto", (None, None))[0]
-                    last_date_car = last_maintenances.get("inspection_technical_car", (None, None))[0]
-                    if last_date_moto and last_date_car:
-                        last_date = max(last_date_moto, last_date_car)
-                    elif last_date_moto:
-                        last_date = last_date_moto
-                    elif last_date_car:
-                        last_date = last_date_car
-                    else:
-                        last_date = None
-                
+                    last_date = last_date_moto or last_date_car
+
                 next_due_date = self.calculate_inspection_technical_date(
                     vehicle_type,
                     registration_date,

@@ -515,6 +515,23 @@ def _m008_family_groups(conn: Connection) -> None:
     add_column_if_missing(conn, "invitations", "family_id", "INTEGER")
 
 
+def _m009_override_is_disabled(conn: Connection) -> None:
+    """
+    Écarter une intervention qui ne concerne pas le véhicule.
+
+    La colonne se greffe sur `vehicle_maintenance_overrides`, qui existe déjà.
+    Elle reçoit 0 pour les lignes en place : aucune surcharge existante ne se
+    met à masquer son intervention au premier démarrage.
+
+    NOT NULL explicite — le modèle déclare la colonne non nullable, et le test
+    de parité compare le schéma migré au schéma issu de `create_all()`. Un
+    simple DEFAULT laisserait les deux bases diverger sur ce point.
+    """
+    add_column_if_missing(
+        conn, "vehicle_maintenance_overrides", "is_disabled", "BOOLEAN NOT NULL DEFAULT 0"
+    )
+
+
 MIGRATIONS: list[Migration] = [
     Migration(
         1, "maintenance_category",
@@ -572,6 +589,11 @@ MIGRATIONS: list[Migration] = [
         # estampillée « faite » et n'obtiendrait jamais `invitations.family_id`.
         lambda c: has_all_columns(c, "vehicles", "is_private")
         and has_all_columns(c, "invitations", "family_id"),
+    ),
+    Migration(
+        9, "override_is_disabled",
+        _m009_override_is_disabled,
+        lambda c: has_all_columns(c, "vehicle_maintenance_overrides", "is_disabled"),
     ),
 ]
 

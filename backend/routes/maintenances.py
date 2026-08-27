@@ -134,10 +134,15 @@ def get_available_interventions(
         service_interval_km=vehicle.service_interval_km,
         service_interval_months=vehicle.service_interval_months,
     )
+    # Un entretien écarté ne doit pas non plus être proposé à l'enregistrement :
+    # ce qui ne concerne pas le véhicule n'a pas à figurer dans son formulaire.
+    intervals = calculator.apply_overrides(intervals, _load_overrides(vehicle.id, db))
     range_cat = vehicle.range_category or 'generalist'
     result = []
     for intervention_key, interval_info in intervals.items():
         if not isinstance(interval_info, dict) or "name" not in interval_info:
+            continue
+        if interval_info.get("disabled"):
             continue
         prices = interval_info.get("prices", {})
         price_data = prices.get(range_cat, {})
@@ -440,6 +445,7 @@ def upsert_interval_override(
     override.months_interval = body.months_interval
     override.is_km_disabled = body.is_km_disabled
     override.is_months_disabled = body.is_months_disabled
+    override.is_disabled = body.is_disabled
     override.updated_at = datetime.now(timezone.utc)
     db.commit()
     db.refresh(override)
@@ -484,7 +490,15 @@ def _compute_upcoming(vehicle: Vehicle, db: Session) -> dict:
         )
         item["estimated_cost_min"] = cost_est.get("min") if cost_est else None
         item["estimated_cost_max"] = cost_est.get("max") if cost_est else None
-    return {"vehicle_id": vehicle.id, "upcoming": upcoming}
+
+    # Les entretiens écartés ne figurent pas dans `upcoming` — c'est tout
+    # l'objet. Ils sont renvoyés à part pour rester visibles quelque part, sans
+    # quoi on ne pourrait plus jamais les rétablir.
+    disabled = calculator.list_disabled_interventions(
+        vehicle.vehicle_type, overrides, vehicle.displacement, vehicle.brand,
+        vehicle.service_interval_km, vehicle.service_interval_months,
+    )
+    return {"vehicle_id": vehicle.id, "upcoming": upcoming, "disabled": disabled}
 
 
 @router.get("/{vehicle_id}/upcoming")

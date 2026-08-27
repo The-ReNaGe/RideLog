@@ -58,7 +58,10 @@ class IntervalOverrideUpdate(BaseModel):
     months_interval: Optional[int] = Field(None, ge=1, le=240)
     is_km_disabled: bool = Field(False)
     is_months_disabled: bool = Field(False)
-
+    # Écarte l'intervention des échéances et des rappels pour ce véhicule.
+    # C'est la réponse au cas « ma moto n'a pas de liquide de refroidissement » :
+    # désactiver les deux critères laissait l'entrée visible, sans échéance.
+    is_disabled: bool = Field(False)
 # ---------------------------------------------------------------------------
 # Maintenances
 # ---------------------------------------------------------------------------

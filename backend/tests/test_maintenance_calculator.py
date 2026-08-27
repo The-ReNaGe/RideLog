@@ -346,3 +346,72 @@ def test_sub_intervention_without_key_falls_back_to_its_name():
     m = _Maintenance("Entretien annuel", datetime(2024, 3, 1), 20000,
                      sub_interventions=[{"name": "Remplacement plaquettes de frein"}])
     assert build_last_maintenances_dict([m])["brake_pads"] == (datetime(2024, 3, 1), 20000)
+
+
+# ═══════════════════════════════════════════════════════════════════════════
+# Désactivation d'une intervention et entretiens personnalisés
+# ═══════════════════════════════════════════════════════════════════════════
+
+class _Override:
+    """Surcharge minimale, façon ligne de vehicle_maintenance_overrides."""
+
+    def __init__(self, **kwargs):
+        self.km_interval = None
+        self.months_interval = None
+        self.is_km_disabled = False
+        self.is_months_disabled = False
+        self.is_disabled = False
+        for key, value in kwargs.items():
+            setattr(self, key, value)
+
+
+def test_a_disabled_intervention_produces_no_deadline():
+    """Le cas du ticket : une moto sans circuit de refroidissement.
+
+    Désactiver les deux critères ne suffisait pas — l'entrée restait affichée,
+    sans échéance. C'est `is_disabled` qui l'écarte réellement.
+    """
+    upcoming = calculator.get_all_upcoming_maintenances(
+        vehicle_type="motorcycle",
+        current_mileage=20000,
+        last_maintenances={},
+        vehicle_year=2020,
+        service_interval_km=10000,
+        overrides={"coolant": _Override(is_disabled=True)},
+    )
+    assert all(item["intervention_key"] != "coolant" for item in upcoming)
+
+
+def test_a_disabled_intervention_stays_listable_to_be_restored():
+    disabled = calculator.list_disabled_interventions(
+        "motorcycle", {"coolant": _Override(is_disabled=True)},
+        service_interval_km=10000,
+    )
+    assert [d["intervention_key"] for d in disabled] == ["coolant"]
+    assert disabled[0]["intervention_type"]  # le libellé, pour l'afficher
+
+
+def test_an_override_on_a_missing_key_is_ignored():
+    """Une surcharge visant une clé absente du catalogue ne crée rien."""
+    upcoming = calculator.get_all_upcoming_maintenances(
+        vehicle_type="car",
+        current_mileage=5000,
+        last_maintenances={},
+        vehicle_year=2020,
+        overrides={"cle_disparue": _Override(km_interval=1000)},
+    )
+    assert all(item["intervention_key"] != "cle_disparue" for item in upcoming)
+
+
+def test_applying_overrides_never_mutates_the_shared_catalog():
+    """Régression : pour une voiture, get_intervals_for_vehicle renvoie le dict
+    du JSON tel quel. Le muter contaminerait tous les véhicules du processus,
+    et la contamination survivrait à la requête."""
+    before = calculator.get_intervals_for_vehicle("car")["oil_change"]["km_interval"]
+    calculator.apply_overrides(
+        calculator.get_intervals_for_vehicle("car"),
+        {"oil_change": _Override(km_interval=1234, is_disabled=True)},
+    )
+    after = calculator.get_intervals_for_vehicle("car")["oil_change"]
+    assert after["km_interval"] == before
+    assert "disabled" not in after

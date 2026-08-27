@@ -183,11 +183,21 @@ class VehicleMaintenanceOverride(Base):
     """
     Surcharge des intervalles de maintenance par véhicule.
     
-    Permet à l'utilisateur de personnaliser km_interval et/ou months_interval
-    pour une intervention donnée, indépendamment des valeurs du JSON global.
-    
+    Cette table porte ce qu'un véhicule change au référentiel d'entretien :
+
+    1. **Personnaliser** km_interval et/ou months_interval d'une intervention du
+       JSON global ;
+    2. **Écarter** une intervention qui ne concerne pas ce véhicule
+       (`is_disabled` — une moto sans circuit de refroidissement n'a pas à voir
+       « Liquide de refroidissement » dans ses échéances) ;
+    Les deux vivent dans la même table à dessein : les cinq appelants du
+    calculateur (upcoming, dashboard, planning, vehicle_status, scheduler)
+    chargent déjà les overrides d'un véhicule. Y greffer une colonne les sert
+    tous sans qu'aucun ne bouge.
+
     - Si km_interval est NULL et is_km_disabled=True  → critère km désactivé
     - Si months_interval est NULL et is_months_disabled=True → critère temps désactivé
+    - Si is_disabled=True → l'intervention disparaît des échéances et des rappels
     - L'override prime TOUJOURS sur le JSON quand il existe pour cette clé.
     """
     __tablename__ = "vehicle_maintenance_overrides"
@@ -202,6 +212,8 @@ class VehicleMaintenanceOverride(Base):
     # Flags de désactivation explicite (distingue "pas de valeur" de "désactivé volontairement")
     is_km_disabled = Column(Boolean, default=False, nullable=False)
     is_months_disabled = Column(Boolean, default=False, nullable=False)
+    # Écarte complètement l'intervention pour ce véhicule (échéances + rappels)
+    is_disabled = Column(Boolean, default=False, nullable=False)
     created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
     updated_at = Column(DateTime, default=lambda: datetime.now(timezone.utc), onupdate=lambda: datetime.now(timezone.utc))
 
@@ -216,6 +228,7 @@ class VehicleMaintenanceOverride(Base):
             "months_interval": self.months_interval,
             "is_km_disabled": self.is_km_disabled,
             "is_months_disabled": self.is_months_disabled,
+            "is_disabled": bool(self.is_disabled),
             "created_at": self.created_at.isoformat(),
             "updated_at": self.updated_at.isoformat(),
         }
