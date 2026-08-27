@@ -49,7 +49,7 @@ async def lifespan(app: FastAPI):
 app = FastAPI(
     title="RideLog API",
     description="Application HomeLab de suivi d'entretien véhicules (voitures & motos)",
-    version="2.2.1",  # x-release-please-version
+    version="2.3.0",  # x-release-please-version
     lifespan=lifespan,
     redirect_slashes=False,
     docs_url="/api/docs",
@@ -154,7 +154,7 @@ def root():
     return {
         "status": "ok",
         "service": "RideLog \u2013 Suivi d'entretien v\u00e9hicules",
-        "version": "2.2.1",  # x-release-please-version
+        "version": "2.3.0",  # x-release-please-version
         "plate_api_configured": has_rapidapi or has_direct,
         "plate_api_provider": "rapidapi" if has_rapidapi else ("direct" if has_direct else None),
     }

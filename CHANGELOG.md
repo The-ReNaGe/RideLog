@@ -1,5 +1,15 @@
 # Changelog
 
+## [2.3.0](https://github.com/The-ReNaGe/RideLog/compare/v2.2.1...v2.3.0) (2026-08-27)
+
+
+### Features
+
+* ajoute des entretiens récurrents absents du catalogue ([f8cb15e](https://github.com/The-ReNaGe/RideLog/commit/f8cb15e2301eedc3dd1c2b86009165c9a455153e))
+* commande le plan d'entretien depuis l'onglet « À venir » ([1ced79f](https://github.com/The-ReNaGe/RideLog/commit/1ced79f30951dba816e8b69cb808b19277c3e7e6))
+* écarte les entretiens qui ne concernent pas un véhicule ([0eeff7e](https://github.com/The-ReNaGe/RideLog/commit/0eeff7e84b4424251e23fe98a1df62b92be22ba8))
+* rend modifiable la périodicité du contrôle technique ([950c27c](https://github.com/The-ReNaGe/RideLog/commit/950c27c88aaf70286ac55587b9c147ca4313d33f))
+
 ## [2.2.1](https://github.com/The-ReNaGe/RideLog/compare/v2.2.0...v2.2.1) (2026-08-27)
 
 
