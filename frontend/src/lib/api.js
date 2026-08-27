@@ -215,6 +215,12 @@ export const api = {
   deleteIntervalOverride: (vehicleId, interventionKey) =>
     client.delete(`/vehicles/${vehicleId}/interval-overrides/${interventionKey}`),
 
+  // Entretiens personnalisés — même table que les surcharges côté backend :
+  // la création a sa route, la modification et la suppression passent par
+  // upsertIntervalOverride / deleteIntervalOverride.
+  createCustomMaintenance: (vehicleId, data) =>
+    client.post(`/vehicles/${vehicleId}/custom-maintenances`, data),
+
   // Fuel tracking
   getFuelLogs: (vehicleId) => client.get(`/vehicles/${vehicleId}/fuel-logs`),
   createFuelLog: (vehicleId, data) => client.post(`/vehicles/${vehicleId}/fuel-logs`, data),

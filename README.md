@@ -21,6 +21,7 @@ Conçu pour les particuliers passionnés comme pour les petits parcs de véhicul
 - **Gestion multi-véhicules** — voitures et motos, avec photo, VIN et plaque d'immatriculation
 - **Plan d'entretien intelligent** — intervalles adaptés par type, motorisation et marque, avec filtrage diesel/essence
 - **Anti-drift kilométrique** — les échéances s'alignent sur des multiples propres, pas de décalage cumulatif
+- **Plan ajustable par véhicule** — intervalles personnalisés, entretiens écartés quand ils ne concernent pas la machine, et entretiens de votre cru avec l'intervalle de votre choix
 - **Suivi carburant** — historique des pleins, consommation L/100km, coût/km, projections annuelles
 - **Recherche stations-service** — prix temps réel sur 39 202 communes françaises (données gouv.fr)
 - **Rappels automatiques** — 3 paliers de notifications (à planifier, à prévoir, en retard)
@@ -152,6 +153,8 @@ ports:
 ### Motos
 
 Les intervalles de révision sont configurés par marque et cylindrée (ex: Triumph 660cc = 16 000 km, Honda 125cc = 4 000 km). L'utilisateur peut les surcharger à la création du véhicule.
+
+Chaque échéance reste ajustable ensuite, depuis l'onglet « À venir » du véhicule : changer un intervalle, écarter un entretien qui ne concerne pas la machine (une moto refroidie par air n'a pas de liquide de refroidissement), ou ajouter un entretien absent du catalogue avec l'intervalle voulu — une vérification des plaquettes tous les 500 km, par exemple. Les entretiens écartés restent listés en bas de l'onglet et se rétablissent d'un clic.
 
 - **Révision périodique** — basée sur le kilométrage (configurable)
 - **Entretien annuel** — tous les 12 mois, contrôle simplifié si le km n'est pas atteint

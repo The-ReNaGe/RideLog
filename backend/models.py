@@ -183,11 +183,28 @@ class VehicleMaintenanceOverride(Base):
     """
     Surcharge des intervalles de maintenance par véhicule.
     
-    Permet à l'utilisateur de personnaliser km_interval et/ou months_interval
-    pour une intervention donnée, indépendamment des valeurs du JSON global.
-    
+    Cette table porte tout ce qu'un véhicule change au référentiel d'entretien :
+
+    1. **Personnaliser** km_interval et/ou months_interval d'une intervention du
+       JSON global ;
+    2. **Écarter** une intervention qui ne concerne pas ce véhicule
+       (`is_disabled` — une moto sans circuit de refroidissement n'a pas à voir
+       « Liquide de refroidissement » dans ses échéances) ;
+    3. **Ajouter** un entretien qui n'existe pas au catalogue (`custom_name`
+       renseigné, clé `custom_xxxxxxxx` générée à la création).
+
+    Les trois vivent dans la même table à dessein : les cinq appelants du
+    calculateur (upcoming, dashboard, planning, vehicle_status, scheduler)
+    chargent déjà les overrides d'un véhicule. Une table séparée pour les
+    entretiens personnalisés aurait demandé de brancher ce second chargement
+    aux cinq endroits, et le premier oubli aurait fait diverger l'interface des
+    rappels — silencieusement.
+
     - Si km_interval est NULL et is_km_disabled=True  → critère km désactivé
     - Si months_interval est NULL et is_months_disabled=True → critère temps désactivé
+    - Si is_disabled=True → l'intervention disparaît des échéances et des rappels
+    - Si custom_name est renseigné → l'entrée n'a pas d'équivalent JSON, elle
+      **est** la définition de l'entretien
     - L'override prime TOUJOURS sur le JSON quand il existe pour cette clé.
     """
     __tablename__ = "vehicle_maintenance_overrides"
@@ -202,6 +219,11 @@ class VehicleMaintenanceOverride(Base):
     # Flags de désactivation explicite (distingue "pas de valeur" de "désactivé volontairement")
     is_km_disabled = Column(Boolean, default=False, nullable=False)
     is_months_disabled = Column(Boolean, default=False, nullable=False)
+    # Écarte complètement l'intervention pour ce véhicule (échéances + rappels)
+    is_disabled = Column(Boolean, default=False, nullable=False)
+    # Renseigné uniquement pour un entretien personnalisé : c'est alors le
+    # libellé affiché, l'entrée n'ayant aucun équivalent dans le JSON.
+    custom_name = Column(String(80), nullable=True)
     created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
     updated_at = Column(DateTime, default=lambda: datetime.now(timezone.utc), onupdate=lambda: datetime.now(timezone.utc))
 
@@ -216,6 +238,9 @@ class VehicleMaintenanceOverride(Base):
             "months_interval": self.months_interval,
             "is_km_disabled": self.is_km_disabled,
             "is_months_disabled": self.is_months_disabled,
+            "is_disabled": bool(self.is_disabled),
+            "custom_name": self.custom_name,
+            "is_custom": self.custom_name is not None,
             "created_at": self.created_at.isoformat(),
             "updated_at": self.updated_at.isoformat(),
         }

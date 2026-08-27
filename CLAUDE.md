@@ -22,7 +22,7 @@
 13. [Base de données](#13-base-de-données)
 14. [Guides de modification](#14-guides-de-modification)
 15. [Checklist de révision moto](#15-checklist-de-révision-moto)
-16. [Surcharges d'intervalles par véhicule](#16-surcharges-dintervales-par-véhicule)
+16. [Le plan d'entretien ajusté par véhicule](#16-le-plan-dentretien-ajusté-par-véhicule)
 17. [KPI cards VehicleDetail](#17-kpi-cards-vehicledetail)
 18. [Kilométrage moyen annuel](#18-kilométrage-moyen-annuel)
 19. [Tests backend](#19-tests-backend)
@@ -555,7 +555,7 @@ Calcule toutes les maintenances à venir pour un véhicule.
 Paramètres importants :
 - `last_maintenances` : Dict `{clé_technique: (dernière_date, dernier_km)}` — construit en mappant chaque maintenance enregistrée via `get_intervention_key()`
 - `motorization` : filtre les entretiens par motorisation (ex: filtre à gasoil uniquement pour diesel)
-- `overrides` : Dict `{intervention_key: VehicleMaintenanceOverride}` — surcharges par véhicule qui priment sur le JSON. Passé depuis `_compute_upcoming()` et `dashboard.py`. Voir section 16.
+- `overrides` : Dict `{intervention_key: VehicleMaintenanceOverride}` — ce que ce véhicule change au catalogue : intervalles surchargés, interventions écartées, entretiens personnalisés. Appliqué par `apply_overrides()`. Voir §16.
 
 **Logique spéciale `annual_service`** : la date de référence est la plus récente parmi toutes les interventions majeures (`MAJOR_SERVICE_KEYS`). Cela évite que l'entretien annuel reste calé sur une ancienne date alors qu'une révision périodique plus récente a eu lieu.
 
@@ -654,7 +654,7 @@ Le champ kilométrage est affiché comme optionnel dans `MaintenanceForm.jsx` av
 
 - Modifier uniquement `km_interval` et/ou `months_interval` dans le JSON
 - Aucune autre modification nécessaire
-- Pour une modification par véhicule uniquement → utiliser les overrides (section 16)
+- Pour une modification par véhicule uniquement → utiliser les overrides (§16)
 
 #### Ajouter un filtre par motorisation
 
@@ -1025,7 +1025,7 @@ api.getMaintenanceRecap(vehicleId),  // ← chargé d'emblée pour les KPI cards
 | `families` | id, created_by (FK) | Groupes famille — partage en lecture (voir §22) |
 | `family_members` | id, family_id (FK), user_id (FK, **unique**) | Appartenance : un utilisateur, un seul groupe |
 | `vehicle_estimates` | id, brand, model | Estimations de valeur résiduelle |
-| `vehicle_maintenance_overrides` | id, vehicle_id (FK), intervention_key | Surcharges d'intervalles par véhicule |
+| `vehicle_maintenance_overrides` | id, vehicle_id (FK), intervention_key | Ce qu'un véhicule change au catalogue d'entretien : intervalles surchargés, interventions écartées, entretiens personnalisés (voir §16) |
 
 ### `vehicle_maintenance_overrides` — détail
 
@@ -1037,6 +1037,8 @@ api.getMaintenanceRecap(vehicleId),  // ← chargé d'emblée pour les KPI cards
 | `months_interval` | int\|null | Intervalle mois personnalisé |
 | `is_km_disabled` | bool | `True` = critère km explicitement désactivé |
 | `is_months_disabled` | bool | `True` = critère temps explicitement désactivé |
+| `is_disabled` | bool | `True` = intervention écartée : ni échéance, ni rappel, ni pastille |
+| `custom_name` | string\|null | Renseigné = entretien personnalisé, ce libellé **est** sa définition |
 
 La combinaison `(vehicle_id, intervention_key)` est unique — un seul override par intervention par véhicule.
 
@@ -1268,22 +1270,98 @@ Les autres items sont pré-cochés automatiquement s'ils sont en retard ou urgen
 
 ---
 
-## 16. Surcharges d'intervalles par véhicule
+## 16. Le plan d'entretien ajusté par véhicule
 
 ### Vue d'ensemble
 
-Chaque véhicule peut avoir des intervalles de maintenance personnalisés qui priment sur les valeurs globales du JSON. Par exemple, si la révision de fourche est à 40 000 km par défaut mais que le propriétaire préfère la faire à 20 000 km, il peut fixer cette valeur pour son véhicule uniquement. La modification est persistée en BDD et reste active indéfiniment.
+Une même table, `vehicle_maintenance_overrides`, porte **les trois façons dont un
+véhicule s'écarte du catalogue** :
 
-Il est également possible de **désactiver** un critère individuellement : par exemple garder uniquement le critère km sans critère temps, ou l'inverse.
+| Ce que veut l'utilisateur | Colonnes en jeu |
+|---|---|
+| « Ma fourche, je la révise à 20 000, pas à 40 000 » | `km_interval` / `months_interval` |
+| « Je ne suis cet entretien qu'au km, pas au temps » | `is_km_disabled` / `is_months_disabled` |
+| « Ma moto n'a pas de liquide de refroidissement » | `is_disabled` |
+| « Je veux vérifier mes plaquettes tous les 500 km » | `custom_name` + intervalles |
+
+> **Pourquoi une seule table, et pas une seconde pour les entretiens
+> personnalisés.** Cinq appelants du calculateur chargent déjà les overrides
+> d'un véhicule : `_compute_upcoming` (maintenances), `dashboard.py`,
+> `vehicles.py` (planning), `vehicle_status.py` (pastilles de la liste) et
+> `reminder_scheduler.py`. Une table séparée aurait demandé de brancher un
+> second chargement aux cinq endroits — et le premier oubli aurait fait
+> diverger l'interface des rappels **en silence**, exactement le défaut contre
+> lequel §3 met déjà en garde. En passant par la table existante, un entretien
+> personnalisé est vu partout sans qu'aucun appelant ne bouge.
+
+Les modifications sont persistées en BDD et restent actives indéfiniment.
+
+### Écarter un entretien plutôt que le vider (ticket #4)
+
+Désactiver les deux critères d'un même entretien **ne l'écarte pas** : il reste
+affiché, « Aucun critère d'intervalle actif », sans échéance. C'est ce que
+l'auteur du ticket a essayé avant de signaler que l'interface l'en empêchait —
+et l'interface avait raison de l'en empêcher, ce n'était simplement pas la bonne
+commande.
+
+`is_disabled` est cette commande. L'intervention disparaît des échéances, des
+rappels, des compteurs d'alerte et de la liste des interventions
+enregistrables — et **reste listée à part** (`disabled` dans la réponse de
+`/upcoming`) pour pouvoir être rétablie. Sans cette liste, un entretien écarté
+n'existerait plus nulle part et serait irrécupérable.
+
+Le filtre vit dans `get_all_upcoming_maintenances()`, pas chez ses appelants,
+pour la même raison qu'au-dessus.
+
+### Contrôle technique : le calendrier réglementaire est un défaut, pas une fatalité
+
+Le CT se calcule par `calculate_inspection_technical_date()` (§6.2). Une
+surcharge **temporelle** le remplace pour ce véhicule : véhicule de collection,
+immatriculé ailleurs, ou simplement règle changée. Sans surcharge, rien ne
+bouge — la règle française reste la source.
+
+Deux points à ne pas défaire :
+
+- **Le CT n'a pas de critère kilométrique.** Il se compte en années. L'UI
+  masque le champ km et envoie `is_km_disabled: true` ; le calculateur ne lit
+  que `months_interval`.
+- La bascule tient à `has_override and months_interval` : le JSON porte déjà un
+  `months_interval` pour le CT (60 mois), exiger la seule valeur ferait sortir
+  du calendrier réglementaire **tous** les véhicules.
+
+Le bouton crayon n'est donc plus masqué pour le CT dans `UpcomingMaintenance`.
+
+### Entretiens personnalisés
+
+Clé technique `custom_<8 hex>`, **tirée au sort, jamais dérivée du libellé** :
+c'est elle que les maintenances enregistrées portent en base (§20.2), elle doit
+donc survivre à un renommage. Un slug se serait détaché de son historique au
+premier « Vérif. plaquettes » → « Contrôle plaquettes ».
+
+Deux conséquences à ne pas défaire :
+
+- `/available-interventions` **inclut les entretiens personnalisés**. Sans cela
+  ils ne pourraient jamais être marqués comme faits, et resteraient
+  éternellement en retard.
+- `create_maintenance` résout la clé par `_resolve_key_for_vehicle()`, qui
+  consulte d'abord les personnalisés du véhicule. `get_intervention_key()` seule
+  aurait fabriqué un slug ne correspondant à aucune échéance : l'entretien
+  enregistré, puis ignoré.
+
+Les libellés sont uniques par véhicule (409 sinon), catalogue compris — deux
+entretiens homonymes rendraient ce rattachement arbitraire.
+
+Un `PUT` sur une clé `custom_*` inconnue renvoie **404** au lieu de créer la
+ligne : ressusciter un entretien supprimé, sans son libellé, n'a pas de sens.
 
 ### Fichiers concernés
 
 | Fichier | Rôle |
 |---------|------|
-| `backend/models.py` → `VehicleMaintenanceOverride` | Modèle BDD de la surcharge |
-| `backend/schemas.py` → `IntervalOverrideUpdate` | Validation du body PUT |
-| `backend/routes/maintenances.py` | 3 endpoints + helpers `_load_overrides()` / `_apply_overrides()` |
-| `backend/maintenance_calculator.py` | Paramètre `overrides` dans `get_all_upcoming_maintenances()` |
+| `backend/models.py` → `VehicleMaintenanceOverride` | Modèle BDD : surcharge, mise à l'écart et entretien personnalisé |
+| `backend/schemas.py` → `IntervalOverrideUpdate`, `CustomMaintenanceCreate` | Validation des bodies PUT et POST |
+| `backend/routes/maintenances.py` | 4 endpoints + helpers `_load_overrides()`, `_resolve_key_for_vehicle()`, `_reject_duplicate_name()` |
+| `backend/maintenance_calculator.py` | `apply_overrides()` et `list_disabled_interventions()` — point unique d'application |
 | `backend/routes/dashboard.py` | Charge et applique les overrides pour les stats du dashboard |
 | `frontend/src/components/UpcomingMaintenance.jsx` | Bouton ✏️ + modale `IntervalEditModal` |
 | `frontend/src/lib/api.js` | 3 méthodes : `getIntervalOverrides`, `upsertIntervalOverride`, `deleteIntervalOverride` |
@@ -1308,7 +1386,8 @@ Il est également possible de **désactiver** un critère individuellement : par
 |---------|-------|-------------|
 | GET | `/api/vehicles/{vid}/interval-overrides` | Lister tous les overrides du véhicule |
 | PUT | `/api/vehicles/{vid}/interval-overrides/{key}` | Créer ou mettre à jour un override (upsert) |
-| DELETE | `/api/vehicles/{vid}/interval-overrides/{key}` | Supprimer → retour aux valeurs par défaut |
+| DELETE | `/api/vehicles/{vid}/interval-overrides/{key}` | Supprimer → retour au catalogue, ou suppression de l'entretien personnalisé |
+| POST | `/api/vehicles/{vid}/custom-maintenances` | Ajouter un entretien hors catalogue |
 
 ### Body du PUT (`IntervalOverrideUpdate`)
 
@@ -1317,7 +1396,9 @@ Il est également possible de **désactiver** un critère individuellement : par
   "km_interval": 20000,
   "months_interval": null,
   "is_km_disabled": false,
-  "is_months_disabled": true
+  "is_months_disabled": true,
+  "is_disabled": false,
+  "name": null
 }
 ```
 
@@ -1327,28 +1408,32 @@ Il est également possible de **désactiver** un critère individuellement : par
 | `months_interval` | Nouvelle valeur mois (null = conserver la valeur JSON si non désactivé) |
 | `is_km_disabled` | `true` = supprimer le critère km pour ce véhicule |
 | `is_months_disabled` | `true` = supprimer le critère temps pour ce véhicule |
+| `is_disabled` | `true` = écarter l'intervention (ni échéance, ni rappel, ni pastille) |
+| `name` | Renommage — **ignoré hors entretien personnalisé** : le libellé du catalogue vient du JSON et ne doit pas diverger d'un véhicule à l'autre |
+
+### Body du POST (`CustomMaintenanceCreate`)
+
+```json
+{ "name": "Vérification plaquettes", "km_interval": 500, "months_interval": null }
+```
+
+Au moins un des deux intervalles est exigé (422 sinon) : un entretien sans
+critère n'aurait pas d'échéance. La réponse porte la clé générée.
 
 ### Logique d'application dans le calculateur
 
-Dans `get_all_upcoming_maintenances()`, les overrides sont appliqués après `get_intervals_for_vehicle()` :
+Tout passe par `calculator.apply_overrides(intervals, overrides)`, appelée par
+`get_all_upcoming_maintenances()` juste après `get_intervals_for_vehicle()` :
+une clé absente du catalogue et portant `custom_name` **crée** l'entrée,
+`is_disabled` la marque `disabled`, sinon km/mois remplacent ou effacent les
+valeurs du JSON.
 
-```python
-if overrides:
-    for key, override in overrides.items():
-        if key not in intervals:
-            continue
-        entry = dict(intervals[key])
-        if override.is_km_disabled:
-            entry["km_interval"] = None
-        elif override.km_interval is not None:
-            entry["km_interval"] = override.km_interval
-        if override.is_months_disabled:
-            entry["months_interval"] = None
-        elif override.months_interval is not None:
-            entry["months_interval"] = override.months_interval
-        entry["has_override"] = True
-        intervals[key] = entry
-```
+> ⚠️ **Ne jamais muter le dict rendu par `get_intervals_for_vehicle()`.** Pour
+> une voiture, il renvoie la section `car` du JSON **telle quelle** — l'objet
+> partagé par tout le processus. Une mutation contaminerait tous les véhicules
+> et survivrait à la requête. `apply_overrides` recopie le niveau supérieur
+> puis chaque entrée touchée ; c'est verrouillé par
+> `test_applying_overrides_never_mutates_the_shared_catalog`.
 
 ### Chargement des overrides
 
@@ -1370,15 +1455,66 @@ for o in all_overrides:
 
 ### UI — `UpcomingMaintenance.jsx`
 
-- Bouton ✏️ sur chaque carte (masqué pour le contrôle technique)
-- Badge **"✏️ Personnalisé"** en accent si `item.has_override === true`
-- `IntervalEditModal` (composant interne) : deux champs input + checkbox "Désactivé" pour chaque critère
-- Validation : impossible de désactiver les deux critères simultanément (bouton Enregistrer désactivé)
+- Bouton crayon sur chaque carte (masqué pour le contrôle technique et sur un véhicule partagé)
+- Badge **« Personnalisé »** si `has_override`, **« Ajouté »** si `is_custom`
+- `IntervalEditModal` : un champ par critère, chacun avec sa case « Désactivé »,
+  et **en bas à gauche du pied, le même bouton rouge pastel dans les deux
+  cas** — « Supprimer cet entretien récurrent ». Un entretien ajouté est
+  récurrent lui aussi : deux libellés auraient laissé croire à deux natures
+  d'objet. Deux mécanismes derrière (catalogue → mise à l'écart rétablissable ;
+  ajouté → suppression, en deux temps), et c'est la phrase juste au-dessus du
+  pied qui dit lequel s'applique. Rouge **pastel** : l'historique reste, et une
+  intervention du catalogue se rétablit d'un clic — un `btn-danger` plein
+  annoncerait une perte qui n'a pas lieu.
+- `CustomMaintenanceModal` : nom + intervalles, ouverte par « Ajouter un
+  entretien récurrent ». **Chaque critère exige un choix explicite** : une
+  valeur, ou sa case « Désactivé » cochée. Le bouton « Ajouter » reste inactif
+  tant qu'un champ est vide sans case cochée — un champ vide est une
+  hésitation, pas une décision, et le suivi qui en découlerait serait une
+  surprise. `Criterion` sait rendre la case ou non (`setDisabled` optionnel) ;
+  seule la ligne « Périodicité » du CT s'en passe, n'ayant pas de second
+  critère à arbitrer.
+
+> **Un bouton grisé n'explique rien.** Le critère qui bloque porte son propre
+> message (« Indiquez une valeur, ou cochez « Désactivé » »), sous le champ
+> concerné — au bas de la modale, l'utilisateur ne saurait pas lequel des deux
+> l'attend. Le message n'apparaît qu'une fois le formulaire entamé : alerter
+> sur un formulaire vierge se lit comme un reproche.
+>
+> **Le pied d'une modale ne porte que deux groupes, et la modale fait
+> 480 px.** Mesuré dans le navigateur : à 420 px, le pied offrait 383 px utiles
+> pour 413 px de boutons — « Supprimer cet entretien récurrent » (241) +
+> Annuler/Enregistrer (164). Le repli fonctionnait, mais donnait deux rangées
+> désordonnées. À 480 px il reste 443 px utiles, et tout tient sur une ligne.
+>
+> C'est pourquoi **« Revenir aux valeurs par défaut » a quitté le pied** pour
+> se placer sous les critères : à trois boutons, aucune largeur raisonnable ne
+> suffisait. Il agit d'ailleurs sur les champs, pas sur l'objet entier — sa
+> place est près d'eux. `flex-wrap` reste posé comme filet pour les petits
+> écrans. Tout libellé long ajouté à un pied de modale doit refaire ce calcul.
+- `DisabledSection` en pied de liste : les entretiens écartés, avec rétablissement
+- Un entretien sans critère temporel affiche « Prochaine échéance : 12 000 km »
+  et rien de plus — `formatDueDate(null)` rendait « sans échéance » à la suite
+  du kilométrage, ce qui se contredisait. Même logique dans la carte KPI
+  « Prochaine » de `VehicleDetail` : la sentinelle `999999` y est écartée,
+  faute de quoi un entretien suivi au seul kilométrage s'affichait « 999999 j ».
+- Le contrôle technique sans surcharge affiche « Calendrier réglementaire », et
+  non « Aucun critère d'intervalle actif » : ses deux intervalles sont bien
+  `null`, mais il a une échéance — calculée autrement.
+- Les deux critères désactivés laissent le bouton Enregistrer grisé, mais **un
+  message dit désormais quoi faire à la place** — le bouton muet était
+  précisément ce qui a fait revenir l'auteur du ticket #4
 
 ### Pour modifier
 
-- **Ajouter une contrainte de validation** : `schemas.py` → `IntervalOverrideUpdate`
-- **Étendre au scheduler** : `reminder_scheduler.py` → charger les overrides du véhicule et les passer à `get_all_upcoming_maintenances()`
+- **Ajouter une contrainte de validation** : `schemas.py` → `IntervalOverrideUpdate` / `CustomMaintenanceCreate`
+- **Ajouter une façon de s'écarter du catalogue** : une colonne de plus sur
+  `VehicleMaintenanceOverride` et son traitement dans `apply_overrides()`. Rien
+  ailleurs — c'est tout l'intérêt du point unique.
+- **Tests** : `tests/test_custom_and_disabled_maintenances.py` (routes, dont la
+  vérification que la mise à l'écart vaut aussi pour les pastilles de la liste,
+  qui passent par un autre chemin que `/upcoming`) et le bloc correspondant de
+  `tests/test_maintenance_calculator.py` (règle pure)
 
 ---
 

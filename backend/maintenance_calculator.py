@@ -505,6 +505,117 @@ class MaintenanceCalculator:
 
         return None
 
+    @staticmethod
+    def _reference_start_date(
+        registration_date: Optional[datetime], vehicle_year: Optional[int]
+    ) -> Optional[datetime]:
+        """Depuis quand compter un entretien jamais enregistré.
+
+        La MEC prime : c'est une date exacte. Le 1er janvier de l'année du
+        véhicule n'est qu'un repli, à un semestre près en moyenne.
+        """
+        if registration_date:
+            return registration_date
+        if vehicle_year:
+            safe_year = min(max(int(vehicle_year), 1970), datetime.now(timezone.utc).year)
+            return datetime(safe_year, 1, 1)
+        return None
+
+    def apply_overrides(self, intervals: Dict, overrides: Optional[Dict]) -> Dict:
+        """Applique à un catalogue d'intervalles ce qu'un véhicule en change.
+
+        `overrides` est un dict {intervention_key: VehicleMaintenanceOverride}.
+        Trois effets, dans cet ordre de lecture :
+
+        - une clé **absente** du catalogue et portant `custom_name` définit un
+          entretien personnalisé, ajouté au catalogue comme s'il en faisait
+          partie (`forecasted`, donc pris en compte par les échéances et les
+          rappels) ;
+        - `is_disabled` marque l'entrée `disabled` — c'est à l'appelant de la
+          sauter, ce que fait `get_all_upcoming_maintenances` ;
+        - sinon, km/months remplacent ou effacent les valeurs du JSON.
+
+        Le catalogue n'est jamais muté : `get_intervals_for_vehicle` renvoie le
+        dict du JSON tel quel pour une voiture, le muter contaminerait tous les
+        véhicules du processus.
+        """
+        if not overrides:
+            return intervals
+
+        intervals = dict(intervals)  # shallow copy du niveau supérieur
+        for key, override in overrides.items():
+            custom_name = getattr(override, "custom_name", None)
+            if key not in intervals:
+                if not custom_name:
+                    # Surcharge orpheline : l'entrée JSON qu'elle visait a
+                    # disparu du catalogue (renommage de clé, filtrage par
+                    # motorisation). Rien à appliquer.
+                    continue
+                entry = {
+                    "name": custom_name,
+                    "km_interval": None,
+                    "months_interval": None,
+                    "forecasted": True,
+                    "prices": {},
+                    "is_custom": True,
+                }
+            else:
+                entry = dict(intervals[key])  # copie de l'entrée
+
+            if getattr(override, "is_disabled", False):
+                entry["disabled"] = True
+            if custom_name:
+                entry["name"] = custom_name
+            if override.is_km_disabled:
+                entry["km_interval"] = None
+            elif override.km_interval is not None:
+                entry["km_interval"] = override.km_interval
+            if override.is_months_disabled:
+                entry["months_interval"] = None
+            elif override.months_interval is not None:
+                entry["months_interval"] = override.months_interval
+            entry["has_override"] = True
+            intervals[key] = entry
+
+        return intervals
+
+    def list_disabled_interventions(
+        self,
+        vehicle_type: str,
+        overrides: Optional[Dict],
+        displacement: Optional[int] = None,
+        brand: Optional[str] = None,
+        service_interval_km: Optional[int] = None,
+        service_interval_months: Optional[int] = None,
+    ) -> List[Dict]:
+        """Les interventions écartées, avec leur libellé, pour pouvoir les rendre.
+
+        `get_all_upcoming_maintenances` les saute : sans cette liste, une
+        intervention désactivée n'existerait plus nulle part dans l'interface et
+        ne pourrait jamais être réactivée.
+        """
+        if not overrides:
+            return []
+        intervals = self.apply_overrides(
+            self.get_intervals_for_vehicle(
+                vehicle_type, displacement, brand, service_interval_km, service_interval_months
+            ),
+            overrides,
+        )
+        disabled = []
+        for key, info in intervals.items():
+            if not isinstance(info, dict) or not info.get("disabled"):
+                continue
+            disabled.append({
+                "intervention_key": key,
+                "intervention_type": info.get("name"),
+                "km_interval": info.get("km_interval"),
+                "months_interval": info.get("months_interval"),
+                "is_custom": bool(info.get("is_custom")),
+            })
+        disabled.sort(key=lambda d: (d["intervention_type"] or "").lower())
+        return disabled
+
     def get_all_upcoming_maintenances(
         self,
         vehicle_type: str,
@@ -528,25 +639,7 @@ class MaintenanceCalculator:
         intervals = self.get_intervals_for_vehicle(
             vehicle_type, displacement, brand, service_interval_km, service_interval_months
         )
-
-        # ── Appliquer les surcharges d'intervalles par véhicule ──
-        # On travaille sur une copie pour ne pas muter le dict retourné par get_intervals_for_vehicle
-        if overrides:
-            intervals = dict(intervals)  # shallow copy du niveau supérieur
-            for key, override in overrides.items():
-                if key not in intervals:
-                    continue
-                entry = dict(intervals[key])  # copie de l'entrée
-                if override.is_km_disabled:
-                    entry["km_interval"] = None
-                elif override.km_interval is not None:
-                    entry["km_interval"] = override.km_interval
-                if override.is_months_disabled:
-                    entry["months_interval"] = None
-                elif override.months_interval is not None:
-                    entry["months_interval"] = override.months_interval
-                entry["has_override"] = True
-                intervals[key] = entry
+        intervals = self.apply_overrides(intervals, overrides)
 
         upcoming = []
 
@@ -555,6 +648,12 @@ class MaintenanceCalculator:
                 continue
             
             if not interval_info.get("forecasted", False):
+                continue
+
+            # Intervention écartée pour ce véhicule : elle ne produit ni
+            # échéance ni rappel. Le filtre est ici, dans le calculateur, pour
+            # que ses cinq appelants l'obtiennent sans avoir à y penser.
+            if interval_info.get("disabled"):
                 continue
             
             allowed_motorizations = interval_info.get("motorization")
@@ -582,28 +681,50 @@ class MaintenanceCalculator:
 
             # Logique spéciale contrôle technique
             if intervention_key in ("inspection_technical_car", "inspection_technical_moto"):
-                last_date = None
-                if vehicle_type == "motorcycle":
-                    last_date_moto = last_maintenances.get("inspection_technical_moto", (None, None))[0]
-                    last_date_car = last_maintenances.get("inspection_technical_car", (None, None))[0]
-                    if last_date_moto and last_date_car:
-                        last_date = max(last_date_moto, last_date_car)
-                    elif last_date_moto:
-                        last_date = last_date_moto
-                    elif last_date_car:
-                        last_date = last_date_car
+                # Le dernier CT peut avoir été enregistré sous l'une ou l'autre
+                # clé (un véhicule changé de type, un import ancien) : on prend
+                # la plus récente des deux.
+                last_date_moto = last_maintenances.get("inspection_technical_moto", (None, None))[0]
+                last_date_car = last_maintenances.get("inspection_technical_car", (None, None))[0]
+                if last_date_moto and last_date_car:
+                    last_date = max(last_date_moto, last_date_car)
                 else:
-                    last_date_moto = last_maintenances.get("inspection_technical_moto", (None, None))[0]
-                    last_date_car = last_maintenances.get("inspection_technical_car", (None, None))[0]
-                    if last_date_moto and last_date_car:
-                        last_date = max(last_date_moto, last_date_car)
-                    elif last_date_moto:
-                        last_date = last_date_moto
-                    elif last_date_car:
-                        last_date = last_date_car
-                    else:
-                        last_date = None
-                
+                    last_date = last_date_moto or last_date_car
+
+                # Périodicité fixée à la main : elle remplace le calendrier
+                # réglementaire. Le CT n'a pas de critère kilométrique — d'où le
+                # seul `months_interval` — et sans surcharge, rien ne change :
+                # la règle française reste la source par défaut.
+                custom_months = (
+                    interval_info.get("months_interval")
+                    if interval_info.get("has_override")
+                    else None
+                )
+                if custom_months:
+                    status, km_remaining, days_remaining, _, next_due_date = self.calculate_maintenance_status(
+                        last_date, None, current_mileage, None, custom_months,
+                        reference_start_date=(
+                            None if last_date
+                            else self._reference_start_date(registration_date, vehicle_year)
+                        ),
+                    )
+                    upcoming.append({
+                        "intervention_type": interval_info["name"],
+                        "intervention_key": intervention_key,
+                        "status": status,
+                        "km_remaining": 999999,
+                        "days_remaining": days_remaining,
+                        "next_due_mileage": None,
+                        "next_due_date": next_due_date.isoformat() if next_due_date else None,
+                        "km_interval": None,
+                        "months_interval": custom_months,
+                        "condition_based": False,
+                        "never_recorded": last_date is None,
+                        "has_override": True,
+                        "is_custom": False,
+                    })
+                    continue
+
                 next_due_date = self.calculate_inspection_technical_date(
                     vehicle_type,
                     registration_date,
@@ -639,6 +760,7 @@ class MaintenanceCalculator:
                     "condition_based": False,
                     "never_recorded": last_date is None,
                     "has_override": interval_info.get("has_override", False),
+                    "is_custom": False,
                 })
                 continue
             
@@ -657,13 +779,7 @@ class MaintenanceCalculator:
 
             reference_start_date = None
             if months_interval is not None and last_date is None:
-                if registration_date:
-                    # Priorité absolue à la MEC — date exacte connue
-                    reference_start_date = registration_date
-                elif vehicle_year:
-                    # Fallback : seulement si pas de MEC, on prend le 1er janvier de l'année
-                    safe_year = min(max(int(vehicle_year), 1970), datetime.now(timezone.utc).year)
-                    reference_start_date = datetime(safe_year, 1, 1)
+                reference_start_date = self._reference_start_date(registration_date, vehicle_year)
 
             status, km_remaining, days_remaining, next_due_mileage, next_due_date = self.calculate_maintenance_status(
                 last_date,
@@ -688,6 +804,7 @@ class MaintenanceCalculator:
                 "condition_based": condition_based,
                 "never_recorded": never_recorded,
                 "has_override": interval_info.get("has_override", False),
+                "is_custom": bool(interval_info.get("is_custom")),
             })
 
         upcoming.sort(key=lambda x: (

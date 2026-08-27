@@ -475,7 +475,9 @@ export default function VehicleDetail({ vehicleId, onBack, currentUser }) {
         const overdue = upcoming?.upcoming?.filter(u => u.status === 'overdue').length || 0;
         const urgent  = upcoming?.upcoming?.filter(u => u.status === 'urgent').length || 0;
         const warning = upcoming?.upcoming?.filter(u => u.status === 'warning').length || 0;
-        const next    = upcoming?.upcoming?.find(u => u.days_remaining != null);
+        // 999999 est la sentinelle « pas de composante temps » : un entretien
+        // suivi au seul kilométrage l'affichait tel quel, « 999999 j ».
+        const next    = upcoming?.upcoming?.find(u => u.days_remaining != null && u.days_remaining !== 999999);
         const nextDays = next ? Math.round(next.days_remaining) : null;
 
         const stateConfig = overdue > 0

@@ -1,7 +1,7 @@
 """Pydantic schemas for request/response validation."""
 from datetime import date, datetime
 from typing import Optional, List
-from pydantic import BaseModel, Field, field_validator
+from pydantic import BaseModel, Field, field_validator, model_validator
 
 # ---------------------------------------------------------------------------
 # Vehicles
@@ -54,10 +54,39 @@ class IntervalOverrideUpdate(BaseModel):
     - Si is_months_disabled=True → months_interval ignoré, critère temps désactivé
     - km_interval/months_interval=None sans le flag disabled → valeur par défaut du JSON conservée
     """
-    km_interval: Optional[int] = Field(None, ge=100, le=500000)
+    km_interval: Optional[int] = Field(None, ge=1, le=500000)
     months_interval: Optional[int] = Field(None, ge=1, le=240)
     is_km_disabled: bool = Field(False)
     is_months_disabled: bool = Field(False)
+    # Écarte l'intervention des échéances et des rappels pour ce véhicule.
+    # C'est la réponse au cas « ma moto n'a pas de liquide de refroidissement » :
+    # désactiver les deux critères laissait l'entrée visible, sans échéance.
+    is_disabled: bool = Field(False)
+    # Renommage d'un entretien personnalisé. Ignoré sur une intervention du
+    # catalogue : son libellé vient du JSON, et la clé stockée en base ne doit
+    # pas se retrouver rattachée à un nom qui n'est pas le sien.
+    name: Optional[str] = Field(None, min_length=1, max_length=80)
+
+
+class CustomMaintenanceCreate(BaseModel):
+    """Entretien personnalisé : un libellé libre et au moins un intervalle."""
+    name: str = Field(..., min_length=1, max_length=80)
+    km_interval: Optional[int] = Field(None, ge=1, le=500000)
+    months_interval: Optional[int] = Field(None, ge=1, le=240)
+
+    @field_validator("name")
+    @classmethod
+    def _strip_name(cls, value: str) -> str:
+        cleaned = (value or "").strip()
+        if not cleaned:
+            raise ValueError("Le nom ne peut pas être vide")
+        return cleaned
+
+    @model_validator(mode="after")
+    def _at_least_one_interval(self):
+        if self.km_interval is None and self.months_interval is None:
+            raise ValueError("Renseignez au moins un intervalle (km ou mois)")
+        return self
 
 # ---------------------------------------------------------------------------
 # Maintenances
