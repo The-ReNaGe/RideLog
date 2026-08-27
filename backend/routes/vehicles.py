@@ -22,6 +22,7 @@ from routes.access import (
 )
 from schemas import VehicleCreate, VehicleUpdate
 from maintenance_calculator import MaintenanceCalculator, build_last_maintenances_dict
+from routes.vehicle_status import alert_counts_for
 from regions import format_model_text, get_region
 
 PHOTO_STORAGE_DIR = Path(os.getenv("PHOTO_STORAGE_DIR", "/data/photos"))
@@ -130,8 +131,23 @@ def list_vehicles(
     db: Session = Depends(get_db),
     authorization: str = None
 ):
+    """Véhicules lisibles, avec leur état d'entretien.
+
+    Les compteurs d'alerte sont joints ici, et non laissés au tableau de bord :
+    celui-ci passe par `list_owned_vehicles`, donc les véhicules partagés par
+    le groupe famille en sont absents. Les afficher depuis cette source aurait
+    laissé les garages des autres membres sans pastille — et une pastille
+    absente se lit « à jour », pas « inconnu ».
+    """
     vehicles = list_readable_vehicles(current_user, db)
-    return [v.to_dict() for v in vehicles]
+    status_by_vehicle = alert_counts_for(vehicles, db)
+
+    payload = []
+    for v in vehicles:
+        item = v.to_dict()
+        item.update(status_by_vehicle.get(v.id, {}))
+        payload.append(item)
+    return payload
 
 
 @router.post("", status_code=201)
