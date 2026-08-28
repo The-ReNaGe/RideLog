@@ -131,6 +131,15 @@ export const api = {
   
   setRegistrationMode: (mode) =>
     client.put('/admin/registration-mode', { mode }),
+
+  // Pays de l'instance — format de plaque et service de décodage (§20.1).
+  // La lecture est ouverte à tout utilisateur connecté (le formulaire véhicule
+  // en affiche l'exemple de plaque) ; seule l'écriture est réservée à un admin.
+  getRegions: () =>
+    client.get('/regions'),
+
+  setRegion: (code) =>
+    client.put('/admin/region', { code }),
   
   checkInvite: (token) =>
     client.get(`/auth/check-invite/${token}`),

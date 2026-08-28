@@ -105,3 +105,32 @@ def get_region(code: str = None) -> Region:
     rendre l'instance inutilisable."""
     wanted = (code or os.getenv("REGION") or DEFAULT_REGION_CODE).strip().upper()
     return REGIONS.get(wanted, REGIONS[DEFAULT_REGION_CODE])
+
+
+def is_known_region(code: str) -> bool:
+    """Le code désigne-t-il un pays réellement présent au registre ?
+
+    `get_region()` retombe volontairement sur la France pour un code inconnu —
+    c'est le bon comportement au démarrage, où l'alternative serait un backend
+    mort. Mais un administrateur qui choisit un pays dans l'interface doit être
+    refusé plutôt que silencieusement replacé sur la France : il croirait avoir
+    changé de pays. D'où ce prédicat séparé, utilisé par la route de réglage.
+    """
+    return (code or "").strip().upper() in REGIONS
+
+
+def list_regions() -> list[dict]:
+    """Les pays proposables, triés par nom.
+
+    Il n'y en a qu'un aujourd'hui. C'est voulu : §20.4 pose qu'on n'abstrait
+    pas sans second cas réel pour valider l'abstraction. Cette liste est le
+    point où un `regions/be.py` deviendrait visible dans l'interface sans que
+    rien d'autre ne bouge.
+    """
+    return sorted(
+        (
+            {"code": r.code, "name": r.name, "plate_example": r.plate_example}
+            for r in REGIONS.values()
+        ),
+        key=lambda r: r["name"],
+    )

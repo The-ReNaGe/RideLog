@@ -443,6 +443,28 @@ class Invitation(Base):
         }
 
 
+class AppSetting(Base):
+    """Réglage d'instance choisi dans l'interface, et non dans l'environnement.
+
+    Table clé/valeur volontairement générique : `REGISTRATION_MODE` et le flag
+    d'intégration Home Assistant vivent aujourd'hui en variable module-level et
+    **repassent à leur valeur par défaut à chaque redémarrage** (cf. §19 de
+    CLAUDE.md, qui documente déjà cet état global comme un piège pour les
+    tests). Un réglage qu'un administrateur pose explicitement doit survivre au
+    `docker compose up -d` suivant, sinon il se perd sans que personne ne le
+    remarque — d'où la persistance en base.
+
+    Nouvelle table : aucune migration à écrire, `create_all()` la crée à partir
+    de ce modèle (§13). Elle ne peut pas diverger d'elle-même.
+    """
+    __tablename__ = "app_settings"
+
+    key = Column(String(64), primary_key=True)
+    value = Column(String(255), nullable=True)
+    updated_at = Column(DateTime, default=lambda: datetime.now(timezone.utc),
+                        onupdate=lambda: datetime.now(timezone.utc))
+
+
 # Database initialization
 DATABASE_URL = os.getenv("DATABASE_URL", "sqlite:///./ridelog.db")
 

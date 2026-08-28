@@ -16,6 +16,7 @@ const TABS = [
   { key: 'famille',       icon: 'users',    label: 'Famille' },
   { key: 'compte',        icon: 'key',      label: 'Compte' },
   { key: 'inscription',   icon: 'mail',     label: 'Inscription', adminOnly: true },
+  { key: 'pays',          icon: 'globe',    label: 'Pays', adminOnly: true },
   { key: 'api',           icon: 'plug',     label: 'API' },
 ];
 
@@ -65,8 +66,130 @@ export default function Settings({ currentUser }) {
         <InscriptionSettings />
       )}
 
+      {/* PAYS TAB */}
+      {activeTab === 'pays' && currentUser?.is_admin && <CountrySettings />}
+
       {/* API TAB */}
       {activeTab === 'api' && <APIDocumentation />}
+    </div>
+  );
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// PAYS — format de plaque et service de décodage (admin)
+// ═══════════════════════════════════════════════════════════════════════════
+//
+// Le pays n'est PAS la langue. L'interface est en français et le reste quel
+// que soit le choix fait ici ; ce réglage décide du format de plaque, du
+// service qui la décode et — le jour où un second pays existera — du
+// calendrier du contrôle technique. Voir §20.1.
+
+function CountrySettings() {
+  const [regions, setRegions] = useState([]);
+  const [active, setActive] = useState(null);
+  const [selected, setSelected] = useState(null);
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState(null);
+  const [saved, setSaved] = useState(false);
+
+  useEffect(() => {
+    (async () => {
+      try {
+        const res = await api.getRegions();
+        setRegions(res.data.regions);
+        setActive(res.data.active);
+        setSelected(res.data.active);
+      } catch (err) {
+        setError(err.response?.data?.detail || err.message);
+      } finally {
+        setLoading(false);
+      }
+    })();
+  }, []);
+
+  const save = async () => {
+    setSaving(true);
+    setError(null);
+    setSaved(false);
+    try {
+      const res = await api.setRegion(selected);
+      setActive(res.data.active);
+      setSaved(true);
+    } catch (err) {
+      setError(err.response?.data?.detail || err.message);
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  if (loading) {
+    return <div className="text-center py-8"><div className="spinner mx-auto"></div></div>;
+  }
+
+  const current = regions.find(r => r.code === selected);
+  const onlyOne = regions.length < 2;
+
+  return (
+    <div>
+      <Notice tone="info" icon="globe" title="Pays de l'instance" className="mb-5">
+        <p>
+          Décide du format de plaque d'immatriculation attendu et du service
+          qui la décode. Ce réglage ne change pas la langue de l'interface, qui
+          reste le français.
+        </p>
+      </Notice>
+
+      <div className="card p-6">
+        <h3 className="section-title mb-3">Pays</h3>
+
+        <label className="field-label" htmlFor="country-select">Pays actif</label>
+        <select
+          id="country-select"
+          value={selected || ''}
+          onChange={(e) => { setSelected(e.target.value); setSaved(false); }}
+          disabled={onlyOne}
+          style={{ width: '100%', maxWidth: 320 }}
+        >
+          {regions.map(r => (
+            <option key={r.code} value={r.code}>{r.name}</option>
+          ))}
+        </select>
+
+        {current && (
+          <p className="field-hint mt-2">
+            Format de plaque attendu : <strong style={{ color: 'var(--text-1)' }}>{current.plate_example}</strong>
+          </p>
+        )}
+
+        {onlyOne && (
+          <p className="field-hint mt-2">
+            La France est pour l'instant le seul pays pris en charge. D'autres
+            apparaîtront ici sans qu'aucun réglage ne soit à refaire.
+          </p>
+        )}
+
+        {error && (
+          <Notice tone="danger" icon="alertCircle" className="mt-4">{error}</Notice>
+        )}
+
+        {saved && (
+          <Notice tone="success" icon="checkCircle" className="mt-4">
+            Pays enregistré. Le réglage est conservé au redémarrage.
+          </Notice>
+        )}
+
+        <div className="flex flex-wrap gap-2 mt-4">
+          <button
+            onClick={save}
+            disabled={saving || onlyOne || selected === active}
+            className="btn btn-primary"
+          >
+            <Icon name="save" size={16} />
+            {saving ? 'Enregistrement…' : 'Enregistrer'}
+          </button>
+        </div>
+      </div>
     </div>
   );
 }

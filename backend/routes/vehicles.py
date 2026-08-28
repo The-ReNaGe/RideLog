@@ -23,7 +23,8 @@ from routes.access import (
 from schemas import VehicleCreate, VehicleUpdate
 from maintenance_calculator import MaintenanceCalculator, build_last_maintenances_dict
 from routes.vehicle_status import alert_counts_for
-from regions import format_model_text, get_region
+from regions import format_model_text
+from settings_store import get_active_region
 
 PHOTO_STORAGE_DIR = Path(os.getenv("PHOTO_STORAGE_DIR", "/data/photos"))
 ALLOWED_PHOTO_MIME = {"image/jpeg", "image/png", "image/webp"}
@@ -285,8 +286,11 @@ def decode_license_plate(
     plate: str = Query(...),
     vehicle_type_hint: str = Query(None),
     current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
 ):
-    region = get_region()
+    # Le pays choisi dans les réglages fait foi ; `REGION` dans l'environnement
+    # ne sert plus que de valeur initiale tant que personne n'a choisi.
+    region = get_active_region(db)
     normalized_plate = region.normalize_plate(plate)
     if not normalized_plate:
         raise HTTPException(
