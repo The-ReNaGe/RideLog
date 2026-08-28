@@ -1,221 +1,236 @@
 <img src="docs/screenshots/RideLog.png" alt="RideLog Logo" width="160" align="left"/>
 <br clear="left"/>
 
+<p align="right"><strong>English</strong> · <a href="README.fr.md">Français</a></p>
+
 ## Description
 
-**RideLog** est une application self-hosted de suivi d'entretien de véhicules.
-Gardez un œil sur vos kilométrages, planifiez vos maintenances, suivez votre consommation de carburant et recevez des rappels automatiques — le tout hébergé chez vous, sans dépendance cloud.
+**RideLog** is a self-hosted vehicle maintenance tracker.
+Keep an eye on your mileage, plan your servicing, track fuel consumption and get automatic reminders — all hosted on your own hardware, with no cloud dependency.
 
-Conçu pour les particuliers passionnés comme pour les petits parcs de véhicules, RideLog supporte voitures et motos avec des plans d'entretien intelligents adaptés à chaque motorisation.
+Built for enthusiasts and small fleets alike, RideLog handles both cars and motorcycles with maintenance schedules tailored to each engine type.
+
+> **Note on language.** The user interface is currently in French only. This
+> README is the English entry point; translating the interface is planned work,
+> not something already done.
 
 ---
 
 <p align="center">
-  <img src="docs/screenshots/Accueil.png" alt="Accueil RideLog" width="1800"/>
+  <img src="docs/screenshots/Accueil.png" alt="RideLog home screen" width="1800"/>
 </p>
 
 ---
 
-## Fonctionnalités
+## Features
 
-- **Gestion multi-véhicules** — voitures et motos, avec photo, VIN et plaque d'immatriculation
-- **Plan d'entretien intelligent** — intervalles adaptés par type, motorisation et marque, avec filtrage diesel/essence
-- **Anti-drift kilométrique** — les échéances s'alignent sur des multiples propres, pas de décalage cumulatif
-- **Plan ajustable par véhicule** — intervalles personnalisés, entretiens écartés quand ils ne concernent pas la machine, et entretiens de votre cru avec l'intervalle de votre choix
-- **Suivi carburant** — historique des pleins, consommation L/100km, coût/km, projections annuelles
-- **Recherche stations-service** — prix temps réel sur 39 202 communes françaises (données gouv.fr)
-- **Rappels automatiques** — 3 paliers de notifications (à planifier, à prévoir, en retard)
+- **Multi-vehicle management** — cars and motorcycles, with photo, VIN and licence plate
+- **Smart maintenance schedule** — intervals adapted to vehicle type, engine and brand, with diesel/petrol filtering
+- **Mileage anti-drift** — due dates snap to clean multiples, so late servicing never shifts the whole schedule
+- **Per-vehicle adjustable plan** — custom intervals, items set aside when they don't apply to the machine, and your own recurring items with the interval you choose
+- **Fuel tracking** — refuelling history, L/100 km consumption, cost per km, yearly projections
+- **Filling station search** — real-time prices across 39,202 French communes (data from gouv.fr)
+- **Automatic reminders** — 3 notification tiers (to plan, coming up, overdue)
 - **Webhooks** — Discord
-- **Intégration Home Assistant** — custom component avec capteurs par véhicule + cartes Lovelace
-- **Planning** — calendrier mensuel des entretiens à venir
-- **Dashboard** — statistiques agrégées du parc
-- **Export** — récapitulatif en ZIP (CSV + factures)
-- **Multi-utilisateurs** — inscription par invitation, rôles admin, compte de service HA
-- **Groupes famille** — partagez la consultation de vos véhicules avec votre foyer, en lecture seule, sur invitation (véhicules privés possibles)
-- **Mode sombre** — thème clair/sombre avec persistance
+- **Home Assistant integration** — custom component with per-vehicle sensors and Lovelace cards
+- **Planning** — monthly calendar of upcoming servicing
+- **Dashboard** — aggregated fleet statistics
+- **Export** — ZIP summary (CSV + invoices)
+- **Multi-user** — invitation-based registration, admin roles, HA service account
+- **Household groups** — share your vehicles with your household, read-only, by invitation (vehicles can be kept private)
+- **Dark mode** — light/dark theme with persistence
 
 ---
 
-## Démarrage rapide
+## Quick start
 
 ```bash
 git clone https://github.com/The-ReNaGe/RideLog.git RideLog && cd RideLog
 ```
 
-**Avant de lancer les containers, créez votre fichier de configuration :**
+**Before starting the containers, create your configuration file:**
 
 ```bash
 cp .env.example .env
 ```
 
-Ouvrez `.env` et renseignez au minimum :
-- `JWT_SECRET` — clé secrète JWT (`openssl rand -hex 32`)
-- `HA_INIT_KEY` — clé pour Home Assistant (`openssl rand -hex 16`)
+Open `.env` and fill in at least:
+- `JWT_SECRET` — JWT signing secret (`openssl rand -hex 32`)
+- `HA_INIT_KEY` — key used to initialise the Home Assistant account (`openssl rand -hex 16`)
 
-Puis lancez :
+Then start it:
 
 ```bash
 docker compose pull
 docker compose up -d
 ```
 
-Les images sont téléchargées depuis GitHub Container Registry — plus rien à
-construire. Comptez quelques dizaines de secondes au lieu de plusieurs minutes.
+Images are pulled from the GitHub Container Registry — there is nothing left to
+build. Expect a few dozen seconds instead of several minutes.
 
-**Interface** : [http://localhost:3100](http://localhost:3100)
+**Web interface**: [http://localhost:3100](http://localhost:3100)
 
-Le premier utilisateur créé est automatiquement admin.
-La documentation de l'API est accessible depuis l'interface : **Paramètres → Documentation API**.
+The first account created automatically becomes an admin.
+The API documentation is available from the interface: **Settings → API Documentation**.
 
 ---
 
 ## Configuration
 
-Toute la configuration se fait via le fichier `.env` (créé depuis `.env.example`).  
-Le fichier `.env` n'est jamais commité — il reste sur votre machine uniquement.
+All configuration lives in the `.env` file (created from `.env.example`).
+`.env` is never committed — it stays on your machine only.
 
 ```bash
-cp .env.example .env   # à faire une seule fois à l'installation
+cp .env.example .env   # once, at install time
 ```
 
-| Variable | Défaut | Description |
+| Variable | Default | Description |
 |---|---|---|
-| `JWT_SECRET` | *(à définir)* | Secret pour les tokens JWT — **obligatoire** |
-| `HA_INIT_KEY` | *(à définir)* | Clé pour initialiser le compte Home Assistant — **obligatoire** |
-| `REGISTRATION_MODE` | `invite` | Mode d'inscription : `open`, `invite`, `closed` |
-| `RAPIDAPI_KEY` | — | Clé RapidAPI pour le décodage de plaque (optionnel) |
-| `REMINDER_INTERVAL` | `3600` | Intervalle du scheduler de rappels en secondes |
-| `REMINDER_ENABLED` | `true` | Active/désactive les rappels automatiques |
-| `LOG_LEVEL` | `INFO` | Niveau de log (`DEBUG`, `INFO`, `WARNING`, `ERROR`) |
-| `CORS_ORIGINS` | *(vide)* | Origines CORS autorisées. Laisser vide en déploiement standard |
-| `RIDELOG_TAG` | `stable` | Canal de mise à jour — voir ci-dessous |
+| `JWT_SECRET` | *(must be set)* | Secret for JWT tokens — **required** |
+| `HA_INIT_KEY` | *(must be set)* | Key to initialise the Home Assistant account — **required** |
+| `REGISTRATION_MODE` | `invite` | Registration mode: `open`, `invite`, `closed` |
+| `RAPIDAPI_KEY` | — | RapidAPI key for licence-plate decoding (optional) |
+| `REMINDER_INTERVAL` | `3600` | Reminder scheduler interval, in seconds |
+| `REMINDER_ENABLED` | `true` | Enables or disables automatic reminders |
+| `LOG_LEVEL` | `INFO` | Log level (`DEBUG`, `INFO`, `WARNING`, `ERROR`) |
+| `CORS_ORIGINS` | *(empty)* | Allowed CORS origins. Leave empty for a standard deployment |
+| `RIDELOG_TAG` | `stable` | Update channel — see below |
 
-### Choisir son canal de mise à jour
+### Choosing an update channel
 
-`RIDELOG_TAG` dans `.env` décide de l'image téléchargée :
+`RIDELOG_TAG` in `.env` decides which image is pulled:
 
-| Valeur | Contenu | Pour qui |
+| Value | Contents | Who it's for |
 |---|---|---|
-| `stable` | Version validée à la main | **Recommandé.** Le canal sur lequel on peut rester sans surprise |
-| `latest` | Reconstruit à chaque modification du projet | Ceux qui veulent les nouveautés tôt et acceptent le risque |
-| `1.9.0` | Une version précise, figée | Ceux qui veulent maîtriser exactement quand ils changent |
+| `stable` | Hand-validated release | **Recommended.** The channel you can stay on without surprises |
+| `latest` | Rebuilt on every change to the project | People who want new features early and accept the risk |
+| `1.9.0` | One exact, frozen version | People who want to control precisely when things change |
 
-> ⚠️ `latest` n'est **pas** synonyme de « dernière version stable ». C'est le
-> code le plus récent, non validé. Si vous ne savez pas lequel choisir, gardez
-> `stable`.
+> ⚠️ `latest` does **not** mean "the latest stable release". It is the most
+> recent code, unvalidated. If you are unsure, keep `stable`.
 
-**Architectures publiées** : `linux/amd64` et `linux/arm64` (Raspberry Pi
-64 bits, NAS ARM). Un seul tag fonctionne partout, Docker sélectionne l'image
-correspondant à votre machine. Sur une autre architecture, voir
-[Construire depuis les sources](#construire-depuis-les-sources).
+**Published architectures**: `linux/amd64` and `linux/arm64` (64-bit Raspberry
+Pi, ARM NAS). A single tag works everywhere — Docker picks the image matching
+your machine. On any other architecture, see
+[Building from source](#building-from-source).
 
-### Changer le port
+### Changing the port
 
-Modifier la ligne `ports` du service `frontend` dans `docker-compose.yml` :
+Edit the `ports` line of the `frontend` service in `docker-compose.yml`:
 
 ```yaml
 ports:
-  - "8080:80"  # Interface accessible sur le port 8080
+  - "8080:80"  # Interface reachable on port 8080
 ```
 
 ---
 
-## Stack technique
+## Tech stack
 
-| Composant | Technologie |
+| Component | Technology |
 |---|---|
 | Backend | Python 3.11, FastAPI, SQLAlchemy, SQLite |
 | Frontend | React 18, Vite 5, Tailwind CSS 3 |
-| Auth | JWT HS256 (7 jours), bcrypt, rate limiting progressif |
-| Conteneurs | Docker Compose (backend + nginx) |
-| Données | SQLite dans `./data/ridelog.db` (volume persistant) |
+| Auth | JWT HS256 (7 days), bcrypt, progressive rate limiting |
+| Containers | Docker Compose (backend + nginx) |
+| Data | SQLite in `./data/ridelog.db` (persistent volume) |
 
 ---
 
-## Entretien véhicules
+## Maintenance schedules
 
-### Voitures
+### Cars
 
-| Entretien | Intervalle | Motorisation |
+| Service | Interval | Engine |
 |---|---|---|
-| Vidange + filtre à huile | 10 000 km / 12 mois | Toutes |
-| Filtre à air | 20 000 km / 12 mois | Toutes |
-| Filtre d'habitacle | 15 000 km / 12 mois | Toutes |
-| Filtre à gasoil | 20 000 km / 24 mois | Diesel uniquement |
-| Filtre à essence | 50 000 km / 48 mois | Essence uniquement |
-| Bougies d'allumage | 30 000 km | Essence / hybride |
-| Purge de frein | 24 mois | Toutes |
-| Courroie de distribution | 80 000 km / 72 mois | Toutes |
-| Liquide de refroidissement | 60 000 km / 48 mois | Toutes |
-| Liquide de transmission | 80 000 km / 48 mois | Toutes |
-| Contrôle technique | Réglementaire | Toutes |
+| Oil change + oil filter | 10,000 km / 12 months | All |
+| Air filter | 20,000 km / 12 months | All |
+| Cabin filter | 15,000 km / 12 months | All |
+| Fuel filter (diesel) | 20,000 km / 24 months | Diesel only |
+| Fuel filter (petrol) | 50,000 km / 48 months | Petrol only |
+| Spark plugs | 30,000 km | Petrol / hybrid |
+| Brake fluid flush | 24 months | All |
+| Timing belt | 80,000 km / 72 months | All |
+| Coolant | 60,000 km / 48 months | All |
+| Transmission fluid | 80,000 km / 48 months | All |
+| Roadworthiness test | Statutory | All |
 
-### Motos
+### Motorcycles
 
-Les intervalles de révision sont configurés par marque et cylindrée (ex: Triumph 660cc = 16 000 km, Honda 125cc = 4 000 km). L'utilisateur peut les surcharger à la création du véhicule.
+Service intervals are configured per brand and engine displacement (for example
+Triumph 660 cc = 16,000 km, Honda 125 cc = 4,000 km). You can override them when
+creating the vehicle.
 
-Chaque échéance reste ajustable ensuite, depuis l'onglet « À venir » du véhicule : changer un intervalle, écarter un entretien qui ne concerne pas la machine (une moto refroidie par air n'a pas de liquide de refroidissement), ou ajouter un entretien absent du catalogue avec l'intervalle voulu — une vérification des plaquettes tous les 500 km, par exemple. Les entretiens écartés restent listés en bas de l'onglet et se rétablissent d'un clic.
+Every due date stays adjustable afterwards, from the vehicle's "Upcoming" tab:
+change an interval, set aside a service that doesn't apply to the machine (an
+air-cooled bike has no coolant), or add a recurring item missing from the
+catalogue with the interval you want — a brake-pad check every 500 km, for
+instance. Items set aside stay listed at the bottom of the tab and come back
+with one click.
 
-- **Révision périodique** — basée sur le kilométrage (configurable)
-- **Entretien annuel** — tous les 12 mois, contrôle simplifié si le km n'est pas atteint
-- **Soupapes** — toutes les 2 révisions (automatique)
-- **Purge frein + embrayage** — tous les 2 ans
-- **Liquide refroidissement** — tous les 3 ans
-- **Révision fourche** — tous les 3 ans
-- **Huile transmission** — tous les 4 ans
-- **Contrôle technique** — réglementaire français (2020-2021 : 2026, 2022+ : 5ème anniversaire)
+- **Periodic service** — mileage-based (configurable)
+- **Annual service** — every 12 months, a simplified check when the mileage isn't reached
+- **Valve clearance** — every 2 services (automatic)
+- **Brake and clutch fluid** — every 2 years
+- **Coolant** — every 3 years
+- **Fork service** — every 3 years
+- **Transmission oil** — every 4 years
+- **Roadworthiness test** — French statutory rules (2020–2021: 2026; 2022+: fifth anniversary)
 
 ---
 
-## Système de rappels
+## Reminder system
 
-Le scheduler vérifie les échéances toutes les heures et envoie des notifications via les webhooks configurés :
+The scheduler checks due dates every hour and sends notifications through the
+configured webhooks:
 
-| Palier | Condition | Niveau |
+| Tier | Condition | Level |
 |---|---|---|
-| Tier 1 | ≤ 90 jours **ou** ≤ 1 500 km | À planifier |
-| Tier 2 | ≤ 30 jours **ou** ≤ 500 km | À prévoir |
-| Tier 3 | Échéance dépassée | En retard |
+| Tier 1 | ≤ 90 days **or** ≤ 1,500 km | To plan |
+| Tier 2 | ≤ 30 days **or** ≤ 500 km | Coming up |
+| Tier 3 | Past due | Overdue |
 
-Webhooks supportés : **Discord** (embed riche).
+Supported webhooks: **Discord** (rich embed).
 
 ---
 
-## Intégration Home Assistant
+## Home Assistant integration
 
 <p align="left">
-  <img src="docs/screenshots/homeassistant.png" alt="Intégration Home Assistant" width="400"/>
+  <img src="docs/screenshots/homeassistant.png" alt="Home Assistant integration" width="400"/>
 </p>
 
 ### Installation
 
-1. Créer le compte HA : **Paramètres → Home Assistant → Créer le compte**
-2. Copier le custom component :
+1. Create the HA account: **Settings → Home Assistant → Create the account**
+2. Copy the custom component:
    ```bash
    cp -r ha-integration/custom_components/ridelog/ \
      ~/.homeassistant/custom_components/ridelog/
    ```
-3. Redémarrer Home Assistant
-4. Ajouter l'intégration : **Paramètres → Appareils et services → + → "RideLog"**
-5. Saisir l'URL de l'API (ex: `http://192.168.1.x:8000`)
+3. Restart Home Assistant
+4. Add the integration: **Settings → Devices & Services → + → "RideLog"**
+5. Enter the API URL (e.g. `http://192.168.1.x:8000`)
 
-### Capteurs créés (par véhicule)
+### Sensors created (per vehicle)
 
-| Capteur | Contenu |
+| Sensor | Contents |
 |---|---|
-| `sensor.ridelog_{nom}_summary` | Kilométrage, marque, modèle, année |
-| `sensor.ridelog_{nom}_upcoming` | Nombre et détail des maintenances à venir |
-| `sensor.ridelog_{nom}_overdue` | Nombre et détail des maintenances en retard |
+| `sensor.ridelog_{name}_summary` | Mileage, brand, model, year |
+| `sensor.ridelog_{name}_upcoming` | Count and details of upcoming servicing |
+| `sensor.ridelog_{name}_overdue` | Count and details of overdue servicing |
 
-### Cartes Lovelace
+### Lovelace cards
 
-Des cartes Mushroom prêtes à l'emploi sont générables depuis **Paramètres → Home Assistant → Carte Lovelace**.
+Ready-to-use Mushroom cards can be generated from **Settings → Home Assistant →
+Lovelace card**.
 
-Prérequis HACS : [Mushroom Cards](https://github.com/piitaya/lovelace-mushroom), [card_mod](https://github.com/thomasloven/lovelace-card-mod).
+HACS prerequisites: [Mushroom Cards](https://github.com/piitaya/lovelace-mushroom),
+[card_mod](https://github.com/thomasloven/lovelace-card-mod).
 
 ---
 
-## Mise à jour
+## Updating
 
 ```bash
 cd RideLog
@@ -224,56 +239,56 @@ docker compose pull
 docker compose up -d
 ```
 
-Les migrations de base de données sont appliquées automatiquement au redémarrage
-du backend, après une sauvegarde déposée dans `./data/backups/`.
+Database migrations are applied automatically when the backend restarts, after a
+backup has been written to `./data/backups/`.
 
-> ⚠️ **Première mise à jour depuis une version sans `.env`** : créez le fichier avant de lancer, sinon le backend refusera de démarrer.
+> ⚠️ **First update from a version that had no `.env`**: create the file before
+> starting, otherwise the backend will refuse to boot.
 > ```bash
 > cp .env.example .env
-> # Remplir JWT_SECRET et HA_INIT_KEY dans .env
+> # Fill in JWT_SECRET and HA_INIT_KEY in .env
 > ```
 
 ---
 
-## ⚠️ Migration depuis une version antérieure à la 2.0
+## ⚠️ Migrating from a version older than 2.0
 
-**À partir de la 2.0, RideLog ne se construit plus chez vous : il se
-télécharge.** Les images sont publiées sur GitHub Container Registry.
+**As of 2.0, RideLog is no longer built on your machine: it is downloaded.**
+Images are published to the GitHub Container Registry.
 
-### Pourquoi ce changement
+### Why this changed
 
-`python:3.11-slim` et `node:18-alpine` sont des **tags mobiles** : ils sont
-reconstruits régulièrement en amont. Deux personnes installant « la même
-version » de RideLog à quinze jours d'intervalle n'obtenaient donc pas la même
-image. Un bug n'apparaissant que chez l'une devenait impossible à diagnostiquer
-— on ne savait pas si la différence venait du code ou du socle.
+`python:3.11-slim` and `node:18-alpine` are **moving tags**: they are rebuilt
+upstream on a regular basis. Two people installing "the same version" of RideLog
+two weeks apart did not end up with the same image. A bug that appeared for only
+one of them became impossible to diagnose — there was no way to tell whether the
+difference came from the code or from the base image.
 
-Une image publiée une fois fixe le contenu : tout le monde exécute exactement
-les mêmes octets.
+An image published once fixes the contents: everyone runs exactly the same bytes.
 
-### La migration, en pratique
+### The migration in practice
 
 ```bash
 cd RideLog
 git pull origin main
 ```
 
-> ⚠️ **`git pull` refuse avec « vos modifications locales... seraient écrasées »** :
-> fréquent si vous aviez modifié `docker-compose.yml` à la main sous l'ancien
-> mode « build local » (port codé en dur, `container_name`, etc.). Vérifiez
-> d'abord ce qui a été changé — la plupart de ces réglages sont désormais pilotés
-> par `.env` (`BACKEND_PORT`, `FRONTEND_PORT`, `RIDELOG_TAG`) et n'ont plus besoin
-> d'être édités dans le compose :
+> ⚠️ **`git pull` refuses with "your local changes would be overwritten"**: this
+> is common if you had hand-edited `docker-compose.yml` under the old
+> build-locally model (hard-coded port, `container_name`, and so on). Check what
+> was changed first — most of these settings are now driven by `.env`
+> (`BACKEND_PORT`, `FRONTEND_PORT`, `RIDELOG_TAG`) and no longer need editing in
+> the compose file:
 > ```bash
 > git diff docker-compose.yml
 > ```
-> Si le diff ne contient que ce type de réglage, l'ancien fichier peut être
-> abandonné sans perte (aucune donnée n'y vit) :
+> If the diff only contains that kind of setting, the old file can be dropped
+> without losing anything (no data lives in it):
 > ```bash
 > git checkout -- docker-compose.yml
 > git pull origin main
 > ```
-> Sinon, remisez-le pour ne rien perdre et fusionnez à la main :
+> Otherwise, stash it so nothing is lost and merge by hand:
 > ```bash
 > git stash push -- docker-compose.yml
 > git pull origin main
@@ -281,173 +296,175 @@ git pull origin main
 > ```
 
 ```bash
-# 1. Renseigner le canal souhaité (stable est le défaut)
+# 1. Set the channel you want (stable is the default)
 grep -q '^RIDELOG_TAG=' .env || echo 'RIDELOG_TAG=stable' >> .env
 
-# 2. Télécharger les images
+# 2. Pull the images
 docker compose pull
 
-# 3. Redémarrer
+# 3. Restart
 docker compose up -d
 
-# 4. (facultatif) récupérer l'espace des anciennes images construites localement
+# 4. (optional) reclaim the space used by the old locally built images
 docker image prune
 ```
 
-Vos données ne sont pas touchées : elles vivent dans `./data/`, en dehors des
-images. Le backend applique ses migrations au démarrage, après sauvegarde.
+Your data is untouched: it lives in `./data/`, outside the images. The backend
+applies its migrations on startup, after taking a backup.
 
-### Ce qui change pour vous
+### What changes for you
 
-| | Avant | Après |
+| | Before | After |
 |---|---|---|
-| Mise à jour | `docker compose up -d --build` | `docker compose pull && docker compose up -d` |
-| Durée | plusieurs minutes | quelques dizaines de secondes |
-| Reproductibilité | dépend de la date du build | identique pour tout le monde |
-| Modifications locales du code | prises en compte | **ignorées** — voir ci-dessous |
+| Updating | `docker compose up -d --build` | `docker compose pull && docker compose up -d` |
+| Duration | several minutes | a few dozen seconds |
+| Reproducibility | depends on the build date | identical for everyone |
+| Local code changes | taken into account | **ignored** — see below |
 
-### Si vous modifiez le code
+### If you modify the code
 
-Un fichier modifié localement n'a plus aucun effet : vous exécutez une image
-téléchargée. Pour retrouver l'ancien comportement :
-
-```bash
-docker compose -f docker-compose.yml -f docker-compose.dev.yml up -d --build
-```
-
-### Construire depuis les sources
-
-Ce même fichier de surcharge sert à toute architecture non couverte par les
-images publiées (`linux/amd64` et `linux/arm64`) — par exemple un Raspberry Pi
-en système 32 bits :
+A locally modified file no longer has any effect: you are running a downloaded
+image. To get the old behaviour back:
 
 ```bash
 docker compose -f docker-compose.yml -f docker-compose.dev.yml up -d --build
 ```
 
-### Revenir en arrière
+### Building from source
 
-Pour retrouver une version antérieure, **deux choses doivent revenir ensemble** :
+That same override file covers any architecture not served by the published
+images (`linux/amd64` and `linux/arm64`) — a Raspberry Pi running a 32-bit
+system, for instance:
 
 ```bash
-# 1. l'image
-RIDELOG_TAG=1.9.0   # dans .env
+docker compose -f docker-compose.yml -f docker-compose.dev.yml up -d --build
+```
+
+### Rolling back
+
+To go back to an earlier version, **two things must roll back together**:
+
+```bash
+# 1. the image
+RIDELOG_TAG=1.9.0   # in .env
 docker compose pull && docker compose up -d
 ```
 
 ```bash
-# 2. la base de données, SI la version récente avait migré le schéma
+# 2. the database, IF the newer version had migrated the schema
 docker compose stop backend
-cp ./data/backups/ridelog-<horodatage>.db ./data/ridelog.db
+cp ./data/backups/ridelog-<timestamp>.db ./data/ridelog.db
 docker compose start backend
 ```
 
-> Si vous ne restaurez que l'image, **le backend refusera de démarrer**. Ce
-> n'est pas une panne : c'est une protection. Une base migrée par une version
-> récente contient un schéma que l'ancienne ne sait pas lire, et la laisser
-> écrire dedans corromprait vos données. Le message de log indique la version
-> de schéma attendue.
+> If you restore only the image, **the backend will refuse to start**. That is
+> not a fault: it is a safeguard. A database migrated by a newer version holds a
+> schema the older one cannot read, and letting it write there would corrupt your
+> data. The log message states the schema version it expected.
 
 ---
 
-## Sauvegarde et restauration
+## Backup and restore
 
-**Sauvegardes automatiques** : le backend dépose une copie de la base dans
-`./data/backups/` avant toute migration de schéma, et conserve les 5 plus
-récentes (`DB_BACKUP_KEEP`). C'est cette copie qu'il faut restaurer pour revenir
-à une version antérieure.
+**Automatic backups**: the backend writes a copy of the database to
+`./data/backups/` before any schema migration, and keeps the 5 most recent
+(`DB_BACKUP_KEEP`). That copy is what you restore to go back to an earlier
+version.
 
 ```bash
-# Sauvegarde manuelle — arrêter le backend d'abord, une copie à chaud peut
-# capturer un fichier au milieu d'une écriture
+# Manual backup — stop the backend first, a hot copy can catch the file
+# in the middle of a write
 docker compose stop backend
 cp ./data/ridelog.db ./backup_ridelog_$(date +%Y%m%d).db
 docker compose start backend
 
-# Restauration
+# Restore
 docker compose stop backend
 cp ./backup_ridelog.db ./data/ridelog.db
 docker compose start backend
 ```
 
-Les données sont stockées dans `./data/` : base de données SQLite, sauvegardes,
-photos et factures. Rien n'est dans les images.
+Data is stored in `./data/`: SQLite database, backups, photos and invoices.
+Nothing lives inside the images.
 
 ---
 
 ## API
 
-La documentation complète de l'API est accessible depuis l'interface : **Paramètres → Documentation API**.
+Full API documentation is available from the interface: **Settings → API
+Documentation**.
 
-### Principaux endpoints
+### Main endpoints
 
-| Méthode | Route | Description |
+| Method | Route | Description |
 |---|---|---|
-| `POST` | `/api/auth/login` | Connexion → JWT |
-| `POST` | `/api/auth/register` | Inscription |
-| `GET/POST` | `/api/vehicles` | Liste / Créer véhicule |
-| `GET/PUT/DELETE` | `/api/vehicles/{id}` | Détail / Modifier / Supprimer |
-| `GET/POST` | `/api/vehicles/{id}/maintenances` | Historique entretien |
-| `GET` | `/api/vehicles/{id}/upcoming` | Maintenances à venir |
-| `GET/POST` | `/api/vehicles/{id}/fuel-logs` | Pleins carburant |
-| `GET` | `/api/vehicles/{id}/fuel-stats` | Statistiques conso |
-| `GET` | `/api/fuel-stations/search` | Recherche stations |
-| `GET/POST/DELETE` | `/api/settings/webhooks` | Gestion webhooks |
-| `GET` | `/api/vehicles/planning` | Planning global |
-| `GET` | `/api/dashboard/stats` | Stats dashboard |
+| `POST` | `/api/auth/login` | Sign in → JWT |
+| `POST` | `/api/auth/register` | Sign up |
+| `GET/POST` | `/api/vehicles` | List / create a vehicle |
+| `GET/PUT/DELETE` | `/api/vehicles/{id}` | Detail / update / delete |
+| `GET/POST` | `/api/vehicles/{id}/maintenances` | Service history |
+| `GET` | `/api/vehicles/{id}/upcoming` | Upcoming servicing |
+| `GET/POST` | `/api/vehicles/{id}/fuel-logs` | Fuel entries |
+| `GET` | `/api/vehicles/{id}/fuel-stats` | Consumption statistics |
+| `GET` | `/api/fuel-stations/search` | Filling station search |
+| `GET/POST/DELETE` | `/api/settings/webhooks` | Webhook management |
+| `GET` | `/api/vehicles/planning` | Global planning |
+| `GET` | `/api/dashboard/stats` | Dashboard statistics |
 
 ---
 
-## Structure du projet
+## Project layout
 
 ```
 RideLog/
-├── docker-compose.yml          # Orchestration des services
-├── .env.example                # Template de configuration (à copier en .env)
-├── CLAUDE.md                   # Documentation technique détaillée
+├── docker-compose.yml          # Service orchestration
+├── .env.example                # Configuration template (copy to .env)
+├── CLAUDE.md                   # Detailed technical documentation (French)
 ├── backend/
-│   ├── main.py                 # Point d'entrée FastAPI
-│   ├── models.py               # Modèles SQLAlchemy + migrations
-│   ├── maintenance_calculator.py  # Logique métier entretien
-│   ├── reminder_scheduler.py   # Scheduler rappels automatiques
+│   ├── main.py                 # FastAPI entry point
+│   ├── models.py               # SQLAlchemy models + migrations
+│   ├── maintenance_calculator.py  # Maintenance business logic
+│   ├── reminder_scheduler.py   # Automatic reminder scheduler
 │   ├── security.py             # JWT, bcrypt, rate limiting
-│   ├── routes/                 # Endpoints API
+│   ├── routes/                 # API endpoints
 │   └── data/                   # JSON config, communes CSV
 ├── frontend/
 │   ├── src/
-│   │   ├── App.jsx             # Navigation state-based
-│   │   ├── pages/              # Pages principales
-│   │   ├── components/         # Composants UI
-│   │   └── lib/api.js          # Client Axios (~70 méthodes)
+│   │   ├── App.jsx             # State-based navigation
+│   │   ├── pages/              # Main pages
+│   │   ├── components/         # UI components
+│   │   └── lib/api.js          # Axios client (~70 methods)
 │   └── nginx.conf              # Proxy + SPA fallback
 └── ha-integration/
-    ├── custom_components/ridelog/  # Custom component HA
-    └── templates/                  # Templates cartes Lovelace
+    ├── custom_components/ridelog/  # HA custom component
+    └── templates/                  # Lovelace card templates
 ```
 
-Pour la documentation technique complète (comment modifier chaque comportement), voir [CLAUDE.md](CLAUDE.md).
+For the full technical documentation (how to change each behaviour), see
+[CLAUDE.md](CLAUDE.md) — written in French.
 
 ---
 
-## Contribuer
+## Contributing
 
-Les contributions sont les bienvenues ! Consulte [CONTRIBUTING.md](CONTRIBUTING.md) pour le guide complet.
+Contributions are welcome. See [CONTRIBUTING.md](CONTRIBUTING.md) for the full
+guide (written in French).
 
 ```bash
 # Fork → Clone → Branch → PR
 git clone https://github.com/The-ReNaGe/RideLog.git
 cd RideLog
-git checkout -b feat/ma-feature
-cp .env.example .env  # configurer avant de lancer
-docker compose up -d --build
-# ... code, test, commit, push, ouvre une PR
+git checkout -b feat/my-feature
+cp .env.example .env  # configure before starting
+docker compose -f docker-compose.yml -f docker-compose.dev.yml up -d --build
+# ... code, test, commit, push, open a PR
 ```
 
 ---
 
 ## Licence
 
-Ce projet est sous licence [AGPL-3.0](LICENSE).
+This project is licensed under [AGPL-3.0](LICENSE).
 
 ---
 
