@@ -117,7 +117,7 @@ Les variables d'environnement sont gérées via un fichier `.env` à la racine d
 | `LOG_LEVEL` | `INFO` | Niveau de log |
 | `RAPIDAPI_KEY` | — | Clé API pour décodage plaque d'immatriculation |
 | `RIDELOG_TAG` | `stable` | Canal d'image : `stable` (validé à la main), `latest` (chaque merge, non validé), ou une version figée. Voir §21 |
-| `REGION` | `FR` | Pays actif — format de plaque et service de décodage (voir §20). Un code inconnu retombe sur `FR` |
+| `REGION` | `FR` | Pays **initial** — format de plaque et service de décodage (voir §20). Le choix fait dans l'onglet « Pays » des paramètres est persisté en base et l'emporte. Un code inconnu retombe sur `FR` |
 | `REMINDER_INTERVAL` | `3600` | Intervalle de vérification des rappels (secondes) |
 | `REMINDER_ENABLED` | `true` | Active/désactive le scheduler de rappels |
 | `DB_BACKUP_DIR` | `/data/backups` | Répertoire des sauvegardes automatiques prises avant toute migration de schéma (voir §13) |
@@ -155,6 +155,7 @@ backend/
 ├── security.py                # JWT, bcrypt, rate limiting, middlewares auth
 ├── maintenance_calculator.py  # ★ LOGIQUE MÉTIER PRINCIPALE ★
 ├── reminder_scheduler.py      # Scheduler background (rappels webhook)
+├── settings_store.py          # Réglages d'instance persistés (pays) — voir §20.3
 ├── regions/                   # ★ Ce qui dépend du PAYS, pas de la langue — voir §20 ★
 │   ├── __init__.py            # Registre, helpers partagés, variable REGION
 │   └── fr.py                  # France : plaque SIV, réponse carte grise
@@ -173,6 +174,7 @@ backend/
 │   ├── test_login_rate_limiter.py
 │   ├── test_migrations.py
 │   ├── test_regions_fr.py
+│   ├── test_regions_settings.py
 │   ├── test_maintenance_routes.py
 │   └── test_auth_integration.py
 └── routes/
@@ -187,6 +189,7 @@ backend/
     ├── exports.py         # Export ZIP, estimation valeur, carte HA YAML
     ├── fuels.py           # CRUD carburant, statistiques conso
     ├── fuel_stations.py   # Recherche stations par ville (OSM + prix-carburants)
+    ├── regions.py         # Pays de l'instance : lecture (JWT) et choix (admin) — voir §20.3
     └── webhooks.py        # CRUD webhooks, envoi notifications Discord
 ```
 
@@ -1025,6 +1028,7 @@ api.getMaintenanceRecap(vehicleId),  // ← chargé d'emblée pour les KPI cards
 | `families` | id, created_by (FK) | Groupes famille — partage en lecture (voir §22) |
 | `family_members` | id, family_id (FK), user_id (FK, **unique**) | Appartenance : un utilisateur, un seul groupe |
 | `vehicle_estimates` | id, brand, model | Estimations de valeur résiduelle |
+| `app_settings` | key (PK) | Réglages d'instance choisis dans l'interface et **persistés** — aujourd'hui le pays (voir §20.3) |
 | `vehicle_maintenance_overrides` | id, vehicle_id (FK), intervention_key | Ce qu'un véhicule change au catalogue d'entretien : intervalles surchargés, interventions écartées, entretiens personnalisés (voir §16) |
 
 ### `vehicle_maintenance_overrides` — détail
@@ -1654,6 +1658,7 @@ python -m pytest tests/ -v
 | `test_migrations.py` | `migrations.py` — parité de schéma entre base neuve et base migrée, survie des données, idempotence, adoption d'une base sans registre, migration à demi appliquée, rollback, garde anti-retour-arrière, sauvegardes. Tourne sur **deux schémas anciens réels** figés dans `tests/fixtures/*.sql` (le commit initial du dépôt et une instance antérieure au dépôt), jamais sur un schéma écrit de mémoire. |
 | `test_fuel_stations.py` | Routes `/fuel-stations/*` — authentification exigée sur les trois endpoints, bornes de `max_distance`/`limit`, cache (clé insensible aux accents, plafond, expiration). Les appels sortants sont monkeypatchés : aucun test ne sort sur le réseau. |
 | `test_regions_fr.py` | `regions/fr.py` — normalisation de plaque, analyse de la réponse carte grise (détection moto par genre, replis de cylindrée, priorité du genre sur l'indication utilisateur), repli du registre sur `FR`. Aucun appel réseau : cette logique n'était auparavant atteignable que via un service tiers payant, donc jamais testée. |
+| `test_regions_settings.py` | Choix du pays (`settings_store.py`, `routes/regions.py`) — France par défaut, refus d'un pays inconnu, écriture réservée à un admin, persistance **en base** et non en mémoire, et repli sur `FR` quand la base garde un pays que le code ne connaît plus (retour arrière, §21.5). |
 | `test_maintenance_routes.py` | Enregistrement d'un entretien via `TestClient` — la clé technique est stockée, deux libellés d'une même intervention partagent une clé, un libellé inconnu n'échoue pas, et l'entretien enregistré ressort bien rattaché à son échéance. |
 | `test_vehicle_status.py` | État d'entretien joint à `GET /vehicles` — présence des compteurs, accord avec `/upcoming`, et surtout : un véhicule **partagé par le groupe famille** porte le sien aussi (voir §23.9). |
 | `test_auth_integration.py` | Routes `/auth/*` et `/admin/users/*` via `TestClient` sur une DB SQLite temporaire — register/login, changement de mot de passe, reset admin, mot de passe temporaire (`must_change_password`), demande de reset anti-énumération, et non-énumération des identifiants à l'inscription (voir §4). |
@@ -1736,19 +1741,70 @@ clé dans `{key, name}` sans qu'on la lise.
 
 ### 20.3 Couture régionale (`backend/regions/`)
 
-Le pays actif se lit dans `REGION` (défaut `FR`). Un code inconnu retombe sur
-`FR` : une variable mal orthographiée ne doit pas rendre l'instance inutilisable.
+Le pays se choisit dans l'interface — Paramètres → **Pays**, onglet réservé à
+un administrateur. Il n'y a qu'un pays au registre aujourd'hui : c'est la
+*couture* qui est posée, pas le second pays (§20.4 dit pourquoi).
+
+**Ordre de priorité**, du plus fort au plus faible :
+
+```
+1. le choix fait dans l'interface       → table app_settings, clé "region"
+2. la variable d'environnement REGION   → valeur initiale
+3. la France
+```
+
+Le niveau 2 est ce qui rend la reprise indolore : une instance qui tourne avec
+`REGION=FR` dans son `.env` ne change pas de comportement, et son `.env`
+continue de décider tant que personne n'a touché au réglage.
+
+> ⚠️ **Le réglage est persisté en base, pas gardé en mémoire.**
+> `REGISTRATION_MODE` et `_ha_integration_enabled` sont des variables
+> module-level qui **repassent à leur défaut à chaque démarrage** (§19 le
+> documente déjà comme un piège de test). Reproduire ce schéma ici aurait
+> replacé une instance étrangère sur la France au premier
+> `docker compose up -d`, sans un mot dans les logs. D'où `app_settings` —
+> table nouvelle, donc **aucune migration à écrire** (§13).
+
+**Trois portes d'entrée, trois comportements différents sur un code inconnu**,
+et c'est voulu :
+
+| Fonction | Code inconnu | Pourquoi |
+|---|---|---|
+| `get_region(code)` | repli silencieux sur `FR` | au démarrage, l'alternative est un backend mort |
+| `is_known_region(code)` | `False` | le formulaire doit pouvoir refuser |
+| `get_active_region_code(db)` | repli sur `FR` **+ log** | retour à une image plus ancienne (§21.5) : la base garde un pays que le code ne connaît plus, le décodage doit continuer |
+
+`PUT /admin/region` utilise le deuxième : un code refusé renvoie **400** en
+nommant les pays connus. Absorber le choix en repliant sur la France ferait
+croire à l'administrateur qu'il a changé de pays.
 
 ```python
-region = get_region()
+region = get_active_region(db)                      # ← dans une route
 normalized = region.normalize_plate(plate)          # "" si format invalide
 parsed = region.parse_plate_response(payload, hint) # → champs véhicule RideLog
 ```
 
+| Méthode | Route | Protection | Description |
+|---|---|---|---|
+| GET | `/api/regions` | JWT | Pays disponibles + pays actif |
+| PUT | `/api/admin/region` | Admin | Choisir le pays de l'instance |
+
+La lecture est ouverte à tout utilisateur connecté : l'exemple de plaque
+s'affiche dans le formulaire véhicule, que n'importe qui remplit. Seule
+l'écriture est réservée — le pays vaut pour l'instance entière, pas par
+utilisateur.
+
 **Ajouter un pays** = ajouter `regions/xx.py` exposant `code`, `name`,
 `plate_example`, `normalize_plate()` et `parse_plate_response()`, puis
-l'inscrire dans `REGIONS`. Les tests de `test_regions_fr.py` se transposent tels
-quels.
+l'inscrire dans `REGIONS`. Il apparaît alors **seul dans le sélecteur**, sans
+qu'aucune route ni aucun écran ne bouge. Les tests de `test_regions_fr.py` se
+transposent tels quels ; ceux de `test_regions_settings.py` verrouillent la
+persistance et les replis.
+
+**Fichiers concernés** : `regions/__init__.py` (registre, `list_regions()`,
+`is_known_region()`), `settings_store.py` (priorité et persistance),
+`routes/regions.py` (les 2 routes), `models.py` → `AppSetting`,
+`pages/Settings.jsx` → `CountrySettings`.
 
 ### 20.4 Ce qui reste franco-spécifique
 
