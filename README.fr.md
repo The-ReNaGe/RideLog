@@ -441,7 +441,7 @@ git clone https://github.com/The-ReNaGe/RideLog.git
 cd RideLog
 git checkout -b feat/ma-feature
 cp .env.example .env  # configurer avant de lancer
-docker compose up -d --build
+docker compose -f docker-compose.yml -f docker-compose.dev.yml up -d --build
 # ... code, test, commit, push, ouvre une PR
 ```
 
