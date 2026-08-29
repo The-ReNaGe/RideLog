@@ -5,6 +5,7 @@ import { formatDistanceToNow } from 'date-fns';
 import { fr } from 'date-fns/locale';
 import RevisionChecklistModal from './RevisionChecklistModal';
 import Icon from './Icon';
+import { useFormat } from '../lib/preferencesContext';
 import CategoryTag from './CategoryTag';
 import {
   REVISION_TRIGGERS,
@@ -14,6 +15,7 @@ import {
 } from '../lib/revisionChecklist';
 
 export default function MaintenanceHistory({ vehicleId, vehicleType, motorization, onDataChanged, canEdit = true }) {
+  const fmt = useFormat();
   const [maintenances, setMaintenances] = useState([]);
   const [loading, setLoading] = useState(true);
   const [editingId, setEditingId] = useState(null);
@@ -51,7 +53,8 @@ export default function MaintenanceHistory({ vehicleId, vehicleType, motorizatio
     setEditingId(maintenance.id);
     setEditForm({
       execution_date: maintenance.execution_date.split('T')[0],
-      mileage_at_intervention: maintenance.mileage_at_intervention,
+      // Affiché dans l'unité choisie, reconverti en km à l'enregistrement.
+      mileage_at_intervention: fmt.distValue(maintenance.mileage_at_intervention),
       cost_paid: maintenance.cost_paid || '',
       notes: maintenance.notes || '',
     });
@@ -69,7 +72,7 @@ export default function MaintenanceHistory({ vehicleId, vehicleType, motorizatio
       if (newInvoiceFiles.length > 0) {
         const fd = new FormData();
         fd.append('execution_date', editForm.execution_date);
-        fd.append('mileage_at_intervention', String(parseInt(editForm.mileage_at_intervention)));
+        fd.append('mileage_at_intervention', String(fmt.toStorage(parseInt(editForm.mileage_at_intervention))));
         fd.append('cost_paid', editForm.cost_paid ? String(parseFloat(editForm.cost_paid)) : '');
         fd.append('notes', editForm.notes);
         newInvoiceFiles.forEach(f => fd.append('invoice_files', f));
@@ -80,7 +83,7 @@ export default function MaintenanceHistory({ vehicleId, vehicleType, motorizatio
       } else {
         const payload = {
           execution_date: editForm.execution_date,
-          mileage_at_intervention: parseInt(editForm.mileage_at_intervention),
+          mileage_at_intervention: fmt.toStorage(parseInt(editForm.mileage_at_intervention)),
           cost_paid: editForm.cost_paid ? parseFloat(editForm.cost_paid) : null,
           notes: editForm.notes,
         };
@@ -150,7 +153,7 @@ export default function MaintenanceHistory({ vehicleId, vehicleType, motorizatio
                     />
                   </div>
                   <div>
-                    <label className="field-label">Kilométrage*</label>
+                    <label className="field-label">Distance ({fmt.distUnit})*</label>
                     <input
                       type="number"
                       value={editForm.mileage_at_intervention}
@@ -296,7 +299,7 @@ export default function MaintenanceHistory({ vehicleId, vehicleType, motorizatio
                   <div>
                     <span className="text-xs" style={{ color: 'var(--text-3)' }}>Kilométrage </span>
                     <span className="font-semibold" style={{ color: 'var(--text-1)' }}>
-                      {maintenance.mileage_at_intervention.toLocaleString('fr-FR')} km
+                      {fmt.dist(maintenance.mileage_at_intervention)}
                     </span>
                   </div>
                   <div>

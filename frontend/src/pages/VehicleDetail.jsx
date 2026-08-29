@@ -7,8 +7,7 @@ import FuelTracking from '../components/FuelTracking';
 import VehiclePhoto from '../components/VehiclePhoto';
 import Icon from '../components/Icon';
 import CategoryTag, { getCategory } from '../components/CategoryTag';
-import { usePreferences } from '../lib/preferencesContext';
-import { distanceToDisplay, distanceUnit } from '../lib/units';
+import { useFormat } from '../lib/preferencesContext';
 
 const motorLabels = {
   essence: 'Essence', diesel: 'Diesel', hybride: 'Hybride', hybrid: 'Hybride',
@@ -28,7 +27,7 @@ const tabs = [
 
 
 export default function VehicleDetail({ vehicleId, onBack, currentUser }) {
-  const { units, lang } = usePreferences();
+  const fmt = useFormat();
   const [vehicle, setVehicle] = useState(null);
   const [upcoming, setUpcoming] = useState(null);
   const [recommendations, setRecommendations] = useState(null);
@@ -116,13 +115,14 @@ export default function VehicleDetail({ vehicleId, onBack, currentUser }) {
     if (!val || val < 0) return;
     try {
       setMileageSaving(true);
-      await api.updateVehicle(vehicleId, { current_mileage: val });
+      // Saisi dans l'unité de l'utilisateur, stocké en kilomètres.
+      await api.updateVehicle(vehicleId, { current_mileage: fmt.toStorage(val) });
       setEditingMileage(false);
       fetchData();
     } catch (err) {
       alert(err.response?.data?.detail || 'Erreur lors de la mise à jour du kilométrage');
     } finally { setMileageSaving(false); }
-  }, [newMileage, vehicleId, fetchData]);
+  }, [newMileage, vehicleId, fetchData, fmt]);
 
   // La suppression vit ici, derrière « Modifier », et pas sur la carte de la
   // liste : là-bas, la carte entière est cliquable et une corbeille au coin se
@@ -148,7 +148,8 @@ export default function VehicleDetail({ vehicleId, onBack, currentUser }) {
       name: vehicle.name,
       year: vehicle.year,
       registration_date: vehicle.registration_date ? vehicle.registration_date.split('T')[0] : '',
-      current_mileage: vehicle.current_mileage,
+      // Édité dans l'unité de l'utilisateur, reconverti à l'enregistrement.
+      current_mileage: fmt.distValue(vehicle.current_mileage),
       purchase_price: vehicle.purchase_price || '',
       notes: vehicle.notes || '',
       is_private: !!vehicle.is_private,
@@ -163,7 +164,7 @@ export default function VehicleDetail({ vehicleId, onBack, currentUser }) {
         name: editedVehicle.name,
         year: editedVehicle.year ? parseInt(editedVehicle.year, 10) : null,
         registration_date: editedVehicle.registration_date || null,
-        current_mileage: editedVehicle.current_mileage ? parseInt(editedVehicle.current_mileage, 10) : 0,
+        current_mileage: editedVehicle.current_mileage ? fmt.toStorage(parseInt(editedVehicle.current_mileage, 10)) : 0,
         purchase_price: editedVehicle.purchase_price ? parseFloat(editedVehicle.purchase_price) : null,
         notes: editedVehicle.notes || null,
         is_private: !!editedVehicle.is_private,
@@ -173,7 +174,7 @@ export default function VehicleDetail({ vehicleId, onBack, currentUser }) {
     } catch (err) {
       alert(err.response?.data?.detail || 'Erreur lors de la mise à jour du véhicule');
     } finally { setEditSaving(false); }
-  }, [editedVehicle, vehicleId, fetchData]);
+  }, [editedVehicle, vehicleId, fetchData, fmt]);
 
   // Kilométrage moyen annuel — calculé depuis l'historique recap
   // Prend le premier et le dernier point km enregistrés, calcule le delta / durée
@@ -256,7 +257,7 @@ export default function VehicleDetail({ vehicleId, onBack, currentUser }) {
                 { label: 'Nom du véhicule', key: 'name', type: 'text' },
                 { label: 'Année', key: 'year', type: 'number', min: '1900', max: '2100' },
                 { label: 'Date de mise en circulation', key: 'registration_date', type: 'date' },
-                { label: 'Kilométrage actuel', key: 'current_mileage', type: 'number', min: '0' },
+                { label: `Distance au compteur (${fmt.distUnit})`, key: 'current_mileage', type: 'number', min: '0' },
                 { label: "Prix d'achat", key: 'purchase_price', type: 'number', min: '0', step: '100' },
               ].map(field => (
                 <div key={field.key}>
@@ -451,12 +452,12 @@ export default function VehicleDetail({ vehicleId, onBack, currentUser }) {
               ) : (
                 <>
                   <span className="tabular" style={{ fontSize: 20, fontWeight: 800, letterSpacing: '-0.02em', color: 'var(--text-1)' }}>
-                    {distanceToDisplay(vehicle.current_mileage, units).toLocaleString(lang === 'en' ? 'en-GB' : 'fr-FR')}
-                    <span style={{ fontSize: 13, fontWeight: 600, color: 'var(--text-3)', marginLeft: 4 }}>{distanceUnit(units)}</span>
+                    {fmt.dist(vehicle.current_mileage, { withUnit: false })}
+                    <span style={{ fontSize: 13, fontWeight: 600, color: 'var(--text-3)', marginLeft: 4 }}>{fmt.distUnit}</span>
                   </span>
                   {canEdit && (
                     <button
-                      onClick={() => { setNewMileage(String(vehicle.current_mileage)); setEditingMileage(true); }}
+                      onClick={() => { setNewMileage(String(fmt.distValue(vehicle.current_mileage))); setEditingMileage(true); }}
                       className="btn-icon" title="Corriger le kilométrage" aria-label="Corriger le kilométrage"
                     >
                       <Icon name="pencil" size={15} />
@@ -559,8 +560,8 @@ export default function VehicleDetail({ vehicleId, onBack, currentUser }) {
                 valueColor={recap?.total_cost != null ? 'var(--accent)' : 'var(--text-3)'}
               />
               <KpiCard
-                label="Moy. km/an"
-                value={avgKmPerYear?.value ? `${avgKmPerYear.value.toLocaleString('fr-FR')} km` : '—'}
+                label={`Moy. ${fmt.distUnit}/an`}
+                value={avgKmPerYear?.value ? fmt.dist(avgKmPerYear.value) : '—'}
                 valueColor={avgKmPerYear?.value ? 'var(--text-1)' : 'var(--text-3)'}
                 sub={avgKmPerYear?.estimated ? 'estimation' : null}
               />
@@ -665,7 +666,7 @@ export default function VehicleDetail({ vehicleId, onBack, currentUser }) {
                     <div>
                     <h3 className="section-title">{recap.vehicle_name}</h3>
                     <p className="text-sm" style={{ color: 'var(--text-3)' }}>
-                      {recap.vehicle_year && `Année ${recap.vehicle_year} · `}{recap.current_mileage?.toLocaleString('fr-FR')} km
+                      {recap.vehicle_year && `Année ${recap.vehicle_year} · `}{fmt.dist(recap.current_mileage)}
                     </p>
                     </div>
                   </div>
@@ -781,7 +782,7 @@ export default function VehicleDetail({ vehicleId, onBack, currentUser }) {
                                   </div>
                                 )}
                               </td>
-                              <td className="py-2.5 pr-4 text-right" style={{ color: 'var(--text-2)' }}>{m.mileage_at_intervention.toLocaleString('fr-FR')} km</td>
+                              <td className="py-2.5 pr-4 text-right" style={{ color: 'var(--text-2)' }}>{fmt.dist(m.mileage_at_intervention)}</td>
                               <td className="py-2.5 pr-4 text-right font-medium" style={{ color: 'var(--text-1)' }}>{m.cost_paid != null ? `${m.cost_paid.toFixed(2)} €` : '—'}</td>
                               <td className="py-2.5 pr-4 max-w-[200px] truncate" style={{ color: 'var(--text-3)' }}>{m.notes || '—'}</td>
                               <td className="py-2.5">
@@ -842,7 +843,7 @@ export default function VehicleDetail({ vehicleId, onBack, currentUser }) {
                           )}
                           <div className="flex flex-wrap gap-x-3 gap-y-0.5 text-xs" style={{ color: 'var(--text-3)' }}>
                             <span className="inline-flex items-center gap-1"><Icon name="calendar" size={12} />{new Date(m.execution_date).toLocaleDateString('fr-FR')}</span>
-                            <span className="inline-flex items-center gap-1"><Icon name="gauge" size={12} />{m.mileage_at_intervention.toLocaleString('fr-FR')} km</span>
+                            <span className="inline-flex items-center gap-1"><Icon name="gauge" size={12} />{fmt.dist(m.mileage_at_intervention)}</span>
                             {m.cost_paid != null && <span className="inline-flex items-center gap-1" style={{ color: 'var(--success)', fontWeight: 600 }}><Icon name="euro" size={12} />{m.cost_paid.toFixed(2)} €</span>}
                           </div>
                           {m.notes && <p className="text-xs mt-1" style={{ color: 'var(--text-2)' }}>{m.notes}</p>}

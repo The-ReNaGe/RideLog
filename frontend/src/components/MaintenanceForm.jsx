@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { api } from '../lib/api';
 import RevisionChecklistModal from './RevisionChecklistModal';
 import Icon from './Icon';
+import { useFormat } from '../lib/preferencesContext';
 import {
   REVISION_TRIGGERS,
   SUBITEM_TRIGGERS,
@@ -62,6 +63,7 @@ export default function MaintenanceForm({
   onSubmit,
   onCancel,
 }) {
+  const fmt = useFormat();
   const [formData, setFormData] = useState({
     intervention_type: '',
     execution_date: new Date().toISOString().split('T')[0],
@@ -155,7 +157,8 @@ export default function MaintenanceForm({
       payload.append('intervention_type', formData.intervention_type);
       payload.append('execution_date', new Date(formData.execution_date).toISOString());
       if (formData.mileage_at_intervention) {
-        payload.append('mileage_at_intervention', String(parseInt(formData.mileage_at_intervention)));
+        // Saisi dans l'unité de l'utilisateur, stocké en kilomètres.
+        payload.append('mileage_at_intervention', String(fmt.toStorage(parseInt(formData.mileage_at_intervention))));
       }
       payload.append('maintenance_category', formData.maintenance_category);
       if (formData.other_title && formData.intervention_type === 'Autre') {
@@ -269,7 +272,7 @@ export default function MaintenanceForm({
 
           <div>
             <label className="block text-sm font-medium mb-1">
-              Kilométrage (km)
+              Distance ({fmt.distUnit})
               <span className="ml-1 font-normal text-xs" style={{ color: 'var(--text-3)' }}>(optionnel — estimé si absent)</span>
             </label>
             <input

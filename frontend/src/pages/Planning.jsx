@@ -1,5 +1,6 @@
 import React, { useEffect, useState, useMemo } from 'react';
 import { api } from '../lib/api';
+import { useFormat } from '../lib/preferencesContext';
 import Icon from '../components/Icon';
 import PageHeader from '../components/PageHeader';
 
@@ -107,6 +108,7 @@ function CalendarDay({ day, isCurrentMonth, isToday, items, onDayClick }) {
 }
 
 function DayDetailModal({ date, items, onClose }) {
+  const fmt = useFormat();
   if (!date || !items) return null;
 
   return (
@@ -143,8 +145,8 @@ function DayDetailModal({ date, items, onClose }) {
                 {item.km_remaining != null && item.km_remaining !== 999999 && (
                   <span style={item.km_remaining < 0 ? { color: 'var(--danger)', fontWeight: 600 } : undefined}>
                     {item.km_remaining < 0
-                      ? `${Math.abs(item.km_remaining).toLocaleString('fr-FR')} km de retard`
-                      : `Dans ${item.km_remaining.toLocaleString('fr-FR')} km`}
+                      ? `${fmt.dist(Math.abs(item.km_remaining))} de retard`
+                      : `Dans ${fmt.dist(item.km_remaining)}`}
                   </span>
                 )}
                 {item.estimated_cost_max && (

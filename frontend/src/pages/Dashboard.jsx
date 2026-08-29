@@ -1,10 +1,13 @@
 import React, { useEffect, useState } from 'react';
 import { api } from '../lib/api';
+import { useFormat } from '../lib/preferencesContext';
 import Icon from '../components/Icon';
 import PageHeader from '../components/PageHeader';
 import VehiclePhoto from '../components/VehiclePhoto';
 
 export default function Dashboard({ onSelectVehicle, currentUser }) {
+  // `fmt` est déjà pris par le formateur de nombres du tableau de bord.
+  const u = useFormat();
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
@@ -53,7 +56,7 @@ export default function Dashboard({ onSelectVehicle, currentUser }) {
 
   if (!data) return null;
 
-  const fmt = (n) => new Intl.NumberFormat('fr-FR').format(n);
+  const fmt = (n) => new Intl.NumberFormat(u.locale).format(n);
   const fmtEuro = (n) => new Intl.NumberFormat('fr-FR', { style: 'currency', currency: 'EUR', maximumFractionDigits: 0 }).format(n);
 
   return (
@@ -69,7 +72,7 @@ export default function Dashboard({ onSelectVehicle, currentUser }) {
           { icon: 'car',   label: 'Véhicules',     value: fmt(data.total_vehicles) },
           { icon: 'euro',  label: 'Coût total',    value: fmtEuro(data.total_cost),
             sub: `Entretien ${fmtEuro(data.total_maintenance_cost)} · Carburant ${fmtEuro(data.total_fuel_cost)}` },
-          { icon: 'gauge', label: 'Km totaux',     value: `${fmt(data.total_mileage)} km` },
+          { icon: 'gauge', label: `Distance totale`, value: u.dist(data.total_mileage) },
           { icon: 'package', label: "Valeur d'achat", value: data.fleet_purchase_price ? fmtEuro(data.fleet_purchase_price) : '—',
             sub: "Prix d'achat cumulé du parc" },
         ].map(kpi => (
@@ -155,7 +158,7 @@ export default function Dashboard({ onSelectVehicle, currentUser }) {
                 <div className="flex-1 min-w-0">
                   <div className="font-bold text-ellipsis" style={{ color: 'var(--text-1)', fontSize: 15 }}>{v.name}</div>
                   <div className="text-ellipsis" style={{ color: 'var(--text-3)', fontSize: 13 }}>{v.brand} {v.model} · {v.year}</div>
-                  <div className="tabular" style={{ color: 'var(--text-2)', fontSize: 13, fontWeight: 600 }}>{fmt(v.current_mileage)} km</div>
+                  <div className="tabular" style={{ color: 'var(--text-2)', fontSize: 13, fontWeight: 600 }}>{u.dist(v.current_mileage)}</div>
                 </div>
                 <span className={`icon-box sm ${state.tone}`} title={state.label}>
                   <Icon name={state.icon} size={15} />

@@ -1,5 +1,6 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { api } from '../lib/api';
+import { useFormat } from '../lib/preferencesContext';
 import Icon from './Icon';
 
 const MONTH_SHORT = ['Jan', 'Fév', 'Mar', 'Avr', 'Mai', 'Juin', 'Juil', 'Aoû', 'Sep', 'Oct', 'Nov', 'Déc'];
@@ -59,6 +60,9 @@ function BarChart({ data, valueKey, color, unit, formatValue, avgValue, prevComp
 }
 
 function MiniLineChart({ points, valueKey, color, unit, formatValue, avgValue }) {
+	// `fmt` est déjà le formateur de valeur du graphique : celui des unités
+	// s'appelle `u` ici pour ne pas l'écraser.
+	const u = useFormat();
 	const [hover, setHover] = useState(null);
 
 	if (!points || points.length < 2) return <p className="text-sm" style={{ color: 'var(--text-3)' }}>Minimum 2 pleins nécessaires</p>;
@@ -138,7 +142,7 @@ function MiniLineChart({ points, valueKey, color, unit, formatValue, avgValue })
 							x={Math.max(2, Math.min(pts[hover].x - 45, width - 92)) + 45}
 							y={Math.max(2, pts[hover].y - 38) + 23}
 							textAnchor="middle" fontSize={8} fill="var(--text-3)">
-							{pts[hover].date}{pts[hover].distance ? ` · ${pts[hover].distance} km` : ''}
+							{pts[hover].date}{pts[hover].distance ? ` · ${u.dist(pts[hover].distance)}` : ''}
 						</text>
 					</g>
 				)}
@@ -148,6 +152,7 @@ function MiniLineChart({ points, valueKey, color, unit, formatValue, avgValue })
 }
 
 export default function FuelTracking({ vehicleId, onFuelAdded, canEdit = true }) {
+	const fmt = useFormat();
 	const [logs, setLogs] = useState([]);
 	const [stats, setStats] = useState(null);
 	const [loading, setLoading] = useState(true);
@@ -214,7 +219,8 @@ export default function FuelTracking({ vehicleId, onFuelAdded, canEdit = true })
 
 			const payload = {
 				fill_date: new Date(formData.fill_date).toISOString(),
-				mileage_at_fill: parseInt(formData.mileage_at_fill, 10),
+				// Distance saisie dans l'unité de l'utilisateur, stockée en kilomètres.
+				mileage_at_fill: fmt.toStorage(parseInt(formData.mileage_at_fill, 10)),
 				total_cost: parseFloat(formData.total_cost),
 				price_per_liter: parseFloat(formData.price_per_liter),
 				station: formData.station || null,
@@ -238,7 +244,7 @@ export default function FuelTracking({ vehicleId, onFuelAdded, canEdit = true })
 	const handleEditLog = (log) => {
 		setFormData({
 			fill_date: log.fill_date ? log.fill_date.split('T')[0] : '',
-			mileage_at_fill: String(log.mileage_at_fill || ''),
+			mileage_at_fill: String(log.mileage_at_fill ? fmt.distValue(log.mileage_at_fill) : ''),
 			total_cost: String(log.total_cost || ''),
 			price_per_liter: String(log.price_per_liter || ''),
 			station: log.station || '',
@@ -254,7 +260,8 @@ export default function FuelTracking({ vehicleId, onFuelAdded, canEdit = true })
 			setError(null);
 			const payload = {
 				fill_date: new Date(formData.fill_date).toISOString(),
-				mileage_at_fill: parseInt(formData.mileage_at_fill, 10),
+				// Distance saisie dans l'unité de l'utilisateur, stockée en kilomètres.
+				mileage_at_fill: fmt.toStorage(parseInt(formData.mileage_at_fill, 10)),
 				total_cost: parseFloat(formData.total_cost),
 				price_per_liter: parseFloat(formData.price_per_liter),
 				station: formData.station || null,
@@ -398,14 +405,14 @@ export default function FuelTracking({ vehicleId, onFuelAdded, canEdit = true })
 					<div className="card p-4 text-center">
 						<div style={{ fontSize: 11, color: 'var(--text-3)', textTransform: 'uppercase', fontWeight: 600, letterSpacing: 0.5, marginBottom: 4 }}>Conso moy.</div>
 						<div style={{ fontSize: 22, fontWeight: 700, color: stats.avg_consumption_l_100 ? 'var(--success)' : 'var(--text-3)' }}>
-							{stats.avg_consumption_l_100 ? `${stats.avg_consumption_l_100}` : '—'}
-							{stats.avg_consumption_l_100 && <span style={{ fontSize: 12, fontWeight: 400 }}> L/100</span>}
+							{stats.avg_consumption_l_100 ? fmt.cons(stats.avg_consumption_l_100, { withUnit: false }) : '—'}
+							{stats.avg_consumption_l_100 && <span style={{ fontSize: 12, fontWeight: 400 }}> {fmt.consUnit}</span>}
 						</div>
 					</div>
 					<div className="card p-4 text-center">
-						<div style={{ fontSize: 11, color: 'var(--text-3)', textTransform: 'uppercase', fontWeight: 600, letterSpacing: 0.5, marginBottom: 4 }}>Coût /100km</div>
+						<div style={{ fontSize: 11, color: 'var(--text-3)', textTransform: 'uppercase', fontWeight: 600, letterSpacing: 0.5, marginBottom: 4 }}>Coût /100 {fmt.distUnit}</div>
 						<div style={{ fontSize: 22, fontWeight: 700, color: stats.avg_cost_100km ? 'var(--warning)' : 'var(--text-3)' }}>
-							{stats.avg_cost_100km ? `${stats.avg_cost_100km}` : '—'}
+							{stats.avg_cost_100km ? fmt.costPerDist(stats.avg_cost_100km).toLocaleString(fmt.locale, { maximumFractionDigits: 1 }) : '—'}
 							{stats.avg_cost_100km && <span style={{ fontSize: 12, fontWeight: 400 }}> €</span>}
 						</div>
 					</div>
@@ -413,8 +420,8 @@ export default function FuelTracking({ vehicleId, onFuelAdded, canEdit = true })
 					<div className="card p-4 text-center">
 						<div style={{ fontSize: 11, color: 'var(--text-3)', textTransform: 'uppercase', fontWeight: 600, letterSpacing: 0.5, marginBottom: 4 }}>Autonomie moy.</div>
 						<div style={{ fontSize: 22, fontWeight: 700, color: 'var(--text-1)' }}>
-							{stats.avg_distance_per_tank.toLocaleString('fr-FR')}
-							<span style={{ fontSize: 12, fontWeight: 400 }}> km</span>
+							{fmt.dist(stats.avg_distance_per_tank, { withUnit: false })}
+							<span style={{ fontSize: 12, fontWeight: 400 }}> {fmt.distUnit}</span>
 						</div>
 					</div>
 					)}
@@ -470,7 +477,7 @@ export default function FuelTracking({ vehicleId, onFuelAdded, canEdit = true })
 
 					{/* Consumption trend */}
 					<div className="card p-5">
-						<h4 className="card-label">Évolution de la consommation (L/100 km)</h4>
+						<h4 className="card-label">Évolution de la consommation ({fmt.consUnit})</h4>
 						{consumptionPoints.length >= 2 ? (
 							<MiniLineChart points={consumptionPoints} valueKey="consumption_l_100" color="var(--success)" unit=""
 								formatValue={v => v.toFixed(1)} avgValue={stats.avg_consumption_l_100} />
@@ -481,7 +488,7 @@ export default function FuelTracking({ vehicleId, onFuelAdded, canEdit = true })
 
 					{/* Cost per 100km trend */}
 					<div className="card p-5">
-						<h4 className="card-label">Évolution du coût (€ / 100 km)</h4>
+						<h4 className="card-label">Évolution du coût (€ / 100 {fmt.distUnit})</h4>
 						<MiniLineChart points={chartPoints} valueKey="cost_100km" color="var(--warning)" unit="€"
 							formatValue={v => v.toFixed(1)} avgValue={stats.avg_cost_100km} />
 					</div>
@@ -585,7 +592,7 @@ export default function FuelTracking({ vehicleId, onFuelAdded, canEdit = true })
 											<div style={{ flex: 1, display: 'flex', flexWrap: 'wrap', gap: '4px 16px', fontSize: 13 }}>
 												<span style={{ color: 'var(--text-2)', minWidth: 75 }}>{new Date(log.fill_date).toLocaleDateString('fr-FR')}</span>
 												<span style={{ color: 'var(--text-1)', fontWeight: 600 }}>{log.total_cost.toFixed(2)} €</span>
-												<span style={{ color: 'var(--text-3)' }}>{log.mileage_at_fill.toLocaleString('fr-FR')} km</span>
+												<span style={{ color: 'var(--text-3)' }}>{fmt.dist(log.mileage_at_fill)}</span>
 												{log.liters > 0 && <span style={{ color: 'var(--text-3)' }}>{log.liters.toFixed(1)} L</span>}
 												{log.price_per_liter > 0 && <span style={{ color: 'var(--text-3)' }}>{log.price_per_liter.toFixed(3)} €/L</span>}
 												{log.station && <span style={{ color: 'var(--text-3)', fontStyle: 'italic' }}>{log.station}</span>}

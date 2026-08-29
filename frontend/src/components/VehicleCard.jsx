@@ -1,8 +1,7 @@
 import React from 'react';
 import VehiclePhoto from './VehiclePhoto';
 import Icon from './Icon';
-import { usePreferences } from '../lib/preferencesContext';
-import { distanceToDisplay, distanceUnit } from '../lib/units';
+import { useFormat } from '../lib/preferencesContext';
 
 const motorLabels = {
   essence: 'Essence',
@@ -62,7 +61,7 @@ const ALERT_LEVELS = {
 };
 
 export default React.memo(function VehicleCard({ vehicle, onSelect, currentUser }) {
-  const { units, lang } = usePreferences();
+  const fmt = useFormat();
   const age = new Date().getFullYear() - vehicle.year;
   const typeIcon = vehicle.vehicle_type === 'car' ? 'car' : 'motorcycle';
 
@@ -170,8 +169,8 @@ export default React.memo(function VehicleCard({ vehicle, onSelect, currentUser 
 
         <div style={{ marginTop: 'auto' }}>
           <div className="tabular" style={{ fontSize: 22, fontWeight: 800, letterSpacing: '-0.02em', color: 'var(--text-1)' }}>
-            {distanceToDisplay(vehicle.current_mileage, units).toLocaleString(lang === 'en' ? 'en-GB' : 'fr-FR')}
-            <span style={{ fontSize: 13, fontWeight: 600, color: 'var(--text-3)', marginLeft: 4 }}>{distanceUnit(units)}</span>
+            {fmt.dist(vehicle.current_mileage, { withUnit: false })}
+            <span style={{ fontSize: 13, fontWeight: 600, color: 'var(--text-3)', marginLeft: 4 }}>{fmt.distUnit}</span>
           </div>
           <div className="flex items-center flex-wrap" style={{ gap: 6, marginTop: 4 }}>
             {meta.map((m, i) => (
