@@ -239,6 +239,7 @@ export default function Dashboard({ onSelectVehicle, currentUser }) {
 const MONTH_LABELS = ['Jan', 'Fév', 'Mar', 'Avr', 'Mai', 'Jun', 'Jul', 'Aoû', 'Sep', 'Oct', 'Nov', 'Déc'];
 
 function CostCharts({ monthlyCosts }) {
+  const t = useT();
   const fmtEuro = (n) => new Intl.NumberFormat('fr-FR', { style: 'currency', currency: 'EUR', maximumFractionDigits: 0 }).format(n);
 
   // Construire les données par année et par mois depuis monthlyCosts

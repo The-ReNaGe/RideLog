@@ -5,7 +5,10 @@ import VehicleForm from '../components/VehicleForm';
 import VehicleCard from '../components/VehicleCard';
 import Icon from '../components/Icon';
 
-const countLabel = (n) =>
+// Helper module-level : `t` ne peut pas venir d'un hook ici, il se passe en
+// argument. C'est ce qui manquait — la fonction référençait un `t` inexistant
+// et la page plantait au rendu.
+const countLabel = (n, t) =>
   n === 0 ? t('Aucun véhicule') : n === 1 ? t('1 véhicule') : t('{count} véhicules', { count: n });
 
 /**
@@ -17,6 +20,7 @@ const countLabel = (n) =>
  * question.
  */
 function GaragePanel({ title, owner, subtitle, badge, count, action, children }) {
+  const t = useT();
   // L'initiale est celle de la personne : « Garage de tata » donnerait « G »,
   // identique pour tous les garages, donc inutile.
   const initial = ((owner || title).match(/[A-Za-zÀ-ÿ0-9]/) || ['?'])[0];
@@ -34,7 +38,7 @@ function GaragePanel({ title, owner, subtitle, badge, count, action, children })
             <p style={{ fontSize: 13, color: 'var(--text-2)', marginTop: 2 }}>{subtitle}</p>
           )}
         </div>
-        <span className="badge badge-neutral">{countLabel(count)}</span>
+        <span className="badge badge-neutral">{countLabel(count, t)}</span>
         {action}
       </header>
       <div className="panel-body">{children}</div>

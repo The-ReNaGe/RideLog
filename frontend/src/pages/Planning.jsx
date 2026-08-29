@@ -86,6 +86,7 @@ function CalendarDay({ day, isCurrentMonth, isToday, items, onDayClick }) {
 
 function DayDetailModal({ date, items, onClose }) {
   const fmt = useFormat();
+  const t = useT();
   if (!date || !items) return null;
 
   return (
