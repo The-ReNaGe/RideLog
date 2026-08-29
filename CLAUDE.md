@@ -910,7 +910,7 @@ frontend/src/
 │   ├── i18n.js                      # ★ Moteur de traduction — catalogues, t() — voir §20.5 ★
 │   ├── preferencesContext.jsx       # Provider React — langue ET unités — hooks usePreferences / useT
 │   ├── units.js                     # ★ Conversions km↔mi, L↔gal, L/100km↔MPG — voir §20.6 ★
-│   ├── locales/en.js                # Catalogue anglais (remplissage par vagues)
+│   ├── locales/en.js                # Catalogue anglais — les clés sont les phrases françaises
 │   ├── interventionTranslations.js  # Traductions noms d'interventions (anglais → français)
 │   └── revisionChecklist.js         # ★ Logique partagée checklist révision (items, sous-items, helpers) ★
 ├── pages/
@@ -1874,26 +1874,70 @@ deux cas — utile le jour où l'on voudra suivre la langue du navigateur.
 > écrivant cette route — la réponse HTTP montrait bien la nouvelle valeur, et
 > le `GET` suivant rendait l'ancienne.
 
+#### L'outil qui pilote le chantier — `frontend/scripts/i18n-audit.mjs`
+
+Sans lui, personne ne sait où on en est : une chaîne non traduite s'affiche en
+français au lieu de casser, donc **l'oubli est invisible**.
+
+```bash
+cd frontend
+npm run i18n          # couverture par langue, clés manquantes ET orphelines
+npm run i18n:todo     # ce qui n'est pas encore passé par t(), par fichier
+npm run i18n:check    # sort en erreur — pour un futur garde de CI
+node scripts/i18n-audit.mjs --todo=VehicleForm   # le détail d'un fichier
+```
+
+Il distingue trois choses, et la distinction compte :
+
+| | Sens |
+|---|---|
+| **manquantes** | enveloppées dans `t()`, absentes du catalogue → à traduire |
+| **orphelines** | traduites, mais la phrase française a été renommée → **traduction silencieusement perdue** |
+| **candidates** (`--todo`) | pas encore enveloppées → le vrai reste à faire |
+
+> ⚠️ Une clé passée dynamiquement — `t(item.label)` — est invisible à
+> l'extraction. Elle se déclare par un commentaire à côté de la table :
+> `// i18n: 'Véhicules', 'Planning'`. Déclaration explicite plutôt qu'une
+> heuristique du genre « toute valeur de `label:` est une clé », qui rendrait
+> le rapport faux dans les deux sens.
+
 #### Avancement
 
 | Vague | Contenu | État |
 |---|---|---|
-| 1 | Coquille de l'application (navigation, en-tête, pied de page), onglets des paramètres, sélecteur de langue | ✅ |
-| 2 | `AuthPage` — première chose que voit un anglophone | à faire |
-| 3 | Véhicules, entretiens, carburant | à faire |
-| 4 | Les 82 messages d'erreur backend | à faire — **décision préalable** : l'API renvoie-t-elle des codes (`INVITATION_EXPIRED`) que le front traduit, ou du texte ? |
-| 5 | Le catalogue d'entretien : `INTERVENTION_TRANSLATIONS` devient le catalogue `fr`, l'API renvoie la clé | à faire |
+| 1 | Coquille de l'application, onglets des paramètres, sélecteur de langue | ✅ |
+| 2 | `AuthPage`, liste et carte véhicule, tableau de bord, planning, formulaire et historique d'entretien | ✅ |
+| 3 | « À venir », carburant, fiche véhicule, formulaire véhicule | à faire |
+| 4 | Réglages, administration, intégrations, documentation d'API | à faire |
+| 5 | Les 82 messages d'erreur backend | à faire — **décision préalable** : l'API renvoie-t-elle des codes (`INVITATION_EXPIRED`) que le front traduit, ou du texte ? |
+| 6 | Le catalogue d'entretien : `INTERVENTION_TRANSLATIONS` devient le catalogue `fr`, l'API renvoie la clé | à faire |
 
-**Non traduites en vague 1, et c'est structurel** : le message de chargement et
-le bandeau « vous avez rejoint le groupe » vivent dans `App()`, **au-dessus**
-du `I18nProvider` — `useT()` n'y est pas accessible. Les traduire suppose de
-hisser le provider dans `index.jsx`, ce qui l'oblige à lire le compte
-autrement que par une prop.
+> ⚠️ **Ne jamais traduire une valeur envoyée à l'API.** Dans le sélecteur
+> d'intervention de `MaintenanceForm`, le libellé français est à la fois
+> affiché **et** transmis au backend, qui le résout en clé technique (§20.2).
+> Seul l'affichage se traduit :
+> `<option value={nomFr}>{t(nomFr)}</option>`. Traduire la valeur enverrait
+> « Oil change » à une API qui ne connaît que « Vidange d'huile ».
 
-**Le filet manque encore** : rien ne détecte une chaîne oubliée. La règle
-ESLint `no-literal-string` est le compteur de progression naturel, mais
-l'activer aujourd'hui produirait des centaines d'erreurs. À poser fichier par
-fichier, au fur et à mesure des vagues.
+**Non traduites, et c'est structurel** : le message de chargement et le bandeau
+« vous avez rejoint le groupe » vivent dans `App()`, **au-dessus** du provider —
+`useT()` n'y est pas accessible. Les traduire suppose de hisser le provider
+dans `index.jsx`, ce qui l'oblige à lire le compte autrement que par une prop.
+
+> **Sur les avertissements `exhaustive-deps` qui apparaissent en enveloppant.**
+> Envelopper des chaînes dans `t()` fait entrer `t` dans les fonctions de
+> chargement, et ESLint réclame alors de les mettre en dépendance de leur
+> `useEffect`. **Ne pas le faire** : l'effet relancerait une requête réseau à
+> chaque changement de langue, alors que les données, elles, n'ont pas changé.
+> C'est le cas où l'avertissement est le bon comportement. À distinguer de
+> `fmt`, qui doit **toujours** être en dépendance (§20.6) : lui change la
+> valeur écrite en base, pas seulement l'affichage.
+
+**Le garde de CI reste à poser.** `npm run i18n:check` existe et sort en
+erreur, mais l'ajouter à un workflow demande le scope `workflow` sur le jeton
+GitHub. La règle ESLint `no-literal-string` serait le second filet ; l'activer
+aujourd'hui produirait des centaines d'erreurs, elle se pose fichier par
+fichier au fil des vagues.
 
 
 ### 20.6 Unités d'affichage (`lib/units.js`)
