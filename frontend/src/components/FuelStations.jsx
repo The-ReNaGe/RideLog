@@ -1,5 +1,6 @@
 import React, { useState, useCallback, useEffect, useRef } from 'react';
 import { api } from '../lib/api';
+import CountryBadge from './CountryBadge';
 import Icon from './Icon';
 
 export default function FuelStations() {
@@ -139,7 +140,10 @@ export default function FuelStations() {
 
 			{/* Search Form */}
 			<div className="card p-6">
-				<h3 className="section-title mb-4">Rechercher des stations</h3>
+				<h3 className="section-title mb-4 flex items-center gap-2">
+					Rechercher des stations
+					<CountryBadge reason="La base de communes et la source des prix de carburant sont propres au pays de l'instance." />
+				</h3>
 				<form onSubmit={handleSearch} className="flex flex-wrap items-end gap-3">
 					<div className="relative" style={{ flex: '2 1 220px' }}>
 						<label className="field-label">Ville ou commune</label>
