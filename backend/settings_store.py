@@ -74,3 +74,33 @@ def get_active_region_code(db: Session) -> str:
 def get_active_region(db: Session) -> Region:
     """Le pays actif lui-même, prêt à lire une plaque."""
     return get_region(get_active_region_code(db))
+
+
+# ═══════════════════════════════════════════════════════════════════════════
+# Préférences effectives d'un compte
+# ═══════════════════════════════════════════════════════════════════════════
+
+def effective_preferences(db: Session, user) -> dict:
+    """Ce que l'interface doit réellement appliquer pour ce compte.
+
+    Deux niveaux, et la distinction compte :
+
+        user.language / user.units   ce que la personne a explicitement choisi
+        région active                ce qui s'applique tant qu'elle n'a rien dit
+
+    `NULL` côté compte n'est donc PAS « veut du français » : c'est « n'a rien
+    demandé ». Un utilisateur qui n'a jamais touché à ses préférences suit le
+    pays de l'instance — et suivra automatiquement le nouveau pays si l'admin
+    en change, ce qui est le comportement attendu. Celui qui a choisi garde
+    son choix quoi qu'il arrive au pays.
+
+    Renvoyé par `/auth/me` plutôt que calculé côté frontend : ce dernier
+    devrait sinon appeler `/regions` à chaque démarrage juste pour connaître
+    un défaut.
+    """
+    region = get_active_region(db)
+    return {
+        "region": region.code,
+        "language": user.language or region.default_language,
+        "units": user.units or region.default_units,
+    }

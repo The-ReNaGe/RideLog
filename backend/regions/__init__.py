@@ -44,6 +44,8 @@ class Region(Protocol):
     code: str
     name: str
     plate_example: str
+    default_language: str
+    default_units: str
 
     def normalize_plate(self, plate: str) -> str:
         """Forme canonique de la plaque, ou chaîne vide si le format est invalide."""
@@ -129,7 +131,13 @@ def list_regions() -> list[dict]:
     """
     return sorted(
         (
-            {"code": r.code, "name": r.name, "plate_example": r.plate_example}
+            {
+                "code": r.code,
+                "name": r.name,
+                "plate_example": r.plate_example,
+                "default_language": r.default_language,
+                "default_units": r.default_units,
+            }
             for r in REGIONS.values()
         ),
         key=lambda r: r["name"],

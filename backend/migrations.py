@@ -559,6 +559,18 @@ def _m011_user_language(conn: Connection) -> None:
     add_column_if_missing(conn, "users", "language", "VARCHAR(5)")
 
 
+def _m012_user_units(conn: Connection) -> None:
+    """Le système d'unités préféré du compte : 'metric' ou 'imperial'.
+
+    NULL comme pour la langue, et pour la même raison : NULL veut dire « aucune
+    préférence exprimée », et le pays actif fournit alors le défaut. Écrire
+    'metric' partout figerait un choix que personne n'a fait et empêcherait,
+    plus tard, qu'un changement de pays entraîne le système d'unités qui va
+    avec pour ceux qui ne se sont jamais prononcés.
+    """
+    add_column_if_missing(conn, "users", "units", "VARCHAR(10)")
+
+
 MIGRATIONS: list[Migration] = [
     Migration(
         1, "maintenance_category",
@@ -631,6 +643,11 @@ MIGRATIONS: list[Migration] = [
         11, "user_language",
         _m011_user_language,
         lambda c: has_all_columns(c, "users", "language"),
+    ),
+    Migration(
+        12, "user_units",
+        _m012_user_units,
+        lambda c: has_all_columns(c, "users", "units"),
     ),
 ]
 

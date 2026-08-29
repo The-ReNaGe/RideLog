@@ -164,6 +164,14 @@ class _France:
     name = "France"
     plate_example = "AB-123-CD"
 
+    # Ce que le pays propose par DÉFAUT, et rien de plus : l'utilisateur peut
+    # ensuite choisir autre chose. Une instance française dont le propriétaire
+    # préfère l'anglais est un cas parfaitement ordinaire — le pays décide du
+    # format de plaque et du calendrier réglementaire, pas de la langue qu'on
+    # parle chez soi.
+    default_language = "fr"
+    default_units = "metric"
+
     normalize_plate = staticmethod(normalize_plate)
     parse_plate_response = staticmethod(parse_plate_response)
 

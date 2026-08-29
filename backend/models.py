@@ -31,6 +31,9 @@ class User(Base):
     # Langue d'interface. NULL = aucune préférence exprimée, le frontend affiche
     # alors le français. Distinct de 'fr' choisi explicitement (voir migration 011).
     language = Column(String(5), nullable=True)
+    # Système d'unités : 'metric' ou 'imperial'. NULL = aucune préférence,
+    # le pays actif fournit le défaut (voir migration 012).
+    units = Column(String(10), nullable=True)
 
     # Relation: Un utilisateur peut avoir plusieurs véhicules
     vehicles = relationship("Vehicle", back_populates="owner", cascade="all, delete-orphan")
@@ -48,6 +51,7 @@ class User(Base):
             "must_change_password": bool(self.must_change_password),
             "password_reset_requested_at": self.password_reset_requested_at.isoformat() if self.password_reset_requested_at else None,
             "language": self.language,
+            "units": self.units,
         }
         if include_password:
             data["password_hash"] = self.password_hash
