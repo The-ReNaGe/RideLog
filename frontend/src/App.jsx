@@ -41,6 +41,9 @@ class ErrorBoundary extends React.Component {
   }
 }
 
+// Libellés passés à t() dynamiquement (`t(item.label)`) : déclarés ici pour
+// que scripts/i18n-audit.mjs les voie.
+// i18n: 'Véhicules', 'Tableau de bord', 'Bilan', 'Stations', 'Planning', 'Paramètres', 'Réglages', 'Admin'
 const NAV_ITEMS = [
   { key: 'vehicles',      icon: 'car',      label: 'Véhicules',  matchKeys: ['vehicles', 'vehicle-detail'] },
   { key: 'dashboard',     icon: 'chart',    label: 'Tableau de bord', shortLabel: 'Bilan' },

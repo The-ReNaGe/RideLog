@@ -37,6 +37,8 @@
 const KM_PER_MILE = 1.609344;
 const LITRES_PER_GALLON_UK = 4.54609; // gallon impérial, celui du Royaume-Uni
 
+// Libellés passés à t() par l'écran des préférences.
+// i18n: 'Kilomètres', 'Miles'
 export const UNIT_SYSTEMS = [
   { code: 'metric', label: 'Kilomètres', hint: 'km, litres, L/100 km' },
   { code: 'imperial', label: 'Miles', hint: 'miles, gallons, MPG' },

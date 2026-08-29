@@ -1,11 +1,12 @@
 import React, { useEffect, useState } from 'react';
 import { api } from '../lib/api';
+import { useT } from '../lib/preferencesContext';
 import VehicleForm from '../components/VehicleForm';
 import VehicleCard from '../components/VehicleCard';
 import Icon from '../components/Icon';
 
 const countLabel = (n) =>
-  n === 0 ? 'Aucun véhicule' : n === 1 ? '1 véhicule' : `${n} véhicules`;
+  n === 0 ? t('Aucun véhicule') : n === 1 ? t('1 véhicule') : t('{count} véhicules', { count: n });
 
 /**
  * Bloc « garage » — un panneau fermé par garage.
@@ -44,6 +45,7 @@ function GaragePanel({ title, owner, subtitle, badge, count, action, children })
 const GRID = 'grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4';
 
 export default function VehicleList({ onSelectVehicle, currentUser }) {
+  const t = useT();
   const [vehicles, setVehicles] = useState([]);
   const [loading, setLoading] = useState(true);
   const [showForm, setShowForm] = useState(false);
@@ -60,7 +62,7 @@ export default function VehicleList({ onSelectVehicle, currentUser }) {
       setVehicles(response.data);
       setError(null);
     } catch (err) {
-      setError('Impossible de charger les véhicules');
+      setError(t('Impossible de charger les véhicules'));
       console.error(err);
     } finally {
       setLoading(false);
@@ -74,7 +76,7 @@ export default function VehicleList({ onSelectVehicle, currentUser }) {
 
   const garageTitle = currentUser
     ? `Garage de ${currentUser.display_name}`
-    : 'Mon garage';
+    : t('Mon garage');
 
   // Séparation par propriétaire : ses véhicules d'abord, puis un garage par
   // membre du groupe famille. Mélangés dans une seule grille, on ne sait plus
@@ -108,7 +110,7 @@ export default function VehicleList({ onSelectVehicle, currentUser }) {
     return (
       <div className="text-center py-16">
         <div className="spinner mx-auto mb-3"></div>
-        <p className="text-sm" style={{ color: 'var(--text-3)' }}>Chargement du garage…</p>
+        <p className="text-sm" style={{ color: 'var(--text-3)' }}>{t('Chargement du garage…')}</p>
       </div>
     );
   }
@@ -160,7 +162,7 @@ export default function VehicleList({ onSelectVehicle, currentUser }) {
             className={`btn btn-sm ${showForm ? 'btn-secondary' : 'btn-primary'}`}
           >
             <Icon name={showForm ? 'close' : 'plus'} size={15} strokeWidth={2} />
-            {showForm ? 'Annuler' : 'Ajouter'}
+            {showForm ? t('Annuler') : t('Ajouter')}
           </button>
         }
       >
@@ -175,12 +177,12 @@ export default function VehicleList({ onSelectVehicle, currentUser }) {
               <Icon name="car" size={20} />
             </div>
             <p style={{ color: 'var(--text-2)', fontSize: 14, marginBottom: 14 }}>
-              Votre garage est vide pour le moment.
+              {t('Votre garage est vide pour le moment.')}
             </p>
             {!showForm && (
               <button onClick={() => setShowForm(true)} className="btn btn-primary">
                 <Icon name="plus" size={16} strokeWidth={2} />
-                Ajouter un véhicule
+                {t('Ajouter un véhicule')}
               </button>
             )}
           </div>
@@ -191,16 +193,16 @@ export default function VehicleList({ onSelectVehicle, currentUser }) {
       {sharedGarages.map((garage) => (
         <GaragePanel
           key={garage.ownerId}
-          title={`Garage de ${garage.name || 'un membre du groupe'}`}
+          title={t('Garage de {name}', { name: garage.name || t('un membre du groupe') })}
           owner={garage.name}
           count={garage.vehicles.length}
           badge={
             <span className="badge badge-info">
               <Icon name="eye" size={12} strokeWidth={2} />
-              Lecture seule
+              {t('Lecture seule')}
             </span>
           }
-          subtitle={`Partagé avec vous — seul ${garage.name || 'son propriétaire'} peut y enregistrer un entretien ou un plein.`}
+          subtitle={t('Partagé avec vous — seul {name} peut y enregistrer un entretien ou un plein.', { name: garage.name || t('son propriétaire') })}
         >
           {renderCards(garage.vehicles)}
         </GaragePanel>

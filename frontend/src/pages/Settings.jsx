@@ -13,6 +13,8 @@ import { LANGUAGES } from '../lib/i18n';
 import { UNIT_SYSTEMS } from '../lib/units';
 import Flag from '../components/Flag';
 
+// Libellés d'onglets passés à t() dynamiquement (`t(tab.label)`).
+// i18n: 'Préférences', 'Discord', 'Home Assistant', 'Rappels', 'Famille', 'Compte', 'Inscription', 'API'
 const TABS = [
   // Les préférences d'abord : c'est le premier réglage qu'on cherche, et
   // c'était jusqu'ici le plus difficile à trouver — le pays dans un onglet

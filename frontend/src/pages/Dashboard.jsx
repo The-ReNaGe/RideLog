@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { api } from '../lib/api';
-import { useFormat } from '../lib/preferencesContext';
+import { useFormat, useT } from '../lib/preferencesContext';
 import Icon from '../components/Icon';
 import PageHeader from '../components/PageHeader';
 import VehiclePhoto from '../components/VehiclePhoto';
@@ -8,6 +8,7 @@ import VehiclePhoto from '../components/VehiclePhoto';
 export default function Dashboard({ onSelectVehicle, currentUser }) {
   // `fmt` est déjà pris par le formateur de nombres du tableau de bord.
   const u = useFormat();
+  const t = useT();
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
@@ -23,7 +24,7 @@ export default function Dashboard({ onSelectVehicle, currentUser }) {
       setData(res.data);
       setError(null);
     } catch (err) {
-      setError('Impossible de charger le dashboard');
+      setError(t('Impossible de charger le tableau de bord'));
       console.error(err);
     } finally {
       setLoading(false);
@@ -34,7 +35,7 @@ export default function Dashboard({ onSelectVehicle, currentUser }) {
     return (
       <div className="text-center py-16">
         <div className="spinner mx-auto mb-3"></div>
-        <p style={{ color: 'var(--text-2)' }} className="text-sm">Chargement du dashboard…</p>
+        <p style={{ color: 'var(--text-2)' }} className="text-sm">{t('Chargement du tableau de bord…')}</p>
       </div>
     );
   }
@@ -62,18 +63,20 @@ export default function Dashboard({ onSelectVehicle, currentUser }) {
   return (
     <div>
       <PageHeader
-        title="Tableau de bord"
-        subtitle={`Vue d'ensemble du garage${currentUser?.display_name ? ` de ${currentUser.display_name}` : ''}`}
+        title={t('Tableau de bord')}
+        subtitle={currentUser?.display_name
+          ? t("Vue d'ensemble du garage de {name}", { name: currentUser.display_name })
+          : t("Vue d'ensemble du garage")}
       />
 
       {/* KPI Cards Row */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-5">
         {[
-          { icon: 'car',   label: 'Véhicules',     value: fmt(data.total_vehicles) },
-          { icon: 'euro',  label: 'Coût total',    value: fmtEuro(data.total_cost),
+          { icon: 'car',   label: t('Véhicules'),     value: fmt(data.total_vehicles) },
+          { icon: 'euro',  label: t('Coût total'),    value: fmtEuro(data.total_cost),
             sub: `Entretien ${fmtEuro(data.total_maintenance_cost)} · Carburant ${fmtEuro(data.total_fuel_cost)}` },
-          { icon: 'gauge', label: `Distance totale`, value: u.dist(data.total_mileage) },
-          { icon: 'package', label: "Valeur d'achat", value: data.fleet_purchase_price ? fmtEuro(data.fleet_purchase_price) : '—',
+          { icon: 'gauge', label: t('Distance totale'), value: u.dist(data.total_mileage) },
+          { icon: 'package', label: t("Valeur d'achat"), value: data.fleet_purchase_price ? fmtEuro(data.fleet_purchase_price) : '—',
             sub: "Prix d'achat cumulé du parc" },
         ].map(kpi => (
           <div key={kpi.label} className="card" style={{ padding: 16 }}>
@@ -92,15 +95,15 @@ export default function Dashboard({ onSelectVehicle, currentUser }) {
         <div className="card mb-5">
           <h3 className="section-title flex items-center gap-2" style={{ marginBottom: 10 }}>
             <Icon name="bell" size={16} style={{ color: 'var(--text-3)' }} />
-            Alertes
+            {t('Alertes')}
           </h3>
           <div className="space-y-2">
             {data.alert_details.map((alert, i) => {
               const cfg = alert.type === 'overdue'
-                ? { icon: 'alertCircle', label: 'en retard', color: 'var(--danger)' }
+                ? { icon: 'alertCircle', label: t('en retard'), color: 'var(--danger)' }
                 : alert.type === 'urgent'
-                ? { icon: 'alert', label: 'urgent', color: 'var(--warning)' }
-                : { icon: 'clock', label: 'à prévoir', color: 'var(--accent)' };
+                ? { icon: 'alert', label: t('urgent'), color: 'var(--warning)' }
+                : { icon: 'clock', label: t('à prévoir'), color: 'var(--accent)' };
               return (
                 <button
                   key={i}
@@ -128,12 +131,12 @@ export default function Dashboard({ onSelectVehicle, currentUser }) {
           // L'état colore une réglette à gauche, pas tout le contour : quatre
           // cartes cerclées de rouge et de vert font un damier, pas une liste.
           const state = v.overdue_count > 0
-            ? { color: 'var(--danger)',  tone: 'danger',  icon: 'alertCircle', label: `${v.overdue_count} retard${v.overdue_count > 1 ? 's' : ''}` }
+            ? { color: 'var(--danger)',  tone: 'danger',  icon: 'alertCircle', label: t('{count} en retard', { count: v.overdue_count }) }
             : v.urgent_count > 0
-            ? { color: 'var(--warning)', tone: 'warning', icon: 'alert',       label: `${v.urgent_count} urgent${v.urgent_count > 1 ? 's' : ''}` }
+            ? { color: 'var(--warning)', tone: 'warning', icon: 'alert',       label: t('{count} urgent(s)', { count: v.urgent_count }) }
             : v.warning_count > 0
-            ? { color: 'var(--warning)', tone: 'warning', icon: 'clock',       label: `${v.warning_count} à prévoir` }
-            : { color: 'var(--success)', tone: 'success', icon: 'checkCircle', label: 'À jour' };
+            ? { color: 'var(--warning)', tone: 'warning', icon: 'clock',       label: t('{count} à prévoir', { count: v.warning_count }) }
+            : { color: 'var(--success)', tone: 'success', icon: 'checkCircle', label: t('À jour') };
 
           return (
             <article
@@ -166,9 +169,9 @@ export default function Dashboard({ onSelectVehicle, currentUser }) {
               </div>
               <div className="grid grid-cols-3 gap-2 text-center">
                 {[
-                  { label: 'Dépenses',     value: fmtEuro(v.total_cost),  color: 'var(--text-1)' },
-                  { label: "Prix d'achat", value: v.purchase_price ? fmtEuro(v.purchase_price) : '—', color: 'var(--text-1)' },
-                  { label: 'État',         value: state.label,            color: state.color },
+                  { label: t('Dépenses'),     value: fmtEuro(v.total_cost),  color: 'var(--text-1)' },
+                  { label: t("Prix d'achat"), value: v.purchase_price ? fmtEuro(v.purchase_price) : '—', color: 'var(--text-1)' },
+                  { label: t('État'),         value: state.label,            color: state.color },
                 ].map(cell => (
                   <div key={cell.label} className="inset" style={{ padding: '9px 6px' }}>
                     <div className="tabular text-sm font-bold text-ellipsis" style={{ color: cell.color }}>{cell.value}</div>
@@ -188,10 +191,10 @@ export default function Dashboard({ onSelectVehicle, currentUser }) {
         <div className="card p-4">
           <h3 className="section-title flex items-center gap-2" style={{ marginBottom: 10 }}>
             <Icon name="clock" size={16} style={{ color: 'var(--text-3)' }} />
-            Activité récente
+            {t('Activité récente')}
           </h3>
           {data.recent_activity.length === 0 ? (
-            <p className="text-sm" style={{ color: 'var(--text-3)' }}>Aucune activité</p>
+            <p className="text-sm" style={{ color: 'var(--text-3)' }}>{t('Aucune activité')}</p>
           ) : (
             <div className="space-y-2">
               {data.recent_activity.map((a) => (
@@ -279,7 +282,7 @@ function CostCharts({ monthlyCosts }) {
         <div className="flex items-center justify-between mb-3">
           <h3 className="section-title flex items-center gap-2">
             <Icon name="calendar" size={16} style={{ color: 'var(--text-3)' }} />
-            Dépenses mensuelles
+            {t('Dépenses mensuelles')}
           </h3>
           {sortedYears.length > 1 && (
             <div className="flex gap-1">
@@ -306,11 +309,11 @@ function CostCharts({ monthlyCosts }) {
       <div style={{ flex: 1, display: 'flex', flexDirection: 'column' }}>
         <h3 className="section-title flex items-center gap-2" style={{ marginBottom: 10 }}>
           <Icon name="trendUp" size={16} style={{ color: 'var(--text-3)' }} />
-          Dépenses annuelles
+          {t('Dépenses annuelles')}
         </h3>
         <div style={{ flex: 1, display: 'flex', flexDirection: 'column', justifyContent: 'flex-end' }}>
           {annualData.length === 0 ? (
-            <p className="text-sm" style={{ color: 'var(--text-3)' }}>Aucune donnée</p>
+            <p className="text-sm" style={{ color: 'var(--text-3)' }}>{t('Aucune donnée')}</p>
           ) : (
             <BarChart data={annualData} max={maxAnnual} fmtEuro={fmtEuro} height={120} accentOpacity={0.75} minBarWidth={36} />
           )}
