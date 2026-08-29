@@ -175,6 +175,7 @@ backend/
 │   ├── test_migrations.py
 │   ├── test_regions_fr.py
 │   ├── test_regions_settings.py
+│   ├── test_user_language.py
 │   ├── test_maintenance_routes.py
 │   └── test_auth_integration.py
 └── routes/
@@ -289,6 +290,7 @@ Schémas Pydantic pour les entrées/sorties :
 | GET | `/api/auth/me` | JWT | Infos utilisateur courant |
 | POST | `/api/auth/logout` | JWT | Déconnexion (advisory, JWT stateless) |
 | POST | `/api/auth/refresh` | JWT | Renouveler le token |
+| PUT | `/api/auth/me/language` | JWT | Langue d'interface du compte (`fr` / `en`) — voir §20.5 |
 | POST | `/api/auth/refresh-token` | Bearer header | Renouveler (utilisé par HA) |
 | POST | `/api/auth/ha-init` | `init_key` param | Créer/renouveler le compte Home Assistant |
 | GET | `/api/admin/users` | Admin | Lister tous les utilisateurs |
@@ -905,6 +907,9 @@ frontend/src/
 ├── main.jsx                    # Point d'entrée React
 ├── lib/
 │   ├── api.js                       # Client Axios — toutes les méthodes API
+│   ├── i18n.js                      # ★ Moteur de traduction — catalogues, t() — voir §20.5 ★
+│   ├── i18nContext.jsx              # Provider React + hooks useI18n / useT
+│   ├── locales/en.js                # Catalogue anglais (remplissage par vagues)
 │   ├── interventionTranslations.js  # Traductions noms d'interventions (anglais → français)
 │   └── revisionChecklist.js         # ★ Logique partagée checklist révision (items, sous-items, helpers) ★
 ├── pages/
@@ -1657,6 +1662,7 @@ python -m pytest tests/ -v
 | `test_client_ip.py` | `get_client_ip()`, les deux limiteurs et `validate_jwt_secret()` (`security.py`) — verrouille les deux contournements corrigés du rate limiter (`X-Forwarded-For` falsifié, et passerelle Docker prise pour un proxy de confiance sur le port 8000 — voir §4), le verrouillage par compte, et le refus de démarrer sur un `JWT_SECRET` public. |
 | `test_migrations.py` | `migrations.py` — parité de schéma entre base neuve et base migrée, survie des données, idempotence, adoption d'une base sans registre, migration à demi appliquée, rollback, garde anti-retour-arrière, sauvegardes. Tourne sur **deux schémas anciens réels** figés dans `tests/fixtures/*.sql` (le commit initial du dépôt et une instance antérieure au dépôt), jamais sur un schéma écrit de mémoire. |
 | `test_fuel_stations.py` | Routes `/fuel-stations/*` — authentification exigée sur les trois endpoints, bornes de `max_distance`/`limit`, cache (clé insensible aux accents, plafond, expiration). Les appels sortants sont monkeypatchés : aucun test ne sort sur le réseau. |
+| `test_user_language.py` | Préférence de langue (`users.language`, `PUT /auth/me/language`) — un compte neuf porte `NULL` et non `"fr"`, une langue non servie est refusée, et surtout **l'isolation par utilisateur** : le choix d'un membre ne déborde pas sur les autres. |
 | `test_regions_fr.py` | `regions/fr.py` — normalisation de plaque, analyse de la réponse carte grise (détection moto par genre, replis de cylindrée, priorité du genre sur l'indication utilisateur), repli du registre sur `FR`. Aucun appel réseau : cette logique n'était auparavant atteignable que via un service tiers payant, donc jamais testée. |
 | `test_regions_settings.py` | Choix du pays (`settings_store.py`, `routes/regions.py`) — France par défaut, refus d'un pays inconnu, écriture réservée à un admin, persistance **en base** et non en mémoire, et repli sur `FR` quand la base garde un pays que le code ne connaît plus (retour arrière, §21.5). |
 | `test_maintenance_routes.py` | Enregistrement d'un entretien via `TestClient` — la clé technique est stockée, deux libellés d'une même intervention partagent une clé, un libellé inconnu n'échoue pas, et l'entretien enregistré ressort bien rattaché à son échéance. |
@@ -1815,14 +1821,76 @@ déplacé** — abstraire sans second cas réel ne valide rien :
 - `routes/fuel_stations.py` — `communes.csv` et prix-carburants.gouv.fr
 - `data/maintenance_intervals.json` — libellés français (clés désormais découplées)
 
-### 20.5 Ce qu'il restera à faire pour traduire réellement
+### 20.5 Le moteur de traduction, et où en est le remplissage
 
-1. Un catalogue de libellés par langue, `INTERVENTION_TRANSLATIONS` devenant le
-   catalogue `fr` — la base n'en dépend plus.
-2. L'API renvoie la clé ; le front affiche le libellé de la langue choisie.
-3. Traduction des chaînes du front (`frontend/src/lib/interventionTranslations.js`
-   est le point de départ).
-4. Messages d'erreur backend, aujourd'hui en français en dur dans les routes.
+**Le mécanisme existe ; la traduction se fait par vagues.** Cette séparation
+est délibérée : traduire 562 chaînes d'un coup produirait un diff impossible à
+relire, où une régression d'affichage passerait inaperçue.
+
+#### Le moteur — `lib/i18n.js` et `lib/i18nContext.jsx`
+
+Écrit à la main, pas de bibliothèque. Le frontend n'a que cinq dépendances
+d'exécution et l'image est construite en CI depuis un lockfile figé, publiée en
+amd64 **et** arm64 (§21) ; i18next et ses greffons coûteraient plus en
+maintenance qu'ils ne rapportent pour une table de chaînes et une
+interpolation. Même raisonnement que pour le jeu d'icônes (§23.3).
+
+> ⚠️ **Les clés SONT les chaînes françaises.** `t('Véhicules')`, pas
+> `t('nav.vehicles')`. Deux conséquences voulues :
+>
+> - une chaîne pas encore traduite s'affiche **en français**, pas en
+>   `nav.vehicles`. Pendant une traduction progressive, c'est la différence
+>   entre une interface à moitié anglaise et une interface cassée ;
+> - aucune migration de contenu : on enveloppe une chaîne existante dans `t()`
+>   et elle s'affiche à l'identique tant que le catalogue anglais ne la porte
+>   pas.
+>
+> Le revers : **renommer un libellé français casse silencieusement sa
+> traduction**. Acceptable ici parce que le catalogue vit dans le dépôt et que
+> la clé orpheline se voit au diff. Ce serait inacceptable en base — et c'est
+> précisément pourquoi les entretiens enregistrés portent une clé technique et
+> non leur libellé (§20.2).
+
+#### La préférence est **par utilisateur**
+
+`users.language` (migration 011), `PUT /api/auth/me/language`, exposée dans
+Paramètres → Compte. C'est la différence avec le pays (§20.3), qui vaut pour
+l'instance : **le pays décrit la machine, la langue décrit la personne.** Dans
+un groupe famille, un membre peut vouloir l'anglais et un autre le français.
+
+`NULL` signifie « aucune préférence exprimée », **et non « veut du français »**.
+Écrire `'fr'` par défaut aurait rendu impossible de distinguer plus tard les
+deux cas — utile le jour où l'on voudra suivre la langue du navigateur.
+
+> ⚠️ **`current_user` ne vient pas de la session de la route.**
+> `get_current_user` ouvre la sienne (`security.py` : `db = next(get_db_session())`).
+> Modifier `current_user` puis committer `db` ne persiste **rien** : la
+> modification vit dans l'autre session. Toute route qui écrit sur le compte
+> connecté doit re-requêter l'utilisateur depuis son propre `db`, comme le font
+> `change_own_password` et `set_own_language`. Ce piège a été rencontré en
+> écrivant cette route — la réponse HTTP montrait bien la nouvelle valeur, et
+> le `GET` suivant rendait l'ancienne.
+
+#### Avancement
+
+| Vague | Contenu | État |
+|---|---|---|
+| 1 | Coquille de l'application (navigation, en-tête, pied de page), onglets des paramètres, sélecteur de langue | ✅ |
+| 2 | `AuthPage` — première chose que voit un anglophone | à faire |
+| 3 | Véhicules, entretiens, carburant | à faire |
+| 4 | Les 82 messages d'erreur backend | à faire — **décision préalable** : l'API renvoie-t-elle des codes (`INVITATION_EXPIRED`) que le front traduit, ou du texte ? |
+| 5 | Le catalogue d'entretien : `INTERVENTION_TRANSLATIONS` devient le catalogue `fr`, l'API renvoie la clé | à faire |
+
+**Non traduites en vague 1, et c'est structurel** : le message de chargement et
+le bandeau « vous avez rejoint le groupe » vivent dans `App()`, **au-dessus**
+du `I18nProvider` — `useT()` n'y est pas accessible. Les traduire suppose de
+hisser le provider dans `index.jsx`, ce qui l'oblige à lire le compte
+autrement que par une prop.
+
+**Le filet manque encore** : rien ne détecte une chaîne oubliée. La règle
+ESLint `no-literal-string` est le compteur de progression naturel, mais
+l'activer aujourd'hui produirait des centaines d'erreurs. À poser fichier par
+fichier, au fur et à mesure des vagues.
 
 ---
 

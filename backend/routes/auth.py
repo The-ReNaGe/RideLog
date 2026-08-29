@@ -87,6 +87,9 @@ class UserResponse(BaseModel):
     created_at: str
     must_change_password: bool = False
     password_reset_requested_at: str | None = None
+    # None = aucune préférence exprimée. Le frontend affiche alors le français ;
+    # c'est volontairement distinct de "fr" choisi explicitement (migration 011).
+    language: str | None = None
 
 
 class AdminCreateUserRequest(BaseModel):
@@ -295,6 +298,40 @@ async def refresh_token(current_user: User = Depends(get_current_user)):
     new_token = create_access_token(current_user.id, current_user.username, password_changed_at=current_user.password_changed_at)
     logger.info("Token renouvelé pour: %s", current_user.username)
     return new_token
+
+
+class LanguageRequest(BaseModel):
+    # Les langues réellement servies par le frontend. Le backend ne traduit
+    # rien lui-même : il ne fait que retenir le choix et le rendre au prochain
+    # démarrage, pour qu'il suive l'utilisateur d'un navigateur à l'autre.
+    language: str = Field(..., pattern="^(fr|en)$")
+
+
+@router.put("/auth/me/language", response_model=UserResponse)
+async def set_own_language(
+    data: LanguageRequest,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """Langue d'interface du compte connecté.
+
+    Réglage **par utilisateur**, contrairement au pays qui vaut pour l'instance
+    entière : dans un groupe famille, un membre peut vouloir l'anglais et un
+    autre le français. Le pays décrit la machine, la langue décrit la personne.
+    """
+    # ⚠️ `current_user` provient de get_current_user, qui ouvre SA PROPRE session
+    # (security.py : `db = next(get_db_session())`). Le modifier puis committer
+    # `db` ne persiste rien — la modification vit dans l'autre session. D'où la
+    # re-requête, exactement comme le fait déjà change_own_password.
+    user = db.query(User).filter(User.id == current_user.id).first()
+    if not user:
+        raise HTTPException(status_code=404, detail="Utilisateur introuvable")
+
+    user.language = data.language
+    db.commit()
+    db.refresh(user)
+    logger.info("Langue changée en '%s' pour: %s", data.language, user.username)
+    return user.to_dict()
 
 
 @router.put("/auth/me/password", response_model=TokenResponse)

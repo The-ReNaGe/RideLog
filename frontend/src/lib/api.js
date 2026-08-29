@@ -126,6 +126,11 @@ export const api = {
   joinFamily: (token) =>
     client.post('/family/join', { token }),
   
+  // Langue d'interface du compte connecté. Réglage par utilisateur : dans un
+  // groupe famille, chacun choisit la sienne.
+  setLanguage: (language) =>
+    client.put('/auth/me/language', { language }),
+
   getRegistrationMode: () =>
     client.get('/admin/registration-mode'),
   
