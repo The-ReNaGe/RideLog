@@ -7,6 +7,8 @@ import FuelTracking from '../components/FuelTracking';
 import VehiclePhoto from '../components/VehiclePhoto';
 import Icon from '../components/Icon';
 import CategoryTag, { getCategory } from '../components/CategoryTag';
+import { usePreferences } from '../lib/preferencesContext';
+import { distanceToDisplay, distanceUnit } from '../lib/units';
 
 const motorLabels = {
   essence: 'Essence', diesel: 'Diesel', hybride: 'Hybride', hybrid: 'Hybride',
@@ -26,6 +28,7 @@ const tabs = [
 
 
 export default function VehicleDetail({ vehicleId, onBack, currentUser }) {
+  const { units, lang } = usePreferences();
   const [vehicle, setVehicle] = useState(null);
   const [upcoming, setUpcoming] = useState(null);
   const [recommendations, setRecommendations] = useState(null);
@@ -448,8 +451,8 @@ export default function VehicleDetail({ vehicleId, onBack, currentUser }) {
               ) : (
                 <>
                   <span className="tabular" style={{ fontSize: 20, fontWeight: 800, letterSpacing: '-0.02em', color: 'var(--text-1)' }}>
-                    {vehicle.current_mileage.toLocaleString('fr-FR')}
-                    <span style={{ fontSize: 13, fontWeight: 600, color: 'var(--text-3)', marginLeft: 4 }}>km</span>
+                    {distanceToDisplay(vehicle.current_mileage, units).toLocaleString(lang === 'en' ? 'en-GB' : 'fr-FR')}
+                    <span style={{ fontSize: 13, fontWeight: 600, color: 'var(--text-3)', marginLeft: 4 }}>{distanceUnit(units)}</span>
                   </span>
                   {canEdit && (
                     <button
