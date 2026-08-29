@@ -8,6 +8,8 @@ import { copyToClipboard } from '../lib/clipboard';
 import Icon from '../components/Icon';
 import PageHeader from '../components/PageHeader';
 import Notice from '../components/Notice';
+import { useI18n } from '../lib/i18nContext';
+import { LANGUAGES } from '../lib/i18n';
 
 const TABS = [
   { key: 'discord',       icon: 'message',  label: 'Discord' },
@@ -20,6 +22,7 @@ const TABS = [
 ];
 
 export default function Settings({ currentUser }) {
+  const { t } = useI18n();
   const [activeTab, setActiveTab] = useState('discord');
 
   return (
@@ -28,7 +31,7 @@ export default function Settings({ currentUser }) {
     // à la ligne. Un onglet centré et les autres pleine largeur — l'écart
     // sautait aux yeux en passant de l'un à l'autre.
     <div className="max-w-5xl mx-auto">
-      <PageHeader title="Paramètres" />
+      <PageHeader title={t('Paramètres')} />
 
       {/* Navigation par onglets */}
       <div className="tabs mb-5">
@@ -40,7 +43,7 @@ export default function Settings({ currentUser }) {
             aria-current={activeTab === tab.key ? 'true' : undefined}
           >
             <Icon name={tab.icon} size={16} />
-            {tab.label}
+            {t(tab.label)}
           </button>
         ))}
       </div>
@@ -58,7 +61,12 @@ export default function Settings({ currentUser }) {
       {activeTab === 'famille' && <FamilySettings currentUser={currentUser} />}
 
       {/* COMPTE TAB */}
-      {activeTab === 'compte' && <AccountSettings />}
+      {activeTab === 'compte' && (
+        <>
+          <LanguageSettings />
+          <AccountSettings />
+        </>
+      )}
 
       {/* INSCRIPTION TAB */}
       {activeTab === 'inscription' && currentUser?.is_admin && (
@@ -174,6 +182,82 @@ function ReminderSettings() {
 // ═══════════════════════════════════════════════════════════════════════════
 // COMPTE — changement de mot de passe (libre-service, tous utilisateurs)
 // ═══════════════════════════════════════════════════════════════════════════
+
+// ═══════════════════════════════════════════════════════════════════════════
+// LANGUE — préférence de l'utilisateur connecté
+// ═══════════════════════════════════════════════════════════════════════════
+//
+// Par utilisateur, et non pour l'instance comme le pays : dans un groupe
+// famille, un membre peut vouloir l'anglais et un autre le français. Le pays
+// décrit la machine, la langue décrit la personne.
+//
+// La traduction est en cours : le catalogue anglais ne couvre pas encore tout
+// l'écran. Le dire est le minimum — un utilisateur qui bascule et retombe sur
+// du français croirait à une panne.
+
+function LanguageSettings() {
+  const { lang, setLang, t } = useI18n();
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState(null);
+
+  const choose = async (code) => {
+    if (code === lang || saving) return;
+    // Bascule immédiate : l'interface ne doit pas attendre le réseau pour
+    // répondre à un clic. L'enregistrement ne sert qu'à retrouver ce choix
+    // depuis un autre navigateur.
+    setLang(code);
+    setSaving(true);
+    setError(null);
+    try {
+      const res = await api.setLanguage(code);
+      // Le compte est aussi relu depuis localStorage au démarrage de l'app :
+      // sans cette écriture, un rechargement repartirait sur l'ancienne valeur.
+      localStorage.setItem('user', JSON.stringify(res.data));
+    } catch (err) {
+      setError(err.response?.data?.detail || err.message);
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  return (
+    <div className="mb-5">
+      <div className="card p-6">
+        <h3 className="section-title mb-3">{t('Langue')}</h3>
+
+        <div className="segmented" style={{ display: 'inline-flex', marginBottom: 12 }}>
+          {LANGUAGES.map((l) => (
+            <button
+              key={l.code}
+              type="button"
+              onClick={() => choose(l.code)}
+              className={`segment ${lang === l.code ? 'active' : ''}`}
+              aria-pressed={lang === l.code}
+            >
+              {l.label}
+            </button>
+          ))}
+        </div>
+
+        <p className="field-hint">
+          {t('Ce choix ne vaut que pour votre compte et vous suit d\'un navigateur à l\'autre.')}
+        </p>
+
+        {lang !== 'fr' && (
+          <Notice tone="warning" icon="info" className="mt-4">
+            {t('La traduction anglaise est en cours : certains écrans sont encore en français.')}
+          </Notice>
+        )}
+
+        {error && (
+          <Notice tone="danger" icon="alertCircle" className="mt-4">
+            {t('Le choix est appliqué ici, mais n\'a pas pu être enregistré : {error}', { error })}
+          </Notice>
+        )}
+      </div>
+    </div>
+  );
+}
 
 function AccountSettings() {
   const [currentPassword, setCurrentPassword] = useState('');
