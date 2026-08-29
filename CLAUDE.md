@@ -924,6 +924,7 @@ frontend/src/
 └── components/
     ├── Icon.jsx                     # ★ Jeu d'icônes SVG maison — aucun émoji dans l'interface, voir §23 ★
     ├── Flag.jsx                     # Drapeaux de pays — seul composant coloré, voir §23.10
+    ├── CountryBadge.jsx             # ★ Marque ce qui dépend du PAYS — recensement, voir §23.10 bis ★
     ├── Notice.jsx                   # Encart d'explication/résultat (tons info, success, warning, danger, neutral)
     ├── PageHeader.jsx               # En-tête de page : titre, précision, actions
     ├── CategoryTag.jsx              # Catégorie d'intervention (entretien / réparation / modification)
@@ -1911,40 +1912,82 @@ fichier, au fur et à mesure des vagues.
 62 137,12. Conséquence assumée : la conversion n'est pas exactement
 réversible, l'écart valant au plus 1 mile.
 
-**Deux exceptions, et elles sont inévitables :**
+**La consommation fait exception** et garde une décimale : L/100 km et MPG
+sont **inverses** l'un de l'autre, et à l'entier 5,2 et 5,8 L/100 km
+deviendraient tous deux « 5 ».
 
-| Grandeur | Décimales | Pourquoi |
-|---|---|---|
-| Consommation | 1 | L/100 km et MPG sont **inverses** l'un de l'autre. À l'entier, 5,2 et 5,8 L/100 km deviendraient tous deux « 5 » |
-| Volume | 1 | 45 L font 9,9 gal ; à l'entier, un demi-litre disparaîtrait de chaque ligne d'historique |
+> ⚠️ **Le carburant reste en litres, même en miles.** Ce n'est pas un oubli.
+> Le Royaume-Uni — le seul pays à miles qu'on ajouterait de façon plausible
+> après la France — **vend son carburant au litre** tout en comptant ses
+> distances en miles et sa consommation en MPG. Convertir les volumes parce
+> que l'utilisateur a coché « miles » afficherait un prix au gallon que
+> personne ne voit à la pompe.
+>
+> Et le gallon américain (3,785 L) n'est pas l'impérial (4,546 L) : ce choix
+> relève de la **région**, pas d'une bascule à deux valeurs. Les fonctions de
+> conversion de volume existent dans `units.js` mais ne sont **pas branchées**
+> sur `useFormat` — délibérément, pour qu'on ne les câble pas par réflexe.
 
 > ⚠️ **La consommation ne se convertit pas comme le reste.** MPG n'est pas un
 > multiple de L/100 km, c'est son inverse : `mpg = (100/n) / 1,609344 × 4,54609`.
 > Traiter cette conversion comme les autres donnerait un résultat inversé —
 > 5 L/100 km, une excellente valeur, deviendrait une consommation énorme au
 > lieu de 56,5 MPG. Vérifié numériquement contre les équivalences connues.
-
-Le gallon retenu est **l'impérial** (4,546 L), pas l'américain (3,785 L) : les
-seuls pays qui comptent en miles pour la route et pourraient être ajoutés au
-registre utilisent l'un ou l'autre, et le choix devra être porté par la région
-le jour venu — pas deviné ici.
+>
+> **Le coût aux 100 est un rapport, pas une grandeur** : un coût au kilomètre
+> devient un coût au mile en **augmentant** (le mile est plus long). D'où
+> `costPerDistanceToDisplay`, qui multiplie là où le reste divise. L'erreur est
+> facile et le résultat resterait plausible à l'œil.
 
 **Le format des nombres suit la LANGUE, pas les unités** : un francophone qui
 compte en miles attend « 62 137 », pas « 62,137 ».
 
-#### Avancement de l'application des unités
+#### `useFormat()` — le hook à utiliser, toujours
 
-| Écran | État |
-|---|---|
-| Carte véhicule (liste), fiche véhicule | ✅ |
-| « À venir », historique d'entretien, carburant, tableau de bord, planning | à faire |
-| Formulaires de saisie (`distanceToStorage` au moment d'envoyer) | à faire |
+```jsx
+const fmt = useFormat();
+fmt.dist(vehicle.current_mileage)       // « 62 137 mi »
+fmt.distValue(km)                       // la valeur seule, pour un <input>
+fmt.distUnit                            // « mi » — pour un libellé de champ
+fmt.toStorage(saisie)                   // ← OBLIGATOIRE sur toute saisie
+```
 
-> ⚠️ Tant qu'un formulaire n'appelle pas `distanceToStorage`, **un utilisateur
-> en miles y saisirait des miles enregistrés comme des kilomètres**. C'est la
-> raison pour laquelle l'écran des préférences dit que le réglage ne change que
-> l'affichage : c'est vrai aujourd'hui parce que la saisie n'est pas encore
-> convertie. Cette phrase devra changer en même temps que les formulaires.
+Écrire `formatDistance(km, units, lang)` à la main marche aussi, mais sur des
+centaines de sites d'appel le premier oubli du troisième argument donne des
+séparateurs français dans une interface anglaise, **sans erreur ni
+avertissement**. Le hook rend l'oubli impossible.
+
+> ⚠️ **`fmt` doit figurer dans les dépendances de tout `useCallback` /
+> `useEffect` qui l'utilise.** Il est mémorisé sur `[units, lang]` : omis, la
+> fonction garde l'ancienne conversion et un changement d'unité fait sans
+> recharger la page **enregistrerait des miles comme des kilomètres**.
+> `react-hooks/exhaustive-deps` le signale — trois cas réels ont été trouvés
+> ainsi en écrivant ce lot.
+
+#### Où les unités s'appliquent
+
+Partout où une distance est affichée ou saisie : carte véhicule, fiche
+véhicule, « À venir » (échéances, intervalles, et les deux modales
+d'édition), historique d'entretien, formulaire d'entretien, formulaire
+véhicule (compteur, intervalle de révision, et les listes d'exemples),
+carburant (compteur, autonomie, consommation, coût aux 100), tableau de bord,
+planning.
+
+**Le contrôle qui compte**, à relancer après toute modification :
+
+```bash
+grep -rn "mileage_at_intervention\|mileage_at_fill\|current_mileage\|km_interval\|service_interval_km" \
+  frontend/src --include="*.jsx" | grep -E "parseInt|append|payload|updateVehicle" \
+  | grep -v "fmt.toStorage\|fmt.distValue"
+```
+
+Il doit rester **vide** : toute distance envoyée au backend passe par
+`fmt.toStorage`. Une seule ligne qui y échappe, et un utilisateur en miles
+enregistre des miles dans une colonne de kilomètres — sans erreur, sans trace,
+et l'historique est faussé définitivement.
+
+`APIDocumentation.jsx` reste volontairement en kilomètres : elle documente
+l'API, dont l'unité de stockage ne change pas.
 
 ---
 
@@ -2393,6 +2436,31 @@ drapeau paraît amputé.
 > pas au Royaume-Uni ni le français à la France. Le sélecteur de langue affiche
 > donc des noms de langue en toutes lettres ; les drapeaux sont réservés au
 > choix du pays, où ils veulent dire quelque chose.
+
+### 23.10 bis `CountryBadge` — le recensement de ce qui est national
+
+Trois choses ne se traduisent pas, elles se **remplacent** d'un pays à l'autre
+(§20.1) : le format de plaque et le service qui la décode, le calendrier du
+contrôle technique, et la base de communes qui alimente la recherche de
+stations. Rien à l'écran ne le disait, et un contributeur devait relire le code
+pour savoir ce qu'un second pays obligerait à toucher.
+
+`<CountryBadge reason="…" />` affiche le drapeau du pays actif à côté de
+l'élément concerné. Il sert deux fins d'un coup : l'utilisateur voit d'où vient
+la règle, et **ajouter un pays revient à chercher les occurrences de ce
+composant**.
+
+Posé aujourd'hui sur : le bloc de décodage de plaque (`VehicleForm`), le
+contrôle technique dans « À venir » (`UpcomingMaintenance`), la recherche de
+stations (`FuelStations`).
+
+> ⚠️ **À ne poser que sur ce qui change réellement avec le pays.** Sur un champ
+> ordinaire il devient décoratif, et le jour où l'on cherchera ce qu'un
+> nouveau pays impacte, la liste ne voudra plus rien dire.
+
+L'exemple de plaque n'est plus écrit en dur : il voyage dans
+`effective.plate_example` (§20.3) et alimente à la fois l'indication de saisie
+et le message d'erreur du champ.
 
 ### 23.11 L'écran Préférences
 
