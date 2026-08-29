@@ -1,6 +1,16 @@
 import React, { createContext, useContext, useEffect, useMemo, useState } from 'react';
 import { DEFAULT_LANGUAGE, isSupported as isSupportedLanguage, translate } from './i18n';
-import { DEFAULT_UNITS } from './units';
+import {
+  DEFAULT_UNITS,
+  consumptionUnit,
+  costPerDistanceToDisplay,
+  distanceToDisplay,
+  distanceToStorage,
+  distanceUnit,
+  formatConsumption,
+  formatDistance,
+  localeOf,
+} from './units';
 
 /**
  * Préférences d'affichage diffusées dans l'arbre React : langue et unités.
@@ -53,6 +63,7 @@ const PreferencesContext = createContext({
   lang: DEFAULT_LANGUAGE,
   units: DEFAULT_UNITS,
   region: null,
+  plateExample: null,
   setLang: () => {},
   setUnits: () => {},
   t: (text) => text,
@@ -61,12 +72,14 @@ const PreferencesContext = createContext({
 export function PreferencesProvider({ user, children }) {
   const [prefs, setPrefs] = useState(readStored);
   const [region, setRegion] = useState(null);
+  const [plateExample, setPlateExample] = useState(null);
 
   // Ce que le backend a résolu l'emporte dès qu'on le connaît.
   useEffect(() => {
     const effective = user?.effective;
     if (!effective) return;
     setRegion(effective.region || null);
+    setPlateExample(effective.plate_example || null);
     setPrefs((current) => {
       const next = {
         lang: isSupportedLanguage(effective.language) ? effective.language : current.lang,
@@ -84,6 +97,7 @@ export function PreferencesProvider({ user, children }) {
     lang: prefs.lang,
     units: prefs.units,
     region,
+    plateExample,
     setLang: (code) => {
       if (!isSupportedLanguage(code)) return;
       setPrefs((c) => { const n = { ...c, lang: code }; store(n); return n; });
@@ -93,7 +107,7 @@ export function PreferencesProvider({ user, children }) {
       setPrefs((c) => { const n = { ...c, units: code }; store(n); return n; });
     },
     t: (text, vars) => translate(prefs.lang, text, vars),
-  }), [prefs, region]);
+  }), [prefs, region, plateExample]);
 
   return (
     <PreferencesContext.Provider value={value}>{children}</PreferencesContext.Provider>
@@ -108,4 +122,43 @@ export function usePreferences() {
 /** Raccourci pour le cas courant, qui ne veut que traduire. */
 export function useT() {
   return useContext(PreferencesContext).t;
+}
+
+/**
+ * Formateurs déjà liés aux préférences actives.
+ *
+ * Sans ce hook, chaque affichage d'un kilométrage s'écrirait
+ * `formatDistance(km, units, lang)` — trois arguments à retenir, sur des
+ * centaines de sites d'appel. Le premier oubli du troisième donne des
+ * séparateurs de milliers français dans une interface anglaise, sans erreur
+ * ni avertissement. Ici on écrit `fmt.dist(km)`.
+ *
+ * `toStorage` fait le trajet inverse et doit être appelé sur TOUTE valeur de
+ * distance saisie dans un formulaire : sans lui, un utilisateur en miles voit
+ * ses miles enregistrés comme des kilomètres.
+ */
+export function useFormat() {
+  const { units, lang } = useContext(PreferencesContext);
+  return useMemo(() => ({
+    units,
+    lang,
+    locale: localeOf(lang),
+
+    // Affichage
+    dist: (km, opts) => formatDistance(km, units, lang, opts),
+    cons: (l100, opts) => formatConsumption(l100, units, lang, opts),
+    costPerDist: (costPerKm) => costPerDistanceToDisplay(costPerKm, units),
+
+    // Valeurs brutes, quand le libellé est posé séparément
+    distValue: (km) => distanceToDisplay(km, units),
+
+    // Unités, pour les libellés de champs et les en-têtes de colonne.
+    // Pas de `volUnit` : le carburant reste en litres même en miles, voir
+    // le bloc « Volumes » de units.js.
+    distUnit: distanceUnit(units),
+    consUnit: consumptionUnit(units),
+
+    // Saisie → stockage. Obligatoire sur TOUT champ de distance.
+    toStorage: (value) => distanceToStorage(value, units),
+  }), [units, lang]);
 }

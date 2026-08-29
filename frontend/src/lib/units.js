@@ -71,6 +71,21 @@ export function distanceUnit(units) {
 }
 
 // ── Volumes ────────────────────────────────────────────────────────────────
+//
+// ⚠️ CES FONCTIONS NE SONT VOLONTAIREMENT PAS BRANCHÉES sur le réglage
+// métrique/impérial, et le carburant reste affiché en litres même en miles.
+//
+// Ce n'est pas un oubli. Le Royaume-Uni — le seul pays à miles qu'on ajouterait
+// de façon plausible après la France — **vend son carburant au litre** tout en
+// comptant ses distances en miles et sa consommation en MPG. Convertir les
+// volumes en gallons parce que l'utilisateur a choisi « miles » afficherait
+// donc un prix au gallon que personne ne voit jamais à la pompe, et rendrait
+// incomparables les relevés d'un même conducteur.
+//
+// Le gallon appartient aux États-Unis, et le gallon américain (3,785 L) n'est
+// pas l'impérial (4,546 L). Ce choix relève donc de la RÉGION, pas d'une
+// bascule à deux valeurs — il sera porté par `regions/us.py` le jour venu.
+// D'ici là ces fonctions restent disponibles et non câblées.
 
 /**
  * Litres → gallons. Une décimale conservée : un plein de 42 L fait 9,2 gal,
@@ -129,10 +144,42 @@ export function consumptionUnit(units) {
  * Le format des nombres suit la LANGUE, pas le système d'unités : un
  * francophone qui compte en miles attend toujours « 62 137 », pas « 62,137 ».
  */
+export function localeOf(lang) {
+  return lang === 'en' ? 'en-GB' : 'fr-FR';
+}
+
 export function formatDistance(km, units, lang = 'fr', { withUnit = true } = {}) {
   const value = distanceToDisplay(km, units);
   if (value === null || value === undefined || value === '') return '—';
-  const locale = lang === 'en' ? 'en-GB' : 'fr-FR';
-  const text = value.toLocaleString(locale);
+  const text = value.toLocaleString(localeOf(lang));
   return withUnit ? `${text} ${distanceUnit(units)}` : text;
+}
+
+export function formatVolume(litres, units, lang = 'fr', { withUnit = true } = {}) {
+  const value = volumeToDisplay(litres, units);
+  if (value === null || value === undefined || value === '') return '—';
+  const text = value.toLocaleString(localeOf(lang), { maximumFractionDigits: 2 });
+  return withUnit ? `${text} ${volumeUnit(units)}` : text;
+}
+
+export function formatConsumption(litresPer100km, units, lang = 'fr', { withUnit = true } = {}) {
+  const value = consumptionToDisplay(litresPer100km, units);
+  if (value === null || value === undefined || value === '') return '—';
+  const text = value.toLocaleString(localeOf(lang), { maximumFractionDigits: 1 });
+  return withUnit ? `${text} ${consumptionUnit(units)}` : text;
+}
+
+/**
+ * Coût par unité de distance.
+ *
+ * Ce n'est PAS une conversion d'unité mais un rapport : un prix au kilomètre
+ * devient un prix au mile, donc il AUGMENTE (un mile est plus long). Diviser
+ * là où l'on multiplie ailleurs — l'erreur est facile et le résultat reste
+ * plausible à l'œil, d'où ce commentaire.
+ */
+export function costPerDistanceToDisplay(costPerKm, units) {
+  if (costPerKm === null || costPerKm === undefined || costPerKm === '') return costPerKm;
+  const n = Number(costPerKm);
+  if (!Number.isFinite(n)) return null;
+  return isImperial(units) ? n * KM_PER_MILE : n;
 }

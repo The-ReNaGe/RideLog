@@ -89,7 +89,15 @@ def test_without_any_choice_the_country_supplies_the_defaults(client):
     body = me(client, headers)
 
     assert body["language"] is None and body["units"] is None   # aucun choix
-    assert body["effective"] == {"region": "FR", "language": "fr", "units": "metric"}
+    assert body["effective"] == {
+        "region": "FR",
+        "language": "fr",
+        "units": "metric",
+        # L'exemple de plaque voyage avec les préférences : le formulaire
+        # véhicule s'en sert comme indication de saisie et comme message
+        # d'erreur, et il le codait en dur avant.
+        "plate_example": "AB-123-CD",
+    }
 
 
 def test_choosing_imperial_units_is_remembered(client):

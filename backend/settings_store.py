@@ -103,4 +103,8 @@ def effective_preferences(db: Session, user) -> dict:
         "region": region.code,
         "language": user.language or region.default_language,
         "units": user.units or region.default_units,
+        # L'exemple de plaque voyage ici plutôt que dans un appel séparé à
+        # /regions : le formulaire véhicule s'en sert comme indication de
+        # saisie et comme message d'erreur, et il le codait jusqu'ici en dur.
+        "plate_example": region.plate_example,
     }
