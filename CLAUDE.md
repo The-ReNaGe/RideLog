@@ -117,7 +117,7 @@ Les variables d'environnement sont gérées via un fichier `.env` à la racine d
 | `LOG_LEVEL` | `INFO` | Niveau de log |
 | `RAPIDAPI_KEY` | — | Clé API pour décodage plaque d'immatriculation |
 | `RIDELOG_TAG` | `stable` | Canal d'image : `stable` (validé à la main), `latest` (chaque merge, non validé), ou une version figée. Voir §21 |
-| `REGION` | `FR` | Pays **initial** — format de plaque et service de décodage (voir §20). Le choix fait dans l'onglet « Pays » des paramètres est persisté en base et l'emporte. Un code inconnu retombe sur `FR` |
+| `REGION` | `FR` | Pays **initial** — format de plaque et service de décodage (voir §20). Le choix fait dans Paramètres → **Préférences** est persisté en base et l'emporte. Un code inconnu retombe sur `FR` |
 | `REMINDER_INTERVAL` | `3600` | Intervalle de vérification des rappels (secondes) |
 | `REMINDER_ENABLED` | `true` | Active/désactive le scheduler de rappels |
 | `DB_BACKUP_DIR` | `/data/backups` | Répertoire des sauvegardes automatiques prises avant toute migration de schéma (voir §13) |
@@ -175,7 +175,7 @@ backend/
 │   ├── test_migrations.py
 │   ├── test_regions_fr.py
 │   ├── test_regions_settings.py
-│   ├── test_user_language.py
+│   ├── test_user_preferences.py
 │   ├── test_maintenance_routes.py
 │   └── test_auth_integration.py
 └── routes/
@@ -290,7 +290,7 @@ Schémas Pydantic pour les entrées/sorties :
 | GET | `/api/auth/me` | JWT | Infos utilisateur courant |
 | POST | `/api/auth/logout` | JWT | Déconnexion (advisory, JWT stateless) |
 | POST | `/api/auth/refresh` | JWT | Renouveler le token |
-| PUT | `/api/auth/me/language` | JWT | Langue d'interface du compte (`fr` / `en`) — voir §20.5 |
+| PUT | `/api/auth/me/preferences` | JWT | Langue et unités du compte (`fr`/`en`, `metric`/`imperial`, ou `auto`) — voir §20.5 |
 | POST | `/api/auth/refresh-token` | Bearer header | Renouveler (utilisé par HA) |
 | POST | `/api/auth/ha-init` | `init_key` param | Créer/renouveler le compte Home Assistant |
 | GET | `/api/admin/users` | Admin | Lister tous les utilisateurs |
@@ -908,7 +908,8 @@ frontend/src/
 ├── lib/
 │   ├── api.js                       # Client Axios — toutes les méthodes API
 │   ├── i18n.js                      # ★ Moteur de traduction — catalogues, t() — voir §20.5 ★
-│   ├── i18nContext.jsx              # Provider React + hooks useI18n / useT
+│   ├── preferencesContext.jsx       # Provider React — langue ET unités — hooks usePreferences / useT
+│   ├── units.js                     # ★ Conversions km↔mi, L↔gal, L/100km↔MPG — voir §20.6 ★
 │   ├── locales/en.js                # Catalogue anglais (remplissage par vagues)
 │   ├── interventionTranslations.js  # Traductions noms d'interventions (anglais → français)
 │   └── revisionChecklist.js         # ★ Logique partagée checklist révision (items, sous-items, helpers) ★
@@ -922,6 +923,7 @@ frontend/src/
 │   └── Admin.jsx               # Administration (users, invitations)
 └── components/
     ├── Icon.jsx                     # ★ Jeu d'icônes SVG maison — aucun émoji dans l'interface, voir §23 ★
+    ├── Flag.jsx                     # Drapeaux de pays — seul composant coloré, voir §23.10
     ├── Notice.jsx                   # Encart d'explication/résultat (tons info, success, warning, danger, neutral)
     ├── PageHeader.jsx               # En-tête de page : titre, précision, actions
     ├── CategoryTag.jsx              # Catégorie d'intervention (entretien / réparation / modification)
@@ -1662,7 +1664,7 @@ python -m pytest tests/ -v
 | `test_client_ip.py` | `get_client_ip()`, les deux limiteurs et `validate_jwt_secret()` (`security.py`) — verrouille les deux contournements corrigés du rate limiter (`X-Forwarded-For` falsifié, et passerelle Docker prise pour un proxy de confiance sur le port 8000 — voir §4), le verrouillage par compte, et le refus de démarrer sur un `JWT_SECRET` public. |
 | `test_migrations.py` | `migrations.py` — parité de schéma entre base neuve et base migrée, survie des données, idempotence, adoption d'une base sans registre, migration à demi appliquée, rollback, garde anti-retour-arrière, sauvegardes. Tourne sur **deux schémas anciens réels** figés dans `tests/fixtures/*.sql` (le commit initial du dépôt et une instance antérieure au dépôt), jamais sur un schéma écrit de mémoire. |
 | `test_fuel_stations.py` | Routes `/fuel-stations/*` — authentification exigée sur les trois endpoints, bornes de `max_distance`/`limit`, cache (clé insensible aux accents, plafond, expiration). Les appels sortants sont monkeypatchés : aucun test ne sort sur le réseau. |
-| `test_user_language.py` | Préférence de langue (`users.language`, `PUT /auth/me/language`) — un compte neuf porte `NULL` et non `"fr"`, une langue non servie est refusée, et surtout **l'isolation par utilisateur** : le choix d'un membre ne déborde pas sur les autres. |
+| `test_user_preferences.py` | Langue et unités (`users.language`, `users.units`, `PUT /auth/me/preferences`) — un compte neuf porte `NULL` et non `"fr"`/`"metric"`, les préférences effectives retombent sur le pays, `auto` remet un réglage sous ce défaut, une valeur non servie est refusée, et surtout **l'isolation par utilisateur** : le choix d'un membre ne déborde pas sur les autres. |
 | `test_regions_fr.py` | `regions/fr.py` — normalisation de plaque, analyse de la réponse carte grise (détection moto par genre, replis de cylindrée, priorité du genre sur l'indication utilisateur), repli du registre sur `FR`. Aucun appel réseau : cette logique n'était auparavant atteignable que via un service tiers payant, donc jamais testée. |
 | `test_regions_settings.py` | Choix du pays (`settings_store.py`, `routes/regions.py`) — France par défaut, refus d'un pays inconnu, écriture réservée à un admin, persistance **en base** et non en mémoire, et repli sur `FR` quand la base garde un pays que le code ne connaît plus (retour arrière, §21.5). |
 | `test_maintenance_routes.py` | Enregistrement d'un entretien via `TestClient` — la clé technique est stockée, deux libellés d'une même intervention partagent une clé, un libellé inconnu n'échoue pas, et l'entretien enregistré ressort bien rattaché à son échéance. |
@@ -1747,8 +1749,8 @@ clé dans `{key, name}` sans qu'on la lise.
 
 ### 20.3 Couture régionale (`backend/regions/`)
 
-Le pays se choisit dans l'interface — Paramètres → **Pays**, onglet réservé à
-un administrateur. Il n'y a qu'un pays au registre aujourd'hui : c'est la
+Le pays se choisit dans l'interface — Paramètres → **Préférences** (§23.11),
+réservé à un administrateur. Il n'y a qu'un pays au registre aujourd'hui : c'est la
 *couture* qui est posée, pas le second pays (§20.4 dit pourquoi).
 
 **Ordre de priorité**, du plus fort au plus faible :
@@ -1891,6 +1893,60 @@ autrement que par une prop.
 ESLint `no-literal-string` est le compteur de progression naturel, mais
 l'activer aujourd'hui produirait des centaines d'erreurs. À poser fichier par
 fichier, au fur et à mesure des vagues.
+
+
+### 20.6 Unités d'affichage (`lib/units.js`)
+
+> ⚠️ **La base reste en kilomètres et en litres, quoi que choisisse
+> l'utilisateur.** La conversion se fait au dernier moment, à l'affichage.
+>
+> Stocker dans l'unité saisie rendrait tout l'historique ambigu — un relevé de
+> 30 000 saisi l'an dernier, faut-il le lire en km ou en miles ? Un changement
+> de préférence réécrirait le passé. Et deux membres d'un groupe famille, qui
+> partagent les mêmes véhicules avec des réglages différents, verraient deux
+> historiques incohérents.
+
+**Les distances sont des entiers des deux côtés** — `distanceToDisplay` comme
+`distanceToStorage` arrondissent. Un compteur affiche 62 137 miles, pas
+62 137,12. Conséquence assumée : la conversion n'est pas exactement
+réversible, l'écart valant au plus 1 mile.
+
+**Deux exceptions, et elles sont inévitables :**
+
+| Grandeur | Décimales | Pourquoi |
+|---|---|---|
+| Consommation | 1 | L/100 km et MPG sont **inverses** l'un de l'autre. À l'entier, 5,2 et 5,8 L/100 km deviendraient tous deux « 5 » |
+| Volume | 1 | 45 L font 9,9 gal ; à l'entier, un demi-litre disparaîtrait de chaque ligne d'historique |
+
+> ⚠️ **La consommation ne se convertit pas comme le reste.** MPG n'est pas un
+> multiple de L/100 km, c'est son inverse : `mpg = (100/n) / 1,609344 × 4,54609`.
+> Traiter cette conversion comme les autres donnerait un résultat inversé —
+> 5 L/100 km, une excellente valeur, deviendrait une consommation énorme au
+> lieu de 56,5 MPG. Vérifié numériquement contre les équivalences connues.
+
+Le gallon retenu est **l'impérial** (4,546 L), pas l'américain (3,785 L) : les
+seuls pays qui comptent en miles pour la route et pourraient être ajoutés au
+registre utilisent l'un ou l'autre, et le choix devra être porté par la région
+le jour venu — pas deviné ici.
+
+**Le format des nombres suit la LANGUE, pas les unités** : un francophone qui
+compte en miles attend « 62 137 », pas « 62,137 ».
+
+#### Avancement de l'application des unités
+
+| Écran | État |
+|---|---|
+| Carte véhicule (liste), fiche véhicule | ✅ |
+| « À venir », historique d'entretien, carburant, tableau de bord, planning | à faire |
+| Formulaires de saisie (`distanceToStorage` au moment d'envoyer) | à faire |
+
+> ⚠️ Tant qu'un formulaire n'appelle pas `distanceToStorage`, **un utilisateur
+> en miles y saisirait des miles enregistrés comme des kilomètres**. C'est la
+> raison pour laquelle l'écran des préférences dit que le réglage ne change que
+> l'affichage : c'est vrai aujourd'hui parce que la saisie n'est pas encore
+> convertie. Cette phrase devra changer en même temps que les formulaires.
+
+---
 
 ---
 
@@ -2317,7 +2373,58 @@ bordure colorée.
 > `routes/vehicle_status.py` et se branche sur `GET /vehicles`, qui lui passe
 > par `list_readable_vehicles`.
 
-### 23.10 Pour modifier
+### 23.10 Drapeaux — la seconde exception colorée
+
+`components/Flag.jsx` est **distinct d'`Icon`, et volontairement**. Le jeu
+d'icônes est monochrome par construction : chaque tracé hérite de
+`currentColor`, ce qui le rend juste dans les deux thèmes sans effort (§23.3).
+Un drapeau ne peut pas suivre cette règle — ses couleurs *sont* son identité.
+Le verser dans `Icon` obligerait à poser des couleurs en dur dans la table des
+tracés, et ouvrirait la porte à ce qu'on en pose ailleurs.
+
+C'est donc la **seconde** exception documentée à « aucune couleur littérale »,
+après le fond de la plaque du logo (§23.2). Elle s'arrête là.
+
+Le cadre porte une bordure `var(--border)` : sans elle, la bande blanche du
+drapeau français se fond dans la surface d'une carte en thème clair et le
+drapeau paraît amputé.
+
+> ⚠️ **Un drapeau désigne un pays, jamais une langue.** L'anglais n'appartient
+> pas au Royaume-Uni ni le français à la France. Le sélecteur de langue affiche
+> donc des noms de langue en toutes lettres ; les drapeaux sont réservés au
+> choix du pays, où ils veulent dire quelque chose.
+
+### 23.11 L'écran Préférences
+
+Les trois réglages étaient éparpillés — le pays dans un onglet admin à part, la
+langue enfouie dans « Compte », les unités nulle part. On vient les régler dans
+le même mouvement et on les cherchait à trois endroits. Ils sont réunis dans un
+onglet « Préférences », placé **en tête** et ouvert par défaut.
+
+Ils n'ont pourtant pas la même portée, et l'écran doit le dire explicitement :
+
+| Réglage | Portée | Pourquoi |
+|---|---|---|
+| Pays | l'instance, **admin seul** | Il décide du format de plaque et du calendrier réglementaire : des faits sur les véhicules, pas des goûts |
+| Langue | l'utilisateur | |
+| Unités | l'utilisateur, **affichage seul** | Voir §20.6 |
+
+> ⚠️ **Le pays ne doit pas devenir un réglage par utilisateur.** Le contrôle
+> technique se calcule à partir de lui : un membre du groupe famille verrait
+> alors une échéance différente de celle du propriétaire, sur le même véhicule.
+> Si le besoin apparaît — un véhicule immatriculé à l'étranger — la bonne
+> réponse est un pays **par véhicule**, pas par spectateur.
+
+Le pays fournit le **défaut** des deux autres (`default_language`,
+`default_units` portés par chaque région). Un compte qui n'a rien choisi suit
+le pays, et suivra le nouveau si l'admin en change ; un compte qui a choisi
+garde son choix.
+
+Les options sont des **boutons-cartes**, pas un `<select>` : à deux ou trois
+choix, les montrer tous évite le clic qui sert seulement à découvrir ce qui
+existe — et un `<select>` ne sait pas porter un drapeau.
+
+### 23.12 Pour modifier
 
 - **Ajouter une icône** : une entrée dans la table `P` d'`Icon.jsx`. Ne pas
   poser de couleur dans le tracé.
