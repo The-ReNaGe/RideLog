@@ -8,23 +8,28 @@ import { copyToClipboard } from '../lib/clipboard';
 import Icon from '../components/Icon';
 import PageHeader from '../components/PageHeader';
 import Notice from '../components/Notice';
-import { useI18n } from '../lib/i18nContext';
+import { usePreferences } from '../lib/preferencesContext';
 import { LANGUAGES } from '../lib/i18n';
+import { UNIT_SYSTEMS } from '../lib/units';
+import Flag from '../components/Flag';
 
 const TABS = [
+  // Les préférences d'abord : c'est le premier réglage qu'on cherche, et
+  // c'était jusqu'ici le plus difficile à trouver — le pays dans un onglet
+  // admin séparé, la langue enfouie dans « Compte ».
+  { key: 'preferences',   icon: 'sliders',  label: 'Préférences' },
   { key: 'discord',       icon: 'message',  label: 'Discord' },
   { key: 'homeassistant', icon: 'home',     label: 'Home Assistant' },
   { key: 'reminders',     icon: 'bell',     label: 'Rappels' },
   { key: 'famille',       icon: 'users',    label: 'Famille' },
   { key: 'compte',        icon: 'key',      label: 'Compte' },
   { key: 'inscription',   icon: 'mail',     label: 'Inscription', adminOnly: true },
-  { key: 'pays',          icon: 'globe',    label: 'Pays', adminOnly: true },
   { key: 'api',           icon: 'plug',     label: 'API' },
 ];
 
 export default function Settings({ currentUser }) {
-  const { t } = useI18n();
-  const [activeTab, setActiveTab] = useState('discord');
+  const { t } = usePreferences();
+  const [activeTab, setActiveTab] = useState('preferences');
 
   return (
     // Largeur commune à tous les onglets. Sans elle, le contenu s'étirait sur
@@ -61,21 +66,16 @@ export default function Settings({ currentUser }) {
       {/* FAMILLE TAB */}
       {activeTab === 'famille' && <FamilySettings currentUser={currentUser} />}
 
+      {/* PRÉFÉRENCES TAB */}
+      {activeTab === 'preferences' && <PreferencesSettings currentUser={currentUser} />}
+
       {/* COMPTE TAB */}
-      {activeTab === 'compte' && (
-        <>
-          <LanguageSettings />
-          <AccountSettings />
-        </>
-      )}
+      {activeTab === 'compte' && <AccountSettings />}
 
       {/* INSCRIPTION TAB */}
       {activeTab === 'inscription' && currentUser?.is_admin && (
         <InscriptionSettings />
       )}
-
-      {/* PAYS TAB */}
-      {activeTab === 'pays' && currentUser?.is_admin && <CountrySettings />}
 
       {/* API TAB */}
       {activeTab === 'api' && <APIDocumentation />}
@@ -84,30 +84,86 @@ export default function Settings({ currentUser }) {
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
-// PAYS — format de plaque et service de décodage (admin)
+// PRÉFÉRENCES — pays, langue, unités
 // ═══════════════════════════════════════════════════════════════════════════
 //
-// Le pays n'est PAS la langue. L'interface est en français et le reste quel
-// que soit le choix fait ici ; ce réglage décide du format de plaque, du
-// service qui la décode et — le jour où un second pays existera — du
-// calendrier du contrôle technique. Voir §20.1.
+// Les trois étaient éparpillés : le pays dans un onglet admin à part, la langue
+// enfouie dans « Compte », les unités nulle part. Trois réglages qu'on vient
+// régler dans le même mouvement, et qu'on cherchait à trois endroits.
+//
+// Ils n'ont pourtant pas la même PORTÉE, et l'écran doit le dire :
+//
+//   Pays    → toute l'instance, réservé à un administrateur. Il décide du
+//             format de plaque et du calendrier réglementaire, qui sont des
+//             faits sur les véhicules, pas des goûts. Un pays par utilisateur
+//             ferait qu'un membre du groupe famille verrait une échéance de
+//             contrôle technique différente de celle du propriétaire, sur le
+//             même véhicule.
+//   Langue  → par utilisateur.
+//   Unités  → par utilisateur, et purement d'affichage : la base reste en
+//             kilomètres et en litres quoi qu'on choisisse (voir lib/units.js).
+//
+// Le pays fournit le DÉFAUT des deux autres. Tant que l'utilisateur n'a rien
+// choisi, il suit le pays — et suivra le nouveau si l'admin en change.
 
-function CountrySettings() {
+function OptionRow({ children }) {
+  return (
+    <div className="flex flex-wrap gap-2" style={{ marginBottom: 6 }}>
+      {children}
+    </div>
+  );
+}
+
+/**
+ * Un choix, rendu en bouton-carte plutôt qu'en `<select>`.
+ *
+ * Deux ou trois options tiennent à l'écran : les montrer toutes évite le clic
+ * qui sert seulement à découvrir ce qui existe. Et un `<select>` ne sait pas
+ * porter un drapeau.
+ */
+function OptionButton({ active, onClick, disabled, flag, label, hint }) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      disabled={disabled}
+      aria-pressed={active}
+      className="card p-3"
+      style={{
+        display: 'inline-flex', alignItems: 'center', gap: 10,
+        textAlign: 'left', cursor: disabled ? 'default' : 'pointer',
+        borderColor: active ? 'var(--accent)' : 'var(--border)',
+        background: active ? 'var(--accent-light)' : 'var(--bg-surface)',
+        opacity: disabled && !active ? 0.55 : 1,
+        minWidth: 150,
+      }}
+    >
+      {flag && <Flag code={flag} width={22} />}
+      <span style={{ minWidth: 0 }}>
+        <span style={{ display: 'block', fontWeight: 600, fontSize: 14, color: active ? 'var(--accent)' : 'var(--text-1)' }}>
+          {label}
+        </span>
+        {hint && (
+          <span style={{ display: 'block', fontSize: 12, color: 'var(--text-3)' }}>{hint}</span>
+        )}
+      </span>
+    </button>
+  );
+}
+
+function PreferencesSettings({ currentUser }) {
+  const { lang, units, region, setLang, setUnits, t } = usePreferences();
   const [regions, setRegions] = useState([]);
-  const [active, setActive] = useState(null);
-  const [selected, setSelected] = useState(null);
   const [loading, setLoading] = useState(true);
-  const [saving, setSaving] = useState(false);
   const [error, setError] = useState(null);
-  const [saved, setSaved] = useState(false);
+
+  const isAdmin = !!currentUser?.is_admin;
 
   useEffect(() => {
     (async () => {
       try {
         const res = await api.getRegions();
         setRegions(res.data.regions);
-        setActive(res.data.active);
-        setSelected(res.data.active);
       } catch (err) {
         setError(err.response?.data?.detail || err.message);
       } finally {
@@ -116,18 +172,33 @@ function CountrySettings() {
     })();
   }, []);
 
-  const save = async () => {
-    setSaving(true);
+  // Le réglage s'applique tout de suite et part au serveur ensuite : une
+  // interface qui attend le réseau pour répondre à un clic paraît cassée.
+  // L'enregistrement ne sert qu'à retrouver le choix ailleurs.
+  const savePreference = async (patch, applyLocally) => {
+    applyLocally();
     setError(null);
-    setSaved(false);
     try {
-      const res = await api.setRegion(selected);
-      setActive(res.data.active);
-      setSaved(true);
+      const res = await api.setPreferences(patch);
+      localStorage.setItem('user', JSON.stringify(res.data));
     } catch (err) {
       setError(err.response?.data?.detail || err.message);
-    } finally {
-      setSaving(false);
+    }
+  };
+
+  const chooseCountry = async (code) => {
+    if (code === region) return;
+    setError(null);
+    try {
+      await api.setRegion(code);
+      // Le pays fournit le défaut de la langue et des unités : il faut relire
+      // le compte pour que les valeurs effectives soient recalculées côté
+      // serveur plutôt que devinées ici.
+      const me = await api.getCurrentUser();
+      localStorage.setItem('user', JSON.stringify(me.data));
+      window.location.reload();
+    } catch (err) {
+      setError(err.response?.data?.detail || err.message);
     }
   };
 
@@ -135,68 +206,93 @@ function CountrySettings() {
     return <div className="text-center py-8"><div className="spinner mx-auto"></div></div>;
   }
 
-  const current = regions.find(r => r.code === selected);
-  const onlyOne = regions.length < 2;
+  const activeRegion = regions.find((r) => r.code === region);
+  const onlyOneCountry = regions.length < 2;
 
   return (
     <div>
-      <Notice tone="info" icon="globe" title="Pays de l'instance" className="mb-5">
-        <p>
-          Décide du format de plaque d'immatriculation attendu et du service
-          qui la décode. Ce réglage ne change pas la langue de l'interface, qui
-          reste le français.
+      {error && (
+        <Notice tone="danger" icon="alertCircle" className="mb-5">{error}</Notice>
+      )}
+
+      {/* ── Pays ─────────────────────────────────────────────────────── */}
+      <div className="card p-6 mb-5">
+        <h3 className="section-title mb-1">{t('Pays')}</h3>
+        <p className="field-hint mb-3">
+          {t("Décide du format de plaque d'immatriculation, du service qui la décode et du calendrier du contrôle technique. S'applique à toute l'instance.")}
         </p>
-      </Notice>
 
-      <div className="card p-6">
-        <h3 className="section-title mb-3">Pays</h3>
-
-        <label className="field-label" htmlFor="country-select">Pays actif</label>
-        <select
-          id="country-select"
-          value={selected || ''}
-          onChange={(e) => { setSelected(e.target.value); setSaved(false); }}
-          disabled={onlyOne}
-          style={{ width: '100%', maxWidth: 320 }}
-        >
-          {regions.map(r => (
-            <option key={r.code} value={r.code}>{r.name}</option>
+        <OptionRow>
+          {regions.map((r) => (
+            <OptionButton
+              key={r.code}
+              active={r.code === region}
+              disabled={!isAdmin || onlyOneCountry}
+              onClick={() => chooseCountry(r.code)}
+              flag={r.code}
+              label={r.name}
+              hint={r.plate_example}
+            />
           ))}
-        </select>
+        </OptionRow>
 
-        {current && (
-          <p className="field-hint mt-2">
-            Format de plaque attendu : <strong style={{ color: 'var(--text-1)' }}>{current.plate_example}</strong>
+        {!isAdmin && (
+          <p className="field-hint">
+            {t('Seul un administrateur peut changer le pays de l\'instance.')}
           </p>
         )}
-
-        {onlyOne && (
-          <p className="field-hint mt-2">
-            La France est pour l'instant le seul pays pris en charge. D'autres
-            apparaîtront ici sans qu'aucun réglage ne soit à refaire.
+        {isAdmin && onlyOneCountry && (
+          <p className="field-hint">
+            {t("La France est pour l'instant le seul pays pris en charge. D'autres apparaîtront ici sans qu'aucun réglage ne soit à refaire.")}
           </p>
         )}
+      </div>
 
-        {error && (
-          <Notice tone="danger" icon="alertCircle" className="mt-4">{error}</Notice>
-        )}
+      {/* ── Langue ───────────────────────────────────────────────────── */}
+      <div className="card p-6 mb-5">
+        <h3 className="section-title mb-1">{t('Langue')}</h3>
+        <p className="field-hint mb-3">
+          {activeRegion
+            ? t('Ne vaut que pour votre compte. Par défaut, celle de {country}.', { country: activeRegion.name })
+            : t('Ne vaut que pour votre compte.')}
+        </p>
 
-        {saved && (
-          <Notice tone="success" icon="checkCircle" className="mt-4">
-            Pays enregistré. Le réglage est conservé au redémarrage.
+        <OptionRow>
+          {LANGUAGES.map((l) => (
+            <OptionButton
+              key={l.code}
+              active={l.code === lang}
+              onClick={() => savePreference({ language: l.code }, () => setLang(l.code))}
+              label={l.label}
+            />
+          ))}
+        </OptionRow>
+
+        {lang !== 'fr' && (
+          <Notice tone="warning" icon="info" className="mt-3">
+            {t('La traduction anglaise est en cours : certains écrans sont encore en français.')}
           </Notice>
         )}
+      </div>
 
-        <div className="flex flex-wrap gap-2 mt-4">
-          <button
-            onClick={save}
-            disabled={saving || onlyOne || selected === active}
-            className="btn btn-primary"
-          >
-            <Icon name="save" size={16} />
-            {saving ? 'Enregistrement…' : 'Enregistrer'}
-          </button>
-        </div>
+      {/* ── Unités ───────────────────────────────────────────────────── */}
+      <div className="card p-6">
+        <h3 className="section-title mb-1">{t('Unités')}</h3>
+        <p className="field-hint mb-3">
+          {t('Ne vaut que pour votre compte, et ne change que l\'affichage : vos données restent enregistrées en kilomètres et en litres.')}
+        </p>
+
+        <OptionRow>
+          {UNIT_SYSTEMS.map((u) => (
+            <OptionButton
+              key={u.code}
+              active={u.code === units}
+              onClick={() => savePreference({ units: u.code }, () => setUnits(u.code))}
+              label={t(u.label)}
+              hint={u.hint}
+            />
+          ))}
+        </OptionRow>
       </div>
     </div>
   );
@@ -305,82 +401,6 @@ function ReminderSettings() {
 // ═══════════════════════════════════════════════════════════════════════════
 // COMPTE — changement de mot de passe (libre-service, tous utilisateurs)
 // ═══════════════════════════════════════════════════════════════════════════
-
-// ═══════════════════════════════════════════════════════════════════════════
-// LANGUE — préférence de l'utilisateur connecté
-// ═══════════════════════════════════════════════════════════════════════════
-//
-// Par utilisateur, et non pour l'instance comme le pays : dans un groupe
-// famille, un membre peut vouloir l'anglais et un autre le français. Le pays
-// décrit la machine, la langue décrit la personne.
-//
-// La traduction est en cours : le catalogue anglais ne couvre pas encore tout
-// l'écran. Le dire est le minimum — un utilisateur qui bascule et retombe sur
-// du français croirait à une panne.
-
-function LanguageSettings() {
-  const { lang, setLang, t } = useI18n();
-  const [saving, setSaving] = useState(false);
-  const [error, setError] = useState(null);
-
-  const choose = async (code) => {
-    if (code === lang || saving) return;
-    // Bascule immédiate : l'interface ne doit pas attendre le réseau pour
-    // répondre à un clic. L'enregistrement ne sert qu'à retrouver ce choix
-    // depuis un autre navigateur.
-    setLang(code);
-    setSaving(true);
-    setError(null);
-    try {
-      const res = await api.setLanguage(code);
-      // Le compte est aussi relu depuis localStorage au démarrage de l'app :
-      // sans cette écriture, un rechargement repartirait sur l'ancienne valeur.
-      localStorage.setItem('user', JSON.stringify(res.data));
-    } catch (err) {
-      setError(err.response?.data?.detail || err.message);
-    } finally {
-      setSaving(false);
-    }
-  };
-
-  return (
-    <div className="mb-5">
-      <div className="card p-6">
-        <h3 className="section-title mb-3">{t('Langue')}</h3>
-
-        <div className="segmented" style={{ display: 'inline-flex', marginBottom: 12 }}>
-          {LANGUAGES.map((l) => (
-            <button
-              key={l.code}
-              type="button"
-              onClick={() => choose(l.code)}
-              className={`segment ${lang === l.code ? 'active' : ''}`}
-              aria-pressed={lang === l.code}
-            >
-              {l.label}
-            </button>
-          ))}
-        </div>
-
-        <p className="field-hint">
-          {t('Ce choix ne vaut que pour votre compte et vous suit d\'un navigateur à l\'autre.')}
-        </p>
-
-        {lang !== 'fr' && (
-          <Notice tone="warning" icon="info" className="mt-4">
-            {t('La traduction anglaise est en cours : certains écrans sont encore en français.')}
-          </Notice>
-        )}
-
-        {error && (
-          <Notice tone="danger" icon="alertCircle" className="mt-4">
-            {t('Le choix est appliqué ici, mais n\'a pas pu être enregistré : {error}', { error })}
-          </Notice>
-        )}
-      </div>
-    </div>
-  );
-}
 
 function AccountSettings() {
   const [currentPassword, setCurrentPassword] = useState('');

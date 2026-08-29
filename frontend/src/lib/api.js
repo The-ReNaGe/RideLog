@@ -126,10 +126,14 @@ export const api = {
   joinFamily: (token) =>
     client.post('/family/join', { token }),
   
-  // Langue d'interface du compte connecté. Réglage par utilisateur : dans un
-  // groupe famille, chacun choisit la sienne.
-  setLanguage: (language) =>
-    client.put('/auth/me/language', { language }),
+  // Langue et unités du compte connecté. Réglages par utilisateur : dans un
+  // groupe famille, chacun choisit les siens.
+  //
+  // Les champs sont facultatifs — on n'envoie que ce qui change. Passer la
+  // chaîne "auto" remet un réglage sous le défaut du pays ; un champ absent le
+  // laisse tel quel. Sans ce mot, rien ne distinguerait les deux intentions.
+  setPreferences: (prefs) =>
+    client.put('/auth/me/preferences', prefs),
 
   getRegistrationMode: () =>
     client.get('/admin/registration-mode'),

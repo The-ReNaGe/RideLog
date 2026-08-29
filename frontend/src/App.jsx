@@ -9,7 +9,7 @@ import Planning from './pages/Planning';
 import Dashboard from './pages/Dashboard';
 import version from './version';
 import Icon from './components/Icon';
-import { I18nProvider, useI18n, useT } from './lib/i18nContext';
+import { PreferencesProvider, useT } from './lib/preferencesContext';
 import { api } from './lib/api';
 
 class ErrorBoundary extends React.Component {
@@ -358,6 +358,19 @@ export default function App() {
     }
     setLoading(false);
 
+    // Le compte gardé en localStorage vient d'une session antérieure et peut
+    // ne pas porter `effective` (préférences résolues côté serveur). On le
+    // relit une fois au démarrage, sinon une session déjà ouverte resterait
+    // sur les valeurs en cache jusqu'à la prochaine reconnexion.
+    if (token && user) {
+      api.getCurrentUser()
+        .then((res) => {
+          setCurrentUser(res.data);
+          localStorage.setItem('user', JSON.stringify(res.data));
+        })
+        .catch(() => { /* hors ligne ou token expiré : le cache reste valable */ });
+    }
+
     const handleTokenExpired = () => {
       setIsAuthenticated(false);
       setCurrentUser(null);
@@ -477,5 +490,5 @@ export default function App() {
   );
   };
 
-  return <I18nProvider user={currentUser}>{renderContent()}</I18nProvider>;
+  return <PreferencesProvider user={currentUser}>{renderContent()}</PreferencesProvider>;
 }

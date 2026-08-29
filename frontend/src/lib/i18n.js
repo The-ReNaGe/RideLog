@@ -39,34 +39,6 @@ export const DEFAULT_LANGUAGE = 'fr';
 
 const CATALOGS = { en: EN };
 
-const STORAGE_KEY = 'ridelog.language';
-
-/**
- * Langue à utiliser au tout premier rendu, avant que /auth/me ait répondu.
- *
- * Sans ce cache local, l'application s'afficherait une fraction de seconde en
- * français avant de basculer en anglais à chaque chargement de page — le genre
- * de clignotement qui fait paraître une interface bancale.
- */
-export function readStoredLanguage() {
-  try {
-    const stored = localStorage.getItem(STORAGE_KEY);
-    return isSupported(stored) ? stored : DEFAULT_LANGUAGE;
-  } catch {
-    // Navigation privée, stockage désactivé : le défaut fait très bien l'affaire.
-    return DEFAULT_LANGUAGE;
-  }
-}
-
-export function storeLanguage(code) {
-  try {
-    localStorage.setItem(STORAGE_KEY, code);
-  } catch {
-    // Sans persistance, la préférence du compte reprendra la main au prochain
-    // /auth/me. Rien à signaler à l'utilisateur.
-  }
-}
-
 export function isSupported(code) {
   return LANGUAGES.some((l) => l.code === code);
 }
