@@ -544,6 +544,21 @@ def _m010_override_custom_name(conn: Connection) -> None:
     )
 
 
+def _m011_user_language(conn: Connection) -> None:
+    """La langue d'interface préférée du compte.
+
+    NULL sur les lignes existantes, et c'est le bon défaut : NULL veut dire
+    « aucune préférence exprimée », que le frontend traduit par le français.
+    Écrire 'fr' partout aurait figé un choix que personne n'a fait, et rendu
+    impossible de distinguer plus tard « veut du français » de « n'a rien
+    demandé » — utile le jour où l'on voudrait suivre la langue du navigateur.
+
+    Colonne courte : les codes sont de la forme 'fr', 'en'. VARCHAR(5) laisse
+    la place à un 'fr-BE' sans forcer une migration de plus.
+    """
+    add_column_if_missing(conn, "users", "language", "VARCHAR(5)")
+
+
 MIGRATIONS: list[Migration] = [
     Migration(
         1, "maintenance_category",
@@ -611,6 +626,11 @@ MIGRATIONS: list[Migration] = [
         10, "override_custom_name",
         _m010_override_custom_name,
         lambda c: has_all_columns(c, "vehicle_maintenance_overrides", "custom_name"),
+    ),
+    Migration(
+        11, "user_language",
+        _m011_user_language,
+        lambda c: has_all_columns(c, "users", "language"),
     ),
 ]
 

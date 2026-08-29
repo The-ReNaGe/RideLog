@@ -28,6 +28,9 @@ class User(Base):
     password_changed_at = Column(DateTime, nullable=True)  # Invalide les JWT émis avant ce changement (voir security.py)
     must_change_password = Column(Boolean, default=False)  # True après un mot de passe créé/reset par un admin
     password_reset_requested_at = Column(DateTime, nullable=True)  # Demande de reset initiée par l'utilisateur (login)
+    # Langue d'interface. NULL = aucune préférence exprimée, le frontend affiche
+    # alors le français. Distinct de 'fr' choisi explicitement (voir migration 011).
+    language = Column(String(5), nullable=True)
 
     # Relation: Un utilisateur peut avoir plusieurs véhicules
     vehicles = relationship("Vehicle", back_populates="owner", cascade="all, delete-orphan")
@@ -44,6 +47,7 @@ class User(Base):
             "created_at": self.created_at.isoformat(),
             "must_change_password": bool(self.must_change_password),
             "password_reset_requested_at": self.password_reset_requested_at.isoformat() if self.password_reset_requested_at else None,
+            "language": self.language,
         }
         if include_password:
             data["password_hash"] = self.password_hash
