@@ -33,6 +33,16 @@ from regions import DEFAULT_REGION_CODE, Region, get_region, is_known_region
 logger = logging.getLogger(__name__)
 
 REGION_KEY = "region"
+CURRENCY_KEY = "currency"
+
+# Devises proposées. Volontairement une LISTE COURTE et non un référentiel
+# ISO complet : chaque entrée doit avoir été vérifiée (symbole, position du
+# symbole dans la langue affichée), et une liste de 180 lignes non relues
+# donnerait surtout 180 façons de se tromper.
+CURRENCIES = {
+    "EUR": {"code": "EUR", "symbol": "\u20ac", "name": "Euro"},
+    "USD": {"code": "USD", "symbol": "$", "name": "Dollar am\u00e9ricain"},
+}
 
 
 def get_setting(db: Session, key: str) -> str | None:
@@ -99,8 +109,12 @@ def effective_preferences(db: Session, user) -> dict:
     un défaut.
     """
     region = get_active_region(db)
+    stored_currency = get_setting(db, CURRENCY_KEY)
+    currency = stored_currency if stored_currency in CURRENCIES else region.default_currency
     return {
         "region": region.code,
+        "currency": currency,
+        "currency_symbol": CURRENCIES[currency]["symbol"],
         "language": user.language or region.default_language,
         "units": user.units or region.default_units,
         # L'exemple de plaque voyage ici plutôt que dans un appel séparé à

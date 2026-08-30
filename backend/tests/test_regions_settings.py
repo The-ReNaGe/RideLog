@@ -23,6 +23,7 @@ pas autrement :
 
 from tests.test_families import (
     auth_headers,
+    make_vehicle,
     open_registration,
     register,
     token_of,
@@ -124,3 +125,67 @@ def test_the_stored_choice_wins_over_the_environment(db_session, monkeypatch):
     set_setting(db_session, REGION_KEY, "FR")
 
     assert get_active_region_code(db_session) == "FR"
+
+
+# ═══════════════════════════════════════════════════════════════════════════
+# Devise
+# ═══════════════════════════════════════════════════════════════════════════
+#
+# ⚠️ La devise est un SYMBOLE, pas une conversion. Les montants sont stockés
+# comme des nombres nus : changer de devise ne les recalcule pas, et ne le doit
+# pas. Un plein à 60 saisi en euros reste 60 après un passage au dollar.
+#
+# Convertir supposerait un taux de change à la date de chaque ligne — donc un
+# service externe et un historique qui bougerait tout seul. Pour une
+# application auto-hébergée qui suit les dépenses d'un foyer, l'utilisateur
+# saisit dans SA monnaie et le réglage dit seulement comment l'écrire.
+
+def test_the_currency_comes_from_the_country_by_default(client, open_registration):
+    headers = admin_headers(client)
+
+    body = client.get("/api/auth/me", headers=headers).json()
+
+    assert body["effective"]["currency"] == "EUR"
+    assert body["effective"]["currency_symbol"] == "€"
+
+
+def test_an_admin_can_switch_the_currency(client, open_registration):
+    headers = admin_headers(client)
+
+    res = client.put("/api/admin/currency", json={"code": "usd"}, headers=headers)
+    assert res.status_code == 200, res.text
+
+    body = client.get("/api/auth/me", headers=headers).json()
+    assert body["effective"]["currency"] == "USD"
+    assert body["effective"]["currency_symbol"] == "$"
+
+
+def test_an_unknown_currency_is_refused(client, open_registration):
+    headers = admin_headers(client)
+
+    res = client.put("/api/admin/currency", json={"code": "XYZ"}, headers=headers)
+
+    assert res.status_code == 400
+    assert "XYZ" in res.json()["detail"]
+    assert client.get("/api/auth/me", headers=headers).json()["effective"]["currency"] == "EUR"
+
+
+def test_an_ordinary_member_cannot_change_the_currency(client, open_registration):
+    admin_headers(client)
+    headers = member_headers(client)
+
+    assert client.put("/api/admin/currency", json={"code": "USD"}, headers=headers).status_code == 403
+
+
+def test_changing_the_currency_never_touches_a_stored_amount(client, open_registration, db_session):
+    """Le garde-fou qui compte : c'est un symbole, pas un taux de change."""
+    from settings_store import CURRENCY_KEY, set_setting
+
+    headers = admin_headers(client)
+    vehicle_id = make_vehicle(client, headers)["id"]
+    before = client.get(f"/api/vehicles/{vehicle_id}", headers=headers).json()
+
+    set_setting(db_session, CURRENCY_KEY, "USD")
+
+    after = client.get(f"/api/vehicles/{vehicle_id}", headers=headers).json()
+    assert after["current_mileage"] == before["current_mileage"]  # au chiffre près

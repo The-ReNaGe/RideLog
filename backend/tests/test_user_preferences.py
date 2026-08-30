@@ -93,6 +93,8 @@ def test_without_any_choice_the_country_supplies_the_defaults(client):
         "region": "FR",
         "language": "fr",
         "units": "metric",
+        "currency": "EUR",
+        "currency_symbol": "€",
         # L'exemple de plaque voyage avec les préférences : le formulaire
         # véhicule s'en sert comme indication de saisie et comme message
         # d'erreur, et il le codait en dur avant.
