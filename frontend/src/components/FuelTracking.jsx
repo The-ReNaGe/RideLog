@@ -2,6 +2,7 @@ import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { api } from '../lib/api';
 import { useFormat, useT } from '../lib/preferencesContext';
 import Icon from './Icon';
+import Notice from './Notice';
 
 const MONTH_SHORT = ['Jan', 'Fév', 'Mar', 'Avr', 'Mai', 'Juin', 'Juil', 'Aoû', 'Sep', 'Oct', 'Nov', 'Déc'];
 const MONTH_FULL = ['janvier', 'février', 'mars', 'avril', 'mai', 'juin', 'juillet', 'août', 'septembre', 'octobre', 'novembre', 'décembre'];
@@ -392,6 +393,17 @@ export default function FuelTracking({ vehicleId, onFuelAdded, canEdit = true })
 				</div>
 			)}
 
+			{/* Le total « Dépensé » est ventilé, mais les moyennes, les
+			    graphiques et les totaux par station additionnent sans regarder
+			    la devise — les ventiler ferait perdre la comparaison qui est
+			    tout leur intérêt. On additionne donc, et on le dit. Même
+			    arbitrage que pour les répartitions par catégorie (§20.7). */}
+			{stats && fmt.isMixed(stats.cost_by_currency) && (
+				<Notice tone="warning" title={t('Plusieurs devises dans cet historique')}>
+					{t('Les moyennes, les graphiques et les totaux par station additionnent des montants saisis dans des devises différentes. Le total dépensé, lui, reste ventilé.')}
+				</Notice>
+			)}
+
 			{/* Stats cards */}
 			{stats && stats.entries > 0 && (
 				<div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
@@ -413,7 +425,7 @@ export default function FuelTracking({ vehicleId, onFuelAdded, canEdit = true })
 					<div className="card p-4 text-center">
 						<div style={{ fontSize: 11, color: 'var(--text-3)', textTransform: 'uppercase', fontWeight: 600, letterSpacing: 0.5, marginBottom: 4 }}>Coût /100 {fmt.distUnit}</div>
 						<div style={{ fontSize: 22, fontWeight: 700, color: stats.avg_cost_100km ? 'var(--warning)' : 'var(--text-3)' }}>
-							{stats.avg_cost_100km ? fmt.costPerDist(stats.avg_cost_100km).toLocaleString(fmt.locale, { maximumFractionDigits: 1 }) : '—'}
+							{stats.avg_cost_100km ? fmt.num(fmt.costPerDist(stats.avg_cost_100km), { maximumFractionDigits: 1 }) : '—'}
 							{stats.avg_cost_100km && <span style={{ fontSize: 12, fontWeight: 400 }}> {fmt.currencySymbol}</span>}
 						</div>
 					</div>
@@ -430,7 +442,7 @@ export default function FuelTracking({ vehicleId, onFuelAdded, canEdit = true })
 					<div className="card p-4 text-center">
 						<div style={{ fontSize: 11, color: 'var(--text-3)', textTransform: 'uppercase', fontWeight: 600, letterSpacing: 0.5, marginBottom: 4 }}>Moy. /mois</div>
 						<div style={{ fontSize: 22, fontWeight: 700, color: 'var(--accent)' }}>
-							{stats.monthly_avg_cost.toLocaleString('fr-FR', { maximumFractionDigits: 0 })}
+							{fmt.num(stats.monthly_avg_cost, { maximumFractionDigits: 0 })}
 							<span style={{ fontSize: 12, fontWeight: 400 }}> {fmt.currencySymbol}</span>
 						</div>
 					</div>
@@ -464,7 +476,7 @@ export default function FuelTracking({ vehicleId, onFuelAdded, canEdit = true })
 					<div className="card p-5">
 						<h4 className="card-label">Dépenses par mois</h4>
 						<BarChart data={monthlyData} valueKey="total_cost" color="var(--accent)" unit={` ${fmt.currencySymbol}`}
-							formatValue={v => v.toLocaleString('fr-FR', { maximumFractionDigits: 0 })}
+							formatValue={v => fmt.num(v, { maximumFractionDigits: 0 })}
 							avgValue={stats.monthly_avg_cost}
 							prevComparison={monthlyComparison} />
 					</div>
@@ -591,7 +603,7 @@ export default function FuelTracking({ vehicleId, onFuelAdded, canEdit = true })
 										/* View mode */
 										<div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
 											<div style={{ flex: 1, display: 'flex', flexWrap: 'wrap', gap: '4px 16px', fontSize: 13 }}>
-												<span style={{ color: 'var(--text-2)', minWidth: 75 }}>{new Date(log.fill_date).toLocaleDateString('fr-FR')}</span>
+												<span style={{ color: 'var(--text-2)', minWidth: 75 }}>{fmt.date(log.fill_date)}</span>
 												<span style={{ color: 'var(--text-1)', fontWeight: 600 }}>{fmt.money(log.total_cost, log.currency, 2)}</span>
 												<span style={{ color: 'var(--text-3)' }}>{fmt.dist(log.mileage_at_fill)}</span>
 												{log.liters > 0 && <span style={{ color: 'var(--text-3)' }}>{log.liters.toFixed(1)} L</span>}
