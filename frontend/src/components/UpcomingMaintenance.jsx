@@ -638,8 +638,13 @@ export default React.memo(function UpcomingMaintenance({ data, vehicleId, onRefr
 
           const costMin = item.estimated_cost_min;
           const costMax = item.estimated_cost_max;
+          // ⚠️ Ces fourchettes viennent du catalogue (maintenance_intervals.json),
+          // qui porte des tarifs FRANÇAIS. Elles sont écrites avec le symbole de
+          // l'instance sans conversion — c'est un ordre de grandeur, pas un devis,
+          // et c'est la raison du CountryBadge posé à côté. Un second pays
+          // apportera ses propres tarifs plutôt qu'un taux de change.
           const costLabel = costMin && costMax
-            ? (costMin === costMax ? `${costMin} ${fmt.currencySymbol}` : `${costMin} – ${costMax} ${fmt.currencySymbol}`)
+            ? (costMin === costMax ? fmt.money(costMin) : `${fmt.money(costMin)} – ${fmt.money(costMax)}`)
             : '—';
 
           // Le contrôle technique est éditable lui aussi : sa périodicité peut

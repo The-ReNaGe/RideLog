@@ -7,6 +7,7 @@ import FuelTracking from '../components/FuelTracking';
 import VehiclePhoto from '../components/VehiclePhoto';
 import Icon from '../components/Icon';
 import CategoryTag, { getCategory } from '../components/CategoryTag';
+import Notice from '../components/Notice';
 import { useFormat, useT } from '../lib/preferencesContext';
 
 const motorLabels = {
@@ -503,7 +504,9 @@ export default function VehicleDetail({ vehicleId, onBack, currentUser }) {
           : 'var(--text-1)';
         const nextName = next?.intervention_type || null;
 
-        const fmtEuro = (n) => fmt.money(n);
+        // Ventilé par devise : voir fmt.totals. Un historique à deux
+        // monnaies s'écrit « 1 200 € + 300 $ », jamais une somme mêlée.
+        const fmtTotal = () => fmt.totals(recap?.cost_by_currency);
 
         // Style commun à toutes les cards — libellé, valeur, précision.
         // Toutes partagent la même taille de valeur et la même hauteur : une
@@ -557,7 +560,7 @@ export default function VehicleDetail({ vehicleId, onBack, currentUser }) {
               />
               <KpiCard
                 label="Total dépensé"
-                value={recap?.total_cost != null ? fmtEuro(recap.total_cost) : '—'}
+                value={recap?.total_cost != null ? fmtTotal() : '—'}
                 valueColor={recap?.total_cost != null ? 'var(--accent)' : 'var(--text-3)'}
               />
               <KpiCard
@@ -690,12 +693,23 @@ export default function VehicleDetail({ vehicleId, onBack, currentUser }) {
               <div className="card text-center">
                 <div className="card-label">Coût total toutes catégories</div>
                 <div className="tabular" style={{ fontSize: 34, fontWeight: 800, letterSpacing: '-0.03em', color: 'var(--accent)' }}>
-                  {fmt.money(recap.total_cost)}
+                  {fmt.totals(recap.cost_by_currency)}
                 </div>
                 <div className="text-sm mt-1" style={{ color: 'var(--text-3)' }}>
                   {recap.total_interventions} intervention{recap.total_interventions > 1 ? 's' : ''} · {recap.documents_count} document{recap.documents_count > 1 ? 's' : ''}
                 </div>
               </div>
+
+              {/* Les répartitions ci-dessous additionnent les montants sans
+                  regarder leur devise. C'est juste tant qu'il n'y en a qu'une,
+                  et le total ventilé plus haut dit la vérité dans tous les
+                  cas — mais un tableau qui mêle des euros et des dollars sans
+                  le dire produit des chiffres qu'on ne recompte jamais. */}
+              {fmt.isMixed(recap.cost_by_currency) && (
+                <Notice tone="warning" title={t('Plusieurs devises dans cet historique')}>
+                  {t('Les répartitions par catégorie additionnent des montants saisis dans des devises différentes. Un administrateur peut tout ramener à une seule devise depuis Paramètres → Préférences.')}
+                </Notice>
+              )}
 
               {/* Par catégorie */}
               {recap.cost_by_category && (
@@ -784,7 +798,7 @@ export default function VehicleDetail({ vehicleId, onBack, currentUser }) {
                                 )}
                               </td>
                               <td className="py-2.5 pr-4 text-right" style={{ color: 'var(--text-2)' }}>{fmt.dist(m.mileage_at_intervention)}</td>
-                              <td className="py-2.5 pr-4 text-right font-medium" style={{ color: 'var(--text-1)' }}>{m.cost_paid != null ? `${m.cost_paid.toFixed(2)} ${fmt.currencySymbol}` : '—'}</td>
+                              <td className="py-2.5 pr-4 text-right font-medium" style={{ color: 'var(--text-1)' }}>{fmt.money(m.cost_paid, m.currency, 2)}</td>
                               <td className="py-2.5 pr-4 max-w-[200px] truncate" style={{ color: 'var(--text-3)' }}>{m.notes || '—'}</td>
                               <td className="py-2.5">
                                 {m.has_invoice ? (
@@ -805,7 +819,7 @@ export default function VehicleDetail({ vehicleId, onBack, currentUser }) {
                           <tr style={{ borderTop: '2px solid var(--text-3)' }} className="font-bold">
                             <td colSpan="3" className="pt-3" style={{ color: 'var(--text-1)' }}>Total</td>
                             <td></td>
-                            <td className="pt-3 text-right" style={{ color: 'var(--accent)' }}>{fmt.money(recap.total_cost)}</td>
+                            <td className="pt-3 text-right" style={{ color: 'var(--accent)' }}>{fmt.totals(recap.cost_by_currency)}</td>
                             <td></td>
                             <td className="pt-3 text-sm" style={{ color: 'var(--text-3)' }}>{recap.documents_count} doc(s)</td>
                           </tr>
@@ -845,7 +859,7 @@ export default function VehicleDetail({ vehicleId, onBack, currentUser }) {
                           <div className="flex flex-wrap gap-x-3 gap-y-0.5 text-xs" style={{ color: 'var(--text-3)' }}>
                             <span className="inline-flex items-center gap-1"><Icon name="calendar" size={12} />{new Date(m.execution_date).toLocaleDateString('fr-FR')}</span>
                             <span className="inline-flex items-center gap-1"><Icon name="gauge" size={12} />{fmt.dist(m.mileage_at_intervention)}</span>
-                            {m.cost_paid != null && <span className="inline-flex items-center gap-1" style={{ color: 'var(--success)', fontWeight: 600 }}><Icon name="euro" size={12} />{m.cost_paid.toFixed(2)} {fmt.currencySymbol}</span>}
+                            {m.cost_paid != null && <span className="inline-flex items-center gap-1" style={{ color: 'var(--success)', fontWeight: 600 }}><Icon name="euro" size={12} />{fmt.money(m.cost_paid, m.currency, 2)}</span>}
                           </div>
                           {m.notes && <p className="text-xs mt-1" style={{ color: 'var(--text-2)' }}>{m.notes}</p>}
                           {m.has_invoice && (
@@ -861,7 +875,7 @@ export default function VehicleDetail({ vehicleId, onBack, currentUser }) {
                     })}
                     {recap.total_cost > 0 && (
                       <div className="card p-3 text-right font-bold" style={{ color: 'var(--accent)' }}>
-                        {t('Total :')} {fmt.money(recap.total_cost)}
+                        {t('Total :')} {fmt.totals(recap.cost_by_currency)}
                       </div>
                     )}
                   </div>

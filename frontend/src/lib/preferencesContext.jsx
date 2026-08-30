@@ -1,4 +1,5 @@
 import React, { createContext, useContext, useEffect, useMemo, useState } from 'react';
+import { currencySymbolOf } from './currencies';
 import { DEFAULT_LANGUAGE, isSupported as isSupportedLanguage, translate } from './i18n';
 import {
   DEFAULT_UNITS,
@@ -150,37 +151,74 @@ export function useT() {
  */
 export function useFormat() {
   const { units, lang, currencySymbol } = useContext(PreferencesContext);
-  return useMemo(() => ({
-    units,
-    lang,
-    locale: localeOf(lang),
-
-    // Affichage
-    dist: (km, opts) => formatDistance(km, units, lang, opts),
-    cons: (l100, opts) => formatConsumption(l100, units, lang, opts),
-    costPerDist: (costPerKm) => costPerDistanceToDisplay(costPerKm, units),
-
-    // Valeurs brutes, quand le libellé est posé séparément
-    distValue: (km) => distanceToDisplay(km, units),
-
-    // Montants. Le symbole vient du réglage d'instance ; le FORMAT du nombre
-    // suit la langue, comme pour les distances. Aucune conversion : le nombre
-    // stocké est affiché tel quel (voir routes/regions.py).
-    money: (amount) => {
+  return useMemo(() => {
+    /**
+     * Un montant, dans la devise où il a été saisi.
+     *
+     * ⚠️ **Le second argument est la devise DE LA LIGNE**, et il faut le passer
+     * partout où on en dispose : `fmt.money(m.cost_paid, m.currency)`. Une
+     * révision payée 200 $ doit continuer de s'écrire « 200 $ » même si
+     * l'instance affiche des euros depuis. Omis — ou `null`, pour une ligne
+     * antérieure au marquage — on retombe sur le réglage d'instance, ce qui
+     * est exactement le comportement d'avant.
+     *
+     * Aucune conversion nulle part : le nombre stocké est affiché tel quel.
+     * `digits` : 0 pour un total qu'on lit d'un coup d'œil, 2 pour un montant
+     * qu'on relit contre un ticket, 3 pour un prix au litre.
+     */
+    const money = (amount, rowCurrency, digits = 0) => {
       if (amount === null || amount === undefined || amount === '') return '—';
       const n = Number(amount);
       if (!Number.isFinite(n)) return '—';
-      return `${n.toLocaleString(localeOf(lang), { maximumFractionDigits: 0 })} ${currencySymbol}`;
-    },
-    currencySymbol,
+      const symbol = currencySymbolOf(rowCurrency, currencySymbol);
+      const formatted = n.toLocaleString(localeOf(lang), {
+        minimumFractionDigits: digits,
+        maximumFractionDigits: digits,
+      });
+      return `${formatted} ${symbol}`;
+    };
 
-    // Unités, pour les libellés de champs et les en-têtes de colonne.
-    // Pas de `volUnit` : le carburant reste en litres même en miles, voir
-    // le bloc « Volumes » de units.js.
-    distUnit: distanceUnit(units),
-    consUnit: consumptionUnit(units),
+    return {
+      units,
+      lang,
+      locale: localeOf(lang),
 
-    // Saisie → stockage. Obligatoire sur TOUT champ de distance.
-    toStorage: (value) => distanceToStorage(value, units),
-  }), [units, lang, currencySymbol]);
+      // Affichage
+      dist: (km, opts) => formatDistance(km, units, lang, opts),
+      cons: (l100, opts) => formatConsumption(l100, units, lang, opts),
+      costPerDist: (costPerKm) => costPerDistanceToDisplay(costPerKm, units),
+
+      // Valeurs brutes, quand le libellé est posé séparément
+      distValue: (km) => distanceToDisplay(km, units),
+
+      money,
+      currencySymbol,
+
+      /**
+       * Un TOTAL ventilé par devise, tel que le backend le renvoie
+       * (`cost_by_currency`, voir currency.totals_by_currency).
+       *
+       * Cas courant — une seule devise : le montant habituel, rien ne change.
+       * Deux devises : « 1 200 € + 300 $ ». Les additionner pour poser un
+       * symbole unique donnerait un nombre faux, et faux en silence.
+       */
+      totals: (byCurrency, digits = 0) => {
+        const entries = Object.entries(byCurrency || {}).filter(([, value]) => value);
+        if (entries.length === 0) return money(0, null, digits);
+        return entries.map(([code, value]) => money(value, code, digits)).join(' + ');
+      },
+
+      /** `true` si un total enjambe plusieurs devises — pour nuancer un libellé. */
+      isMixed: (byCurrency) => Object.values(byCurrency || {}).filter(Boolean).length > 1,
+
+      // Unités, pour les libellés de champs et les en-têtes de colonne.
+      // Pas de `volUnit` : le carburant reste en litres même en miles, voir
+      // le bloc « Volumes » de units.js.
+      distUnit: distanceUnit(units),
+      consUnit: consumptionUnit(units),
+
+      // Saisie → stockage. Obligatoire sur TOUT champ de distance.
+      toStorage: (value) => distanceToStorage(value, units),
+    };
+  }, [units, lang, currencySymbol]);
 }

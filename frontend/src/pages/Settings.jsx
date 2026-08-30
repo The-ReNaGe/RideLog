@@ -340,10 +340,138 @@ function PreferencesSettings({ currentUser }) {
             {t("Seul un administrateur peut changer la devise de l'instance.")}
           </p>
         )}
-        <Notice tone="warning" icon="info" className="mt-3">
-          {t("RideLog ne convertit pas les montants : il n'applique aucun taux de change. Saisissez vos dépenses dans votre monnaie, ce réglage dit seulement comment l'écrire.")}
+        <Notice tone="info" icon="info" className="mt-3">
+          {t("Chaque montant garde la devise dans laquelle il a été saisi : une révision payée 200 $ continue de s'afficher « 200 $ » même après un passage à l'euro. Changer ce réglage ne recalcule rien.")}
         </Notice>
       </div>
+
+      {isAdmin && currencies.length > 1 && (
+        <CurrencyConversion currency={currency} currencies={currencies} t={t} />
+      )}
+    </div>
+  );
+}
+
+/**
+ * Convertir l'historique — la commande explicite, distincte du réglage.
+ *
+ * Les deux intentions ne se ressemblent pas : « je m'étais trompé de symbole »
+ * ne doit surtout pas recalculer les montants, « j'ai déménagé » le doit. Les
+ * fondre dans le même menu obligerait à deviner laquelle, et le premier cas
+ * est de loin le plus fréquent.
+ *
+ * Le taux est saisi à la main, jamais récupéré : voir backend/currency.py. En
+ * deux mots — le bon taux serait celui du jour de chaque ligne, pas celui
+ * d'aujourd'hui ; un taux automatique serait donc tout aussi approximatif,
+ * mais prétendrait le contraire et ferait bouger l'historique tout seul.
+ */
+function CurrencyConversion({ currency, currencies, t }) {
+  const [target, setTarget] = useState('');
+  const [rate, setRate] = useState('');
+  const [preview, setPreview] = useState(null);
+  const [done, setDone] = useState(null);
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState(null);
+
+  const others = currencies.filter((c) => c.code !== currency);
+  const parsedRate = Number(String(rate).replace(',', '.'));
+  const rateIsValid = Number.isFinite(parsedRate) && parsedRate > 0;
+
+  const run = async (dryRun) => {
+    setBusy(true);
+    setError(null);
+    try {
+      const res = await api.convertCurrency(target, parsedRate, dryRun);
+      if (dryRun) {
+        setPreview(res.data);
+      } else {
+        setDone(res.data);
+        const me = await api.getCurrentUser();
+        localStorage.setItem('user', JSON.stringify(me.data));
+        window.location.reload();
+      }
+    } catch (err) {
+      setError(err.response?.data?.detail || err.message);
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const total = preview
+    ? Object.values(preview.counts).reduce((sum, n) => sum + n, 0)
+    : 0;
+
+  return (
+    <div className="card p-6 mt-5">
+      <h3 className="section-title mb-1">{t('Convertir les montants enregistrés')}</h3>
+      <p className="field-hint mb-3">
+        {t("À n'utiliser que pour repartir dans une autre monnaie : tous les montants sont recalculés au taux indiqué, et une sauvegarde de la base est prise avant.")}
+      </p>
+
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+        <div>
+          <label className="field-label">{t('Convertir vers')}</label>
+          <select
+            value={target}
+            onChange={(e) => { setTarget(e.target.value); setPreview(null); }}
+          >
+            <option value="">{t('Choisir une devise…')}</option>
+            {others.map((c) => (
+              <option key={c.code} value={c.code}>{c.symbol} {t(c.name)}</option>
+            ))}
+          </select>
+        </div>
+        <div>
+          <label className="field-label">
+            {t('Taux appliqué')}{target ? ` (1 ${currency} = … ${target})` : ''}
+          </label>
+          <input
+            type="text"
+            inputMode="decimal"
+            value={rate}
+            placeholder="1.08"
+            onChange={(e) => { setRate(e.target.value); setPreview(null); }}
+          />
+        </div>
+      </div>
+
+      <div className="flex flex-wrap gap-2 mt-3">
+        <button
+          className="btn btn-secondary btn-sm"
+          disabled={!target || !rateIsValid || busy}
+          onClick={() => run(true)}
+        >
+          {t('Voir ce qui serait converti')}
+        </button>
+        {preview && (
+          <button
+            className="btn btn-primary btn-sm"
+            disabled={busy}
+            onClick={() => run(false)}
+          >
+            {t('Convertir maintenant')}
+          </button>
+        )}
+      </div>
+
+      {/* Un bouton grisé n'explique rien (§16) : le champ qui bloque le dit. */}
+      {target && rate !== '' && !rateIsValid && (
+        <p className="field-hint mt-2" style={{ color: 'var(--danger)' }}>
+          {t('Indiquez un taux strictement positif.')}
+        </p>
+      )}
+
+      {preview && !done && (
+        <Notice tone="warning" className="mt-3" title={t('Rien n\'a encore été modifié')}>
+          {t('{count} montants seraient convertis de {from} vers {to}.', {
+            count: total, from: preview.from, to: preview.to,
+          })}
+          {' '}
+          {t('Cette opération est irréversible ; une sauvegarde de la base sera déposée dans /data/backups avant de commencer.')}
+        </Notice>
+      )}
+
+      {error && <Notice tone="danger" className="mt-3">{error}</Notice>}
     </div>
   );
 }

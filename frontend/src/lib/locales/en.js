@@ -226,8 +226,27 @@ export const EN = {
     'Changes the symbol shown, nothing else — no amount already recorded is converted.',
   "Seul un administrateur peut changer la devise de l'instance.":
     'Only an administrator can change the currency of this instance.',
-  "RideLog ne convertit pas les montants : il n'applique aucun taux de change. Saisissez vos dépenses dans votre monnaie, ce réglage dit seulement comment l'écrire.":
-    'RideLog does not convert amounts — it applies no exchange rate. Enter your spending in your own currency; this setting only says how to write it.',
+  "Chaque montant garde la devise dans laquelle il a été saisi : une révision payée 200 $ continue de s'afficher « 200 $ » même après un passage à l'euro. Changer ce réglage ne recalcule rien.":
+    'Every amount keeps the currency it was entered in: a service paid $200 still shows as “$200” after a switch to euros. Changing this setting recalculates nothing.',
+
+  // ── Convertir l'historique ──────────────────────────────────────────────
+  'Convertir les montants enregistrés': 'Convert recorded amounts',
+  "À n'utiliser que pour repartir dans une autre monnaie : tous les montants sont recalculés au taux indiqué, et une sauvegarde de la base est prise avant.":
+    'Only for starting over in another currency: every amount is recalculated at the rate you give, and a database backup is taken first.',
+  'Convertir vers': 'Convert to',
+  'Choisir une devise…': 'Pick a currency…',
+  'Taux appliqué': 'Rate applied',
+  'Voir ce qui serait converti': 'Preview what would change',
+  'Convertir maintenant': 'Convert now',
+  'Indiquez un taux strictement positif.': 'Enter a rate greater than zero.',
+  "Rien n'a encore été modifié": 'Nothing has changed yet',
+  '{count} montants seraient convertis de {from} vers {to}.':
+    '{count} amounts would be converted from {from} to {to}.',
+  'Cette opération est irréversible ; une sauvegarde de la base sera déposée dans /data/backups avant de commencer.':
+    'This cannot be undone; a database backup will be written to /data/backups before it starts.',
+  'Plusieurs devises dans cet historique': 'Several currencies in this history',
+  'Les répartitions par catégorie additionnent des montants saisis dans des devises différentes. Un administrateur peut tout ramener à une seule devise depuis Paramètres → Préférences.':
+    'The per-category breakdowns add up amounts entered in different currencies. An administrator can bring everything back to a single currency from Settings → Preferences.',
   'Euro': 'Euro',
   'Dollar américain': 'US dollar',
   "Pays d'immatriculation": 'Country of registration',

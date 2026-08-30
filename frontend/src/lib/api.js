@@ -151,9 +151,17 @@ export const api = {
     client.put('/admin/region', { code }),
 
   // Devise d'affichage de l'instance. ⚠️ Un SYMBOLE, pas une conversion :
-  // les montants stockés ne bougent pas (voir routes/regions.py).
+  // les montants déjà enregistrés ne bougent pas. Ceux qui ne portaient pas
+  // encore de devise sont figés sur la devise sortante, pour qu'ils ne se
+  // mettent pas à mentir (voir routes/regions.py).
   setCurrency: (code) =>
     client.put('/admin/currency', { code }),
+
+  // La conversion, elle, est une commande à part et explicite : elle recalcule
+  // tous les montants au taux fourni. `dryRun` annonce ce qui serait touché
+  // sans rien toucher — c'est le mode par défaut côté serveur aussi.
+  convertCurrency: (code, rate, dryRun = true) =>
+    client.post('/admin/currency/convert', { code, rate, dry_run: dryRun }),
   
   checkInvite: (token) =>
     client.get(`/auth/check-invite/${token}`),

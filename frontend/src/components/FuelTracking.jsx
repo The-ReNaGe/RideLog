@@ -397,7 +397,7 @@ export default function FuelTracking({ vehicleId, onFuelAdded, canEdit = true })
 				<div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
 					<div className="card p-4 text-center">
 						<div style={{ fontSize: 11, color: 'var(--text-3)', textTransform: 'uppercase', fontWeight: 600, letterSpacing: 0.5, marginBottom: 4 }}>Dépensé</div>
-						<div style={{ fontSize: 22, fontWeight: 700, color: 'var(--accent)' }}>{fmt.money(stats.total_fuel_cost || 0)}</div>
+						<div style={{ fontSize: 22, fontWeight: 700, color: 'var(--accent)' }}>{fmt.totals(stats.cost_by_currency)}</div>
 					</div>
 					<div className="card p-4 text-center">
 						<div style={{ fontSize: 11, color: 'var(--text-3)', textTransform: 'uppercase', fontWeight: 600, letterSpacing: 0.5, marginBottom: 4 }}>Pleins</div>
@@ -592,10 +592,10 @@ export default function FuelTracking({ vehicleId, onFuelAdded, canEdit = true })
 										<div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
 											<div style={{ flex: 1, display: 'flex', flexWrap: 'wrap', gap: '4px 16px', fontSize: 13 }}>
 												<span style={{ color: 'var(--text-2)', minWidth: 75 }}>{new Date(log.fill_date).toLocaleDateString('fr-FR')}</span>
-												<span style={{ color: 'var(--text-1)', fontWeight: 600 }}>{log.total_cost.toFixed(2)} {fmt.currencySymbol}</span>
+												<span style={{ color: 'var(--text-1)', fontWeight: 600 }}>{fmt.money(log.total_cost, log.currency, 2)}</span>
 												<span style={{ color: 'var(--text-3)' }}>{fmt.dist(log.mileage_at_fill)}</span>
 												{log.liters > 0 && <span style={{ color: 'var(--text-3)' }}>{log.liters.toFixed(1)} L</span>}
-												{log.price_per_liter > 0 && <span style={{ color: 'var(--text-3)' }}>{log.price_per_liter.toFixed(3)} {fmt.currencySymbol}/L</span>}
+												{log.price_per_liter > 0 && <span style={{ color: 'var(--text-3)' }}>{fmt.money(log.price_per_liter, log.currency, 3)}/L</span>}
 												{log.station && <span style={{ color: 'var(--text-3)', fontStyle: 'italic' }}>{log.station}</span>}
 											</div>
 											{canEdit && (

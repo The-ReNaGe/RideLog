@@ -306,7 +306,7 @@ export default function MaintenanceHistory({ vehicleId, vehicleType, motorizatio
                   <div>
                     <span className="text-xs" style={{ color: 'var(--text-3)' }}>{t('Coût')} </span>
                     <span className="font-semibold" style={{ color: 'var(--success)' }}>
-                      {maintenance.cost_paid ? `${maintenance.cost_paid.toFixed(2)} ${fmt.currencySymbol}` : '—'}
+                      {fmt.money(maintenance.cost_paid, maintenance.currency, 2)}
                     </span>
                   </div>
                 </div>
