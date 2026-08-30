@@ -213,10 +213,18 @@ Envelopper une chaîne : `<h3>Paramètres</h3>` devient
 
 ### Ajouter un pays
 
-1. Créer `backend/regions/xx.py` exposant `code`, `name`, `plate_example`,
-   `default_language`, `default_units`, `normalize_plate()` et
-   `parse_plate_response()`.
+1. Créer `backend/regions/xx.py` exposant :
+   - `code`, `name`, `plate_example` ;
+   - `default_language`, `default_units`, `default_currency` — ce que le pays
+     propose **par défaut**, l'utilisateur restant libre de choisir autre chose ;
+   - `normalize_plate()`, `parse_plate_response()` ;
+   - `next_inspection_date()` — le calendrier du contrôle technique de ce pays.
 2. L'inscrire dans `REGIONS` (`backend/regions/__init__.py`).
+
+Un véhicule peut nommer son propre pays (champ « Pays d'immatriculation ») :
+c'est lui qui décide de son calendrier de contrôle technique, pas le pays de
+l'instance ni celui de la personne qui regarde. Laissé vide, il suit
+l'instance.
 
 Il apparaît alors **seul dans le sélecteur** de Paramètres → Préférences, sans
 qu'aucune route ni aucun écran ne bouge. Les tests de `test_regions_fr.py` se

@@ -1026,7 +1026,7 @@ api.getMaintenanceRecap(vehicleId),  // ← chargé d'emblée pour les KPI cards
 | Table | Clés | Description |
 |-------|------|-------------|
 | `users` | id, username (unique) | Comptes utilisateurs (is_admin, is_integration_account) |
-| `vehicles` | id, user_id (FK) | Véhicules du parc |
+| `vehicles` | id, user_id (FK) | Véhicules du parc. `country` = pays d'immatriculation, NULL = suit l'instance (voir §20.7) |
 | `maintenances` | id, vehicle_id (FK), intervention_key | Historique d'entretien. `intervention_key` fait foi pour les calculs ; `intervention_type` n'est qu'un libellé d'affichage (voir §20) |
 | `maintenance_invoices` | id, maintenance_id (FK) | Factures jointes |
 | `fuel_logs` | id, vehicle_id (FK) | Pleins de carburant |
@@ -2039,6 +2039,64 @@ l'API, dont l'unité de stockage ne change pas.
 
 ---
 
+
+### 20.7 Le pays du VÉHICULE, et la devise
+
+#### Le contrôle technique suit la machine, pas le spectateur
+
+`vehicles.country` (migration 013). `NULL` = suit le pays de l'instance, et
+c'est le défaut : un parc entièrement français n'a rien à renseigner, et
+aucune instance existante ne change de comportement.
+
+> ⚠️ **Cette colonne est sur le véhicule et non sur l'utilisateur, et ce n'est
+> pas un détail.** Le calendrier du contrôle technique s'en déduit. Par
+> utilisateur, un membre du groupe famille verrait une échéance **différente de
+> celle du propriétaire, sur le même véhicule** — la date de CT est un fait sur
+> la machine, pas un goût de qui la regarde.
+
+La règle française a quitté `maintenance_calculator` pour `regions/fr.py`
+(`next_inspection_date`). Elle y était écrite en dur et appliquée à tous les
+véhicules sans condition. Le déplacement s'est fait **le jour où un véhicule a
+pu nommer son pays** — donc le jour où le point de dispatch est devenu réel
+plutôt que spéculatif, ce que §20.4 exigeait.
+
+`get_all_upcoming_maintenances(..., region_code=...)` transporte le pays.
+**Les cinq appelants le passent** — `_compute_upcoming`, `dashboard`,
+`vehicles` (planning), `vehicle_status` et `reminder_scheduler` — chacun en
+`vehicle.country or <pays de l'instance>`. Un oubli ferait diverger un écran
+des rappels en silence, exactement le défaut contre lequel §3 met en garde.
+
+#### La devise est un symbole, pas un taux de change
+
+`app_settings.currency`, réglage **d'instance** (comme le pays), avec `EUR` et
+`USD` pour l'instant. Chaque région porte sa `default_currency`.
+
+> ⚠️ **Aucune conversion n'est appliquée, et il ne faut pas en ajouter.** Les
+> montants sont stockés comme des nombres nus : un plein à 60 saisi en euros
+> reste 60 après un passage au dollar. Convertir supposerait un taux **à la
+> date de chaque ligne**, donc un service externe et un historique qui
+> changerait tout seul entre deux consultations. L'utilisateur saisit dans SA
+> monnaie ; le réglage dit seulement comment l'écrire.
+>
+> C'est verrouillé par `test_changing_the_currency_never_touches_a_stored_amount`.
+
+D'instance et non par utilisateur, pour la même raison que le pays : deux
+membres d'un même groupe famille doivent lire le même nombre avec le même
+symbole, sinon le partage ment.
+
+Le symbole se lit par `fmt.money(montant)` ou `fmt.currencySymbol` (§20.6) —
+plus aucun `€` littéral dans le frontend. La **liste des devises est courte et
+vérifiée à la main** plutôt qu'un référentiel ISO complet : 180 lignes non
+relues donneraient surtout 180 façons de se tromper de symbole.
+
+#### Ce que ça change pour ajouter un pays
+
+`regions/xx.py` porte désormais **cinq** attributs et **trois** fonctions :
+`code`, `name`, `plate_example`, `default_language`, `default_units`,
+`default_currency`, plus `normalize_plate()`, `parse_plate_response()` et
+`next_inspection_date()`. Toujours un seul fichier, et rien d'autre à toucher.
+
+---
 ## 21. Distribution par images publiées
 
 ### 21.1 Le problème résolu
