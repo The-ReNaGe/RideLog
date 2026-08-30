@@ -11,6 +11,8 @@ import re
 from io import StringIO, BytesIO
 import zipfile
 from pathlib import Path
+from currency import totals_by_currency
+from settings_store import get_active_currency
 
 router = APIRouter(prefix="/vehicles", tags=["exports"])
 
@@ -105,6 +107,11 @@ def get_maintenance_recap(
         "current_mileage": vehicle.current_mileage,
         "total_interventions": len(maintenances),
         "total_cost": round(total_cost, 2),
+        # Les devises que ce total enjambe. Une seule = le symbole est sûr ;
+        # plusieurs = l'interface le dit au lieu d'en choisir un au hasard.
+        "cost_by_currency": totals_by_currency(
+            maintenances, "cost_paid", get_active_currency(db)
+        ),
         "cost_by_category": {k: round(v, 2) for k, v in cost_by_category.items()},
         "count_by_category": count_by_category,
         "documents_count": sum(len(m.invoices or []) for m in maintenances),

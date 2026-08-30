@@ -6,7 +6,8 @@ from sqlalchemy.orm import Session
 from sqlalchemy import func
 
 from models import Maintenance, FuelLog, User, VehicleMaintenanceOverride, get_db
-from settings_store import get_active_region_code
+from currency import merge_totals, totals_by_currency
+from settings_store import get_active_currency, get_active_region_code
 from security import get_current_user
 from routes.access import list_owned_vehicles
 from maintenance_calculator import MaintenanceCalculator, get_intervention_key, build_last_maintenances_dict
@@ -64,6 +65,8 @@ def get_dashboard(
     # Pays de l'instance, lu une fois : il sert de repli pour tout véhicule
     # qui ne nomme pas le sien.
     instance_region = get_active_region_code(db)
+    # Repli des lignes non marquées, lu une fois lui aussi.
+    instance_currency = get_active_currency(db)
 
     for v in vehicles:
         v_maintenances = [m for m in all_maintenances if m.vehicle_id == v.id]
@@ -163,6 +166,12 @@ def get_dashboard(
         "total_vehicles": total_vehicles,
         "total_mileage": total_mileage,
         "total_cost": round(total_maintenance_cost + total_fuel_cost, 2),
+        # Voir currency.currencies_of : un total qui enjambe deux devises
+        # reste affiché, mais l'interface ne lui pose pas un symbole faux.
+        "cost_by_currency": merge_totals(
+            totals_by_currency(all_maintenances, "cost_paid", instance_currency),
+            totals_by_currency(all_fuel, "total_cost", instance_currency),
+        ),
         "total_maintenance_cost": round(total_maintenance_cost, 2),
         "total_fuel_cost": round(total_fuel_cost, 2),
         "total_maintenances": total_maintenances,
