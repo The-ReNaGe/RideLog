@@ -157,9 +157,15 @@ export const api = {
   setCurrency: (code) =>
     client.put('/admin/currency', { code }),
 
-  // La conversion, elle, est une commande à part et explicite : elle recalcule
-  // tous les montants au taux fourni. `dryRun` annonce ce qui serait touché
-  // sans rien toucher — c'est le mode par défaut côté serveur aussi.
+  // La conversion est une commande à part : elle recalcule tous les montants au
+  // taux fourni. `dryRun` annonce ce qui serait touché sans rien toucher.
+  //
+  // ⚠️ **Volontairement sans écran.** Elle ne sert qu'à repartir dans une autre
+  // monnaie — un événement qui arrive une fois, ou jamais. Lui donner un
+  // panneau permanent dans les Préférences mettait un bouton irréversible à
+  // côté d'un réglage d'affichage anodin, pour un besoin que le marquage des
+  // montants (§20.7) couvre déjà au quotidien. La méthode reste ici : le jour
+  // où le besoin se présente, l'écran se pose en quelques lignes.
   convertCurrency: (code, rate, dryRun = true) =>
     client.post('/admin/currency/convert', { code, rate, dry_run: dryRun }),
   
