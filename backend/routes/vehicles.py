@@ -24,7 +24,7 @@ from schemas import VehicleCreate, VehicleUpdate
 from maintenance_calculator import MaintenanceCalculator, build_last_maintenances_dict
 from routes.vehicle_status import alert_counts_for
 from regions import format_model_text
-from settings_store import get_active_region, get_active_region_code
+from settings_store import get_active_currency, get_active_region, get_active_region_code
 
 PHOTO_STORAGE_DIR = Path(os.getenv("PHOTO_STORAGE_DIR", "/data/photos"))
 ALLOWED_PHOTO_MIME = {"image/jpeg", "image/png", "image/webp"}
@@ -175,6 +175,9 @@ def create_vehicle(
         range_category=data.range_category,
         current_mileage=data.current_mileage,
         purchase_price=data.purchase_price,
+        # Estampillée seulement s'il y a un montant : marquer d'une devise un
+        # prix d'achat absent reviendrait à dire quelque chose de rien.
+        currency=get_active_currency(db) if data.purchase_price is not None else None,
         service_interval_km=data.service_interval_km,
         service_interval_months=data.service_interval_months,
         notes=data.notes,
@@ -492,6 +495,12 @@ def update_vehicle(
         vehicle.current_mileage = data.current_mileage
     if data.purchase_price is not None:
         vehicle.purchase_price = data.purchase_price
+        # Un prix saisi aujourd'hui l'est dans la devise d'aujourd'hui. On ne
+        # ré-estampille que si la ligne n'était pas encore marquée : sinon,
+        # corriger une faute de frappe sur un prix en dollars le convertirait
+        # en euros d'un coup d'éditeur.
+        if vehicle.currency is None:
+            vehicle.currency = get_active_currency(db)
     if data.service_interval_km is not None:
         vehicle.service_interval_km = data.service_interval_km
     if data.service_interval_months is not None:

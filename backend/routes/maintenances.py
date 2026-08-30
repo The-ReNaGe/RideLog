@@ -13,7 +13,7 @@ from sqlalchemy.orm import Session
 
 from maintenance_calculator import MaintenanceCalculator, get_intervention_key, build_last_maintenances_dict
 from models import User, Vehicle, Maintenance, MaintenanceInvoice, VehicleMaintenanceOverride, get_db
-from settings_store import get_active_region_code
+from settings_store import get_active_currency, get_active_region_code
 from schemas import IntervalOverrideUpdate, CustomMaintenanceCreate
 from security import get_current_user
 from routes import secure_delete
@@ -321,6 +321,10 @@ async def create_maintenance(
         execution_date=execution_date,
         mileage_at_intervention=mileage,
         cost_paid=data.get("cost_paid"),
+        # La devise est lue MAINTENANT et gardée. Relue à l'affichage, elle
+        # ferait dire à cette ligne « 200 $ » le jour où l'instance passe au
+        # dollar, alors que 200 € ont été payés.
+        currency=get_active_currency(db),
         notes=data.get("notes"),
         maintenance_category=data.get("maintenance_category", "scheduled"),
         other_description=data.get("other_description"),

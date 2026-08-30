@@ -27,6 +27,9 @@ import logging
 
 from sqlalchemy.orm import Session
 
+# Ré-exporté ici parce que la moitié du code lit la devise en même temps que
+# le pays. La liste elle-même vit avec la conversion, dans currency.py.
+from currency import CURRENCIES  # noqa: F401 — ré-export
 from models import AppSetting
 from regions import DEFAULT_REGION_CODE, Region, get_region, is_known_region
 
@@ -34,15 +37,6 @@ logger = logging.getLogger(__name__)
 
 REGION_KEY = "region"
 CURRENCY_KEY = "currency"
-
-# Devises proposées. Volontairement une LISTE COURTE et non un référentiel
-# ISO complet : chaque entrée doit avoir été vérifiée (symbole, position du
-# symbole dans la langue affichée), et une liste de 180 lignes non relues
-# donnerait surtout 180 façons de se tromper.
-CURRENCIES = {
-    "EUR": {"code": "EUR", "symbol": "\u20ac", "name": "Euro"},
-    "USD": {"code": "USD", "symbol": "$", "name": "Dollar am\u00e9ricain"},
-}
 
 
 def get_setting(db: Session, key: str) -> str | None:
@@ -86,6 +80,19 @@ def get_active_region(db: Session) -> Region:
     return get_region(get_active_region_code(db))
 
 
+def get_active_currency(db: Session) -> str:
+    """Devise d'affichage de l'instance, avec repli sur celle du pays actif.
+
+    C'est elle qu'on estampille sur un montant au moment où il est saisi. La
+    lire à l'écriture, et non à l'affichage, est tout l'intérêt du marquage :
+    la ligne garde sa devise même si le réglage change ensuite.
+    """
+    stored = get_setting(db, CURRENCY_KEY)
+    if stored in CURRENCIES:
+        return stored
+    return get_active_region(db).default_currency
+
+
 # ═══════════════════════════════════════════════════════════════════════════
 # Préférences effectives d'un compte
 # ═══════════════════════════════════════════════════════════════════════════
@@ -109,8 +116,7 @@ def effective_preferences(db: Session, user) -> dict:
     un défaut.
     """
     region = get_active_region(db)
-    stored_currency = get_setting(db, CURRENCY_KEY)
-    currency = stored_currency if stored_currency in CURRENCIES else region.default_currency
+    currency = get_active_currency(db)
     return {
         "region": region.code,
         "currency": currency,

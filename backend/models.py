@@ -140,6 +140,9 @@ class Vehicle(Base):
     range_category = Column(String(50), nullable=False)  # accessible/generalist/premium
     current_mileage = Column(Integer, nullable=False, default=0)
     purchase_price = Column(Float, nullable=True)
+    # Devise du prix d'achat — un fait sur la transaction, comme `country`
+    # est un fait sur la machine. NULL = suit le réglage d'instance.
+    currency = Column(String(3), nullable=True)
     service_interval_km = Column(Integer, nullable=True)  # Custom service interval (overrides brand default)
     service_interval_months = Column(Integer, nullable=True)  # Custom service interval months
     photo_path = Column(String(500), nullable=True)
@@ -177,6 +180,7 @@ class Vehicle(Base):
             "range_category": self.range_category,
             "current_mileage": self.current_mileage,
             "purchase_price": self.purchase_price,
+            "currency": self.currency,
             "service_interval_km": self.service_interval_km,
             "service_interval_months": self.service_interval_months,
             "photo_url": f"/api/vehicles/{self.id}/photo" if self.photo_path else None,
@@ -275,6 +279,10 @@ class Maintenance(Base):
     execution_date = Column(DateTime, nullable=False)
     mileage_at_intervention = Column(Integer, nullable=False)
     cost_paid = Column(Float, nullable=True)
+    # Devise dans laquelle ce montant a été saisi. NULL = ligne antérieure au
+    # marquage : elle a toujours été affichée avec le symbole de l'instance,
+    # donc elle suit ce réglage, exactement comme avant.
+    currency = Column(String(3), nullable=True)
     notes = Column(Text, nullable=True)
     maintenance_category = Column(String(50), default="scheduled", nullable=False)  # scheduled, repair
     other_description = Column(String(200), nullable=True)  # Custom title for 'Autre' intervention type
@@ -293,6 +301,7 @@ class Maintenance(Base):
             "execution_date": self.execution_date.isoformat(),
             "mileage_at_intervention": self.mileage_at_intervention,
             "cost_paid": self.cost_paid,
+            "currency": self.currency,
             "notes": self.notes,
             "maintenance_category": self.maintenance_category,
             "other_description": self.other_description,
@@ -337,6 +346,10 @@ class FuelLog(Base):
     liters = Column(Float, nullable=True)
     total_cost = Column(Float, nullable=False)
     price_per_liter = Column(Float, nullable=True)
+    # Devise dans laquelle ce montant a été saisi. NULL = ligne antérieure au
+    # marquage : elle a toujours été affichée avec le symbole de l'instance,
+    # donc elle suit ce réglage, exactement comme avant.
+    currency = Column(String(3), nullable=True)
     station = Column(String(255), nullable=True)
     notes = Column(Text, nullable=True)
     created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
@@ -350,6 +363,7 @@ class FuelLog(Base):
             "liters": self.liters,
             "total_cost": self.total_cost,
             "price_per_liter": self.price_per_liter,
+            "currency": self.currency,
             "station": self.station,
             "notes": self.notes,
             "created_at": self.created_at.isoformat(),

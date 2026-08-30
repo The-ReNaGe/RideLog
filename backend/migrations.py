@@ -586,6 +586,30 @@ def _m013_vehicle_country(conn: Connection) -> None:
     add_column_if_missing(conn, "vehicles", "country", "VARCHAR(5)")
 
 
+def _m014_amount_currency(conn: Connection) -> None:
+    """La devise dans laquelle chaque montant a été saisi.
+
+    NULL = ligne écrite avant ce marquage. Elle a toujours été affichée avec
+    le symbole de l'instance, donc elle continue de le suivre : aucune
+    instance existante ne voit un seul nombre changer.
+
+    Pourquoi marquer plutôt que convertir
+    ─────────────────────────────────────
+    Sans ce marquage, une révision payée 200 $ redevient « 200 € » dès que
+    l'administrateur change le réglage d'affichage, et rien ne permet plus de
+    savoir laquelle des deux phrases est vraie. Le nombre stocké est nu ; seule
+    la devise qui l'accompagne lui donne un sens.
+
+    Les trois colonnes sont ajoutées ENSEMBLE, et le prédicat d'adoption les
+    exige toutes les trois : estampiller cette migration « faite » alors qu'une
+    seule aurait été créée laisserait les deux autres manquantes pour toujours
+    (§13, et le cas réel de `password_changed_at`).
+    """
+    add_column_if_missing(conn, "maintenances", "currency", "VARCHAR(3)")
+    add_column_if_missing(conn, "fuel_logs", "currency", "VARCHAR(3)")
+    add_column_if_missing(conn, "vehicles", "currency", "VARCHAR(3)")
+
+
 MIGRATIONS: list[Migration] = [
     Migration(
         1, "maintenance_category",
@@ -668,6 +692,15 @@ MIGRATIONS: list[Migration] = [
         13, "vehicle_country",
         _m013_vehicle_country,
         lambda c: has_all_columns(c, "vehicles", "country"),
+    ),
+    Migration(
+        14, "amount_currency",
+        _m014_amount_currency,
+        lambda c: (
+            has_all_columns(c, "maintenances", "currency")
+            and has_all_columns(c, "fuel_logs", "currency")
+            and has_all_columns(c, "vehicles", "currency")
+        ),
     ),
 ]
 
