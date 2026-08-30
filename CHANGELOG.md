@@ -1,5 +1,12 @@
 # Changelog
 
+## [2.3.1](https://github.com/The-ReNaGe/RideLog/compare/v2.3.0...v2.3.1) (2026-08-30)
+
+
+### Bug Fixes
+
+* corrige la commande de build du guide de contribution ([4869702](https://github.com/The-ReNaGe/RideLog/commit/4869702f040fbf9bfdb17e707d4850363d15261a))
+
 ## [2.3.0](https://github.com/The-ReNaGe/RideLog/compare/v2.2.1...v2.3.0) (2026-08-27)
 
 
