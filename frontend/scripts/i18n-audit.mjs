@@ -66,8 +66,23 @@ const DYNAMIC = /\bt\(\s*[A-Za-z_$][\w$.[\]]*\s*[,)]/g;
 const DECLARED = /\/\/\s*i18n:\s*(.+)$/gm;
 const QUOTED = /(['"])((?:\\.|(?!\1)[^\\])*)\1/g;
 
+/**
+ * Le texte tel que `t()` le recevra À L'EXÉCUTION, et non tel qu'il est écrit
+ * dans le fichier.
+ *
+ * La distinction n'est pas cosmétique : une clé contenant `\n` s'écrit avec
+ * une barre oblique inverse dans la source, et le moteur la reçoit comme un
+ * vrai saut de ligne. Sans cette conversion, une chaîne multi-lignes était
+ * signalée **à la fois** manquante (la source ne correspond à aucune clé) et
+ * orpheline (la clé du catalogue ne correspond à aucune source) — deux
+ * signaux faux pour une traduction parfaitement correcte, et de quoi faire
+ * douter de tout le rapport.
+ */
 function unescape(raw) {
-  return raw.replace(/\\(['"\\])/g, '$1');
+  return raw.replace(/\\(u[0-9a-fA-F]{4}|.)/g, (match, escaped) => {
+    if (escaped[0] === 'u') return String.fromCharCode(parseInt(escaped.slice(1), 16));
+    return { n: '\n', t: '\t', r: '\r', b: '\b', f: '\f', v: '\v', '0': '\0' }[escaped] ?? escaped;
+  });
 }
 
 const used = new Map();   // clé → [fichiers]
