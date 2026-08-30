@@ -1997,9 +1997,28 @@ deviendraient tous deux « 5 ».
 > facile et le résultat resterait plausible à l'œil.
 
 **Le format des nombres suit la LANGUE, pas les unités** : un francophone qui
-compte en miles attend « 62 137 », pas « 62,137 ». **Les dates aussi** —
-`toLocaleDateString(fmt.locale)`, jamais `'fr-FR'` en dur, qui affichait
-« 30/08/2026 » au milieu d'une interface anglaise.
+compte en miles attend « 62 137 », pas « 62,137 ». **Les dates aussi.**
+
+> ⚠️ **Aucun formatage localisé ne s'écrit hors de `preferencesContext.jsx`.**
+> La règle était déjà énoncée ici, et elle était violée sur **quinze sites** —
+> `toLocaleDateString('fr-FR')` un peu partout, plus un
+> `Intl.NumberFormat('fr-FR', { currency: 'EUR' })` dans la fiche véhicule qui
+> figeait carrément la devise. Le symptôme est discret : l'interface passe en
+> anglais, les libellés suivent, et les dates continuent de s'écrire
+> « 30/08/2026 » au milieu. Rien ne casse, personne ne le signale.
+>
+> Une règle qu'aucun grep ne vérifie n'est pas une règle. D'où `fmt.date()` et
+> `fmt.num()`, qui font de « passe par le hook » une propriété **vérifiable** :
+>
+> ```bash
+> grep -rn "toLocaleDateString\|toLocaleString\|Intl\.NumberFormat\|Intl\.DateTimeFormat" \
+>   frontend/src --include="*.jsx" --include="*.js" \
+>   | grep -v "lib/preferencesContext.jsx\|lib/units.js"
+> ```
+>
+> Il doit rester **vide**. Un site d'appel qui a besoin d'options les passe à
+> `fmt.date(valeur, options)` — ce sont celles de `toLocaleDateString`, il n'y
+> a rien de nouveau à apprendre.
 
 #### `useFormat()` — le hook à utiliser, toujours
 
@@ -2011,7 +2030,18 @@ fmt.distUnit                            // « mi » — pour un libellé de cham
 fmt.toStorage(saisie)                   // ← OBLIGATOIRE sur toute saisie
 fmt.money(m.cost_paid, m.currency, 2)   // ← la devise DE LA LIGNE (§20.7)
 fmt.totals(recap.cost_by_currency)      // un total ventilé : « 1 200 € + 300 $ »
+fmt.date(m.execution_date)              // ← JAMAIS toLocaleDateString('fr-FR')
+fmt.date(inv.expires_at, { day: '2-digit', month: 'long' })
+fmt.num(data.total_vehicles)            // un décompte, une valeur d'axe
 ```
+
+> ⚠️ **Ne jamais poser d'alias local autour de ces fonctions.** Le tableau de
+> bord avait `const fmtEuro = (n) => u.money(n)` : parfaitement correct à la
+> lecture, et pourtant il faisait **passer tout le fichier au travers du grep
+> de contrôle des devises** ci-dessous, qui cherche littéralement
+> `fmt.money(`. Trois montants y suivaient le réglage d'instance au lieu de
+> leur propre devise, sans que rien ne le signale. Un alias qui rend un
+> garde-fou aveugle coûte plus qu'il n'abrège.
 
 Écrire `formatDistance(km, units, lang)` à la main marche aussi, mais sur des
 centaines de sites d'appel le premier oubli du troisième argument donne des
@@ -2051,10 +2081,24 @@ grep -rn "fmt.money(" frontend/src --include="*.jsx" | grep -v "currency\|money(
 
 Tout montant venu d'une ligne enregistrée doit passer sa devise en second
 argument — sans quoi il se met à suivre le réglage d'instance et ment (§20.7).
-Restent légitimes : les fourchettes du catalogue et les libellés de champ de
-saisie, qui parlent bien de la devise du moment. Une seule ligne qui y échappe, et un utilisateur en miles
+
+**Ce qui reste légitimement sans devise de ligne**, et qu'il faut savoir
+reconnaître pour ne pas « corriger » à tort :
+
+| Cas | Pourquoi |
+|---|---|
+| Fourchettes de prix du catalogue | Elles ne viennent d'aucune saisie (§23.10 bis) |
+| Libellés de champ de saisie | Ils parlent de la devise du moment, c'est leur rôle |
+| Agrégats calculés sur tout l'historique — moyenne mensuelle, total par station, valeur estimée | Il n'y a **pas** de devise de ligne : ce sont des sommes. Elles s'écrivent avec le symbole d'instance, et un `Notice` prévient dès que `fmt.isMixed()` |
+
+Un agrégat mêlé sans ce `Notice`, en revanche, est un bug : c'était le cas du
+tableau de bord et du suivi carburant, qui affichaient des moyennes à cheval
+sur deux devises sans rien dire. Une seule ligne qui y échappe, et un utilisateur en miles
 enregistre des miles dans une colonne de kilomètres — sans erreur, sans trace,
 et l'historique est faussé définitivement.
+
+Et le troisième, qui n'existait pas et aurait dû : celui des formats localisés,
+juste au-dessus. C'est lui qui a trouvé les quinze sites en `fr-FR`.
 
 `APIDocumentation.jsx` reste volontairement en kilomètres : elle documente
 l'API, dont l'unité de stockage ne change pas.

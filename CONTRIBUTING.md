@@ -259,8 +259,14 @@ absurde. Deux listes courtes, dont l'écart se verrait au premier montant.
 > ⚠️ **Ne pas brancher de service de taux de change.** Le bon taux serait celui
 > du jour de *chaque ligne* — le plein de mars et celui de novembre n'ont pas
 > été payés au même cours. Un taux automatique serait tout aussi approximatif
-> que celui que l'administrateur saisit dans Paramètres → Préférences, mais
-> prétendrait le contraire et ferait bouger l'historique tout seul.
+> qu'un taux saisi à la main, mais prétendrait le contraire et ferait bouger
+> l'historique tout seul.
+>
+> La conversion existe (`POST /api/admin/currency/convert`, avec aperçu et
+> sauvegarde préalable) mais **n'a volontairement pas d'écran** : repartir dans
+> une autre monnaie arrive une fois, ou jamais, et un bouton irréversible posé
+> à côté d'un réglage d'affichage anodin est une mauvaise idée. Ne pas en
+> ajouter un sans lire le §20.7 de `CLAUDE.md` d'abord.
 >
 > Chaque montant porte déjà la devise de sa saisie : c'est ce qui rend
 > l'historique vrai, indépendamment du réglage d'affichage.
