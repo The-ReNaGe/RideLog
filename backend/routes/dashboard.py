@@ -127,9 +127,17 @@ def get_dashboard(
             "urgent_count": urgent,
             "warning_count": warn,
             "total_cost": round(v_maint_cost + v_fuel_cost, 2),
+            # Le total nu reste là pour ce qui trie et compare ; c'est la
+            # ventilation que l'interface affiche, sans quoi une dépense de
+            # 200 € et une de 200 $ ressortiraient en « 400 ».
+            "cost_by_currency": merge_totals(
+                totals_by_currency(v_maintenances, "cost_paid", instance_currency),
+                totals_by_currency(v_fuel_logs, "total_cost", instance_currency),
+            ),
             "maintenance_cost": round(v_maint_cost, 2),
             "fuel_cost": round(v_fuel_cost, 2),
             "purchase_price": v.purchase_price,
+            "purchase_price_currency": v.currency,
             "next_maintenance": upcoming[0]["intervention_type"] if upcoming else None,
             "next_maintenance_status": upcoming[0]["status"] if upcoming else "ok",
         })
@@ -146,6 +154,9 @@ def get_dashboard(
             "intervention_type": m.other_description if m.intervention_type == "Autre" and m.other_description else m.intervention_type,
             "execution_date": m.execution_date.isoformat(),
             "cost_paid": m.cost_paid,
+            # Sans elle, le front ne peut afficher que le symbole d'instance et
+            # une révision payée en dollars se met à mentir (§20.7).
+            "currency": m.currency,
         })
 
     # Monthly cost breakdown (last 12 months)
@@ -161,12 +172,16 @@ def get_dashboard(
     sorted_months = sorted(monthly_costs.items())[-12:]
 
     fleet_purchase_price = sum(vs["purchase_price"] or 0 for vs in vehicle_summaries)
+    fleet_purchase_by_currency = totals_by_currency(
+        [v for v in vehicles if v.purchase_price is not None],
+        "purchase_price", instance_currency,
+    )
 
     return {
         "total_vehicles": total_vehicles,
         "total_mileage": total_mileage,
         "total_cost": round(total_maintenance_cost + total_fuel_cost, 2),
-        # Voir currency.currencies_of : un total qui enjambe deux devises
+        # Voir currency.totals_by_currency : un total qui enjambe deux devises
         # reste affiché, mais l'interface ne lui pose pas un symbole faux.
         "cost_by_currency": merge_totals(
             totals_by_currency(all_maintenances, "cost_paid", instance_currency),
@@ -180,6 +195,7 @@ def get_dashboard(
         "urgent_count": urgent_total,
         "warning_count": warning_total,
         "fleet_purchase_price": fleet_purchase_price,
+        "fleet_purchase_by_currency": fleet_purchase_by_currency,
         "alert_details": alert_details,
         "vehicles": vehicle_summaries,
         "recent_activity": recent_activity,

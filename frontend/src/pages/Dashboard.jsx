@@ -4,10 +4,10 @@ import { useFormat, useT } from '../lib/preferencesContext';
 import Icon from '../components/Icon';
 import PageHeader from '../components/PageHeader';
 import VehiclePhoto from '../components/VehiclePhoto';
+import Notice from '../components/Notice';
 
 export default function Dashboard({ onSelectVehicle, currentUser }) {
-  // `fmt` est déjà pris par le formateur de nombres du tableau de bord.
-  const u = useFormat();
+  const fmt = useFormat();
   const t = useT();
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -57,9 +57,10 @@ export default function Dashboard({ onSelectVehicle, currentUser }) {
 
   if (!data) return null;
 
-  const fmt = (n) => new Intl.NumberFormat(u.locale).format(n);
-  // Symbole et format viennent des préférences : plus de devise en dur.
-  const fmtEuro = (n) => u.money(n);
+  // Pas d'alias local autour du formateur de montants : `fmtEuro` en était
+  // un, et il faisait passer ce fichier au travers du grep de contrôle des
+  // devises documenté au §20.6, qui cherche le nom de la fonction elle-même.
+  const mixed = fmt.isMixed(data.cost_by_currency);
 
   return (
     <div>
@@ -73,12 +74,19 @@ export default function Dashboard({ onSelectVehicle, currentUser }) {
       {/* KPI Cards Row */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-5">
         {[
-          { icon: 'car',   label: t('Véhicules'),     value: fmt(data.total_vehicles) },
-          { icon: 'euro',  label: t('Coût total'),    value: fmtEuro(data.total_cost),
-            sub: `Entretien ${fmtEuro(data.total_maintenance_cost)} · Carburant ${fmtEuro(data.total_fuel_cost)}` },
-          { icon: 'gauge', label: t('Distance totale'), value: u.dist(data.total_mileage) },
-          { icon: 'package', label: t("Valeur d'achat"), value: data.fleet_purchase_price ? fmtEuro(data.fleet_purchase_price) : '—',
-            sub: "Prix d'achat cumulé du parc" },
+          { icon: 'car',   label: t('Véhicules'),     value: fmt.num(data.total_vehicles) },
+          // Ventilé, jamais additionné à travers deux devises : « 400 » pour
+          // 200 € et 200 $ est un chiffre faux qu'on ne recompte jamais.
+          { icon: 'euro',  label: t('Coût total'),    value: fmt.totals(data.cost_by_currency),
+            sub: `${t('Entretien')} ${fmt.money(data.total_maintenance_cost)} · ${t('Carburant')} ${fmt.money(data.total_fuel_cost)}` },
+          { icon: 'gauge', label: t('Distance totale'), value: fmt.dist(data.total_mileage) },
+          // « — » et non « 0 € » quand aucun véhicule n'a de prix d'achat :
+          // un parc sans prix saisi n'a pas une valeur de zéro, il n'en a pas.
+          { icon: 'package', label: t("Valeur d'achat"),
+            value: fmt.isMixed(data.fleet_purchase_by_currency) || data.fleet_purchase_price
+              ? fmt.totals(data.fleet_purchase_by_currency)
+              : '—',
+            sub: t("Prix d'achat cumulé du parc") },
         ].map(kpi => (
           <div key={kpi.label} className="card" style={{ padding: 16 }}>
             <div className="flex items-center gap-2" style={{ marginBottom: 8 }}>
@@ -162,7 +170,7 @@ export default function Dashboard({ onSelectVehicle, currentUser }) {
                 <div className="flex-1 min-w-0">
                   <div className="font-bold text-ellipsis" style={{ color: 'var(--text-1)', fontSize: 15 }}>{v.name}</div>
                   <div className="text-ellipsis" style={{ color: 'var(--text-3)', fontSize: 13 }}>{v.brand} {v.model} · {v.year}</div>
-                  <div className="tabular" style={{ color: 'var(--text-2)', fontSize: 13, fontWeight: 600 }}>{u.dist(v.current_mileage)}</div>
+                  <div className="tabular" style={{ color: 'var(--text-2)', fontSize: 13, fontWeight: 600 }}>{fmt.dist(v.current_mileage)}</div>
                 </div>
                 <span className={`icon-box sm ${state.tone}`} title={state.label}>
                   <Icon name={state.icon} size={15} />
@@ -170,8 +178,8 @@ export default function Dashboard({ onSelectVehicle, currentUser }) {
               </div>
               <div className="grid grid-cols-3 gap-2 text-center">
                 {[
-                  { label: t('Dépenses'),     value: fmtEuro(v.total_cost),  color: 'var(--text-1)' },
-                  { label: t("Prix d'achat"), value: v.purchase_price ? fmtEuro(v.purchase_price) : '—', color: 'var(--text-1)' },
+                  { label: t('Dépenses'),     value: fmt.totals(v.cost_by_currency), color: 'var(--text-1)' },
+                  { label: t("Prix d'achat"), value: fmt.money(v.purchase_price, v.purchase_price_currency), color: 'var(--text-1)' },
                   { label: t('État'),         value: state.label,            color: state.color },
                 ].map(cell => (
                   <div key={cell.label} className="inset" style={{ padding: '9px 6px' }}>
@@ -211,10 +219,10 @@ export default function Dashboard({ onSelectVehicle, currentUser }) {
                   </div>
                   <div className="flex items-center gap-3">
                     {a.cost_paid != null && (
-                      <span className="text-xs font-semibold" style={{ color: 'var(--text-2)' }}>{fmtEuro(a.cost_paid)}</span>
+                      <span className="text-xs font-semibold" style={{ color: 'var(--text-2)' }}>{fmt.money(a.cost_paid, a.currency)}</span>
                     )}
                     <span className="text-xs" style={{ color: 'var(--text-3)' }}>
-                      {new Date(a.execution_date).toLocaleDateString('fr-FR')}
+                      {fmt.date(a.execution_date)}
                     </span>
                   </div>
                 </button>
@@ -225,7 +233,7 @@ export default function Dashboard({ onSelectVehicle, currentUser }) {
 
         
         <div className="card p-4 flex flex-col gap-5">
-          <CostCharts monthlyCosts={data.monthly_costs} />
+          <CostCharts monthlyCosts={data.monthly_costs} mixed={mixed} />
         </div>
 
       </div>
@@ -239,11 +247,9 @@ export default function Dashboard({ onSelectVehicle, currentUser }) {
 
 const MONTH_LABELS = ['Jan', 'Fév', 'Mar', 'Avr', 'Mai', 'Jun', 'Jul', 'Aoû', 'Sep', 'Oct', 'Nov', 'Déc'];
 
-function CostCharts({ monthlyCosts }) {
+function CostCharts({ monthlyCosts, mixed }) {
   const t = useT();
-  const u = useFormat();
-  // Symbole et format viennent des préférences : plus de devise en dur.
-  const fmtEuro = (n) => u.money(n);
+  const fmt = useFormat();
 
   // Construire les données par année et par mois depuis monthlyCosts
   // monthlyCosts = [{ month: "2024-03", cost: 150 }, ...]
@@ -281,6 +287,16 @@ function CostCharts({ monthlyCosts }) {
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', flex: 1, gap: '1.25rem' }}>
+      {/* Une barre est une somme, et une somme ne traverse pas deux devises.
+          Les ventiler ferait deux barres par mois et casserait la lecture ;
+          on additionne donc, et on le dit — même arbitrage que pour les
+          répartitions par catégorie de la fiche véhicule. */}
+      {mixed && (
+        <Notice tone="warning" title={t('Plusieurs devises dans cet historique')}>
+          {t('Les graphiques additionnent des montants saisis dans des devises différentes. Les totaux ci-dessus, eux, restent ventilés.')}
+        </Notice>
+      )}
+
       {/* Graphique mensuel */}
       <div>
         <div className="flex items-center justify-between mb-3">
@@ -303,7 +319,7 @@ function CostCharts({ monthlyCosts }) {
             </div>
           )}
         </div>
-        <BarChart data={monthlyData} max={maxMonthly} fmtEuro={fmtEuro} height={160} />
+        <BarChart data={monthlyData} max={maxMonthly} money={fmt.money} height={160} />
       </div>
 
       {/* Séparateur */}
@@ -319,7 +335,7 @@ function CostCharts({ monthlyCosts }) {
           {annualData.length === 0 ? (
             <p className="text-sm" style={{ color: 'var(--text-3)' }}>{t('Aucune donnée')}</p>
           ) : (
-            <BarChart data={annualData} max={maxAnnual} fmtEuro={fmtEuro} height={120} accentOpacity={0.75} minBarWidth={36} />
+            <BarChart data={annualData} max={maxAnnual} money={fmt.money} height={120} accentOpacity={0.75} minBarWidth={36} />
           )}
         </div>
       </div>
@@ -329,7 +345,7 @@ function CostCharts({ monthlyCosts }) {
 
 // Graphique à barres générique
 // minBarWidth : si défini, active le scroll horizontal avec une largeur fixe par barre
-function BarChart({ data, max, fmtEuro, height = 160, accentOpacity = 0.6, minBarWidth = null }) {
+function BarChart({ data, max, money, height = 160, accentOpacity = 0.6, minBarWidth = null }) {
   const [hovered, setHovered] = useState(null);
 
   // Largeur totale minimale si scroll activé
@@ -364,7 +380,7 @@ function BarChart({ data, max, fmtEuro, height = 160, accentOpacity = 0.6, minBa
             boxShadow: 'var(--shadow-md)',
           }}
         >
-          <div style={{ fontSize: '0.75rem', fontWeight: 700, color: 'var(--text-1)' }}>{fmtEuro(data[hovered].cost)}</div>
+          <div style={{ fontSize: '0.75rem', fontWeight: 700, color: 'var(--text-1)' }}>{money(data[hovered].cost)}</div>
           <div style={{ fontSize: '0.65rem', color: 'var(--text-3)' }}>{data[hovered].label}</div>
         </div>
       )}
