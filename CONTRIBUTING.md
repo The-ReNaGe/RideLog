@@ -243,6 +243,28 @@ premier second pays réel — ils sont recensés dans le docstring de
 `backend/regions/__init__.py`. Les déplacer **avant** d'avoir ce second cas
 serait de l'abstraction que rien ne valide.
 
+Les **fourchettes de prix** de `maintenance_intervals.json` sont, elles aussi,
+des tarifs français. Un nouveau pays apporte ses propres tarifs — pas un taux
+de change.
+
+### Ajouter une devise
+
+1. Une entrée dans `CURRENCIES` (`backend/currency.py`).
+2. La même dans `CURRENCY_SYMBOLS` (`frontend/src/lib/currencies.js`).
+
+Les deux listes sont recopiées volontairement : `fmt.money()` est synchrone et
+tourne sur chaque montant affiché, aller chercher un symbole par requête serait
+absurde. Deux listes courtes, dont l'écart se verrait au premier montant.
+
+> ⚠️ **Ne pas brancher de service de taux de change.** Le bon taux serait celui
+> du jour de *chaque ligne* — le plein de mars et celui de novembre n'ont pas
+> été payés au même cours. Un taux automatique serait tout aussi approximatif
+> que celui que l'administrateur saisit dans Paramètres → Préférences, mais
+> prétendrait le contraire et ferait bouger l'historique tout seul.
+>
+> Chaque montant porte déjà la devise de sa saisie : c'est ce qui rend
+> l'historique vrai, indépendamment du réglage d'affichage.
+
 ---
 
 ## Guides par type de contribution

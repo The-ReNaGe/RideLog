@@ -155,7 +155,8 @@ backend/
 ├── security.py                # JWT, bcrypt, rate limiting, middlewares auth
 ├── maintenance_calculator.py  # ★ LOGIQUE MÉTIER PRINCIPALE ★
 ├── reminder_scheduler.py      # Scheduler background (rappels webhook)
-├── settings_store.py          # Réglages d'instance persistés (pays) — voir §20.3
+├── settings_store.py          # Réglages d'instance persistés : pays et devise — §20.3, §20.7
+├── currency.py                # ★ Devises : catalogue, marquage, conversion explicite — §20.7 ★
 ├── regions/                   # ★ Ce qui dépend du PAYS, pas de la langue — voir §20 ★
 │   ├── __init__.py            # Registre, helpers partagés, variable REGION
 │   └── fr.py                  # France : plaque SIV, réponse carte grise
@@ -1027,16 +1028,16 @@ api.getMaintenanceRecap(vehicleId),  // ← chargé d'emblée pour les KPI cards
 |-------|------|-------------|
 | `users` | id, username (unique) | Comptes utilisateurs (is_admin, is_integration_account) |
 | `vehicles` | id, user_id (FK) | Véhicules du parc. `country` = pays d'immatriculation, NULL = suit l'instance (voir §20.7) |
-| `maintenances` | id, vehicle_id (FK), intervention_key | Historique d'entretien. `intervention_key` fait foi pour les calculs ; `intervention_type` n'est qu'un libellé d'affichage (voir §20) |
+| `maintenances` | id, vehicle_id (FK), intervention_key | Historique d'entretien. `intervention_key` fait foi pour les calculs ; `intervention_type` n'est qu'un libellé d'affichage (voir §20). `currency` = devise de saisie, NULL = suit l'instance (§20.7) |
 | `maintenance_invoices` | id, maintenance_id (FK) | Factures jointes |
-| `fuel_logs` | id, vehicle_id (FK) | Pleins de carburant |
+| `fuel_logs` | id, vehicle_id (FK) | Pleins de carburant. `currency` comme ci-dessus |
 | `webhooks` | id, user_id (FK) | Webhooks Discord configurés |
 | `notification_logs` | id, vehicle_id (FK) | Log des notifications envoyées (anti-doublon) |
 | `invitations` | id, token (unique), family_id (FK, nullable) | Tokens d'invitation. `family_id` renseigné = invitation à rejoindre un groupe (voir §22) |
 | `families` | id, created_by (FK) | Groupes famille — partage en lecture (voir §22) |
 | `family_members` | id, family_id (FK), user_id (FK, **unique**) | Appartenance : un utilisateur, un seul groupe |
 | `vehicle_estimates` | id, brand, model | Estimations de valeur résiduelle |
-| `app_settings` | key (PK) | Réglages d'instance choisis dans l'interface et **persistés** — aujourd'hui le pays (voir §20.3) |
+| `app_settings` | key (PK) | Réglages d'instance choisis dans l'interface et **persistés** — le pays (§20.3) et la devise (§20.7) |
 | `vehicle_maintenance_overrides` | id, vehicle_id (FK), intervention_key | Ce qu'un véhicule change au catalogue d'entretien : intervalles surchargés, interventions écartées, entretiens personnalisés (voir §16) |
 
 ### `vehicle_maintenance_overrides` — détail
@@ -1667,6 +1668,7 @@ python -m pytest tests/ -v
 | `test_fuel_stations.py` | Routes `/fuel-stations/*` — authentification exigée sur les trois endpoints, bornes de `max_distance`/`limit`, cache (clé insensible aux accents, plafond, expiration). Les appels sortants sont monkeypatchés : aucun test ne sort sur le réseau. |
 | `test_user_preferences.py` | Langue et unités (`users.language`, `users.units`, `PUT /auth/me/preferences`) — un compte neuf porte `NULL` et non `"fr"`/`"metric"`, les préférences effectives retombent sur le pays, `auto` remet un réglage sous ce défaut, une valeur non servie est refusée, et surtout **l'isolation par utilisateur** : le choix d'un membre ne déborde pas sur les autres. |
 | `test_regions_fr.py` | `regions/fr.py` — normalisation de plaque, analyse de la réponse carte grise (détection moto par genre, replis de cylindrée, priorité du genre sur l'indication utilisateur), repli du registre sur `FR`. Aucun appel réseau : cette logique n'était auparavant atteignable que via un service tiers payant, donc jamais testée. |
+| `test_currency.py` | Devise d'un montant et conversion (`currency.py`, `routes/regions.py`) — un montant garde la devise de sa saisie même après un changement de réglage, une ligne non marquée est figée sur la devise sortante, un total à deux devises est ventilé et non additionné, l'aperçu ne touche rien, la conversion recalcule et ré-estampille, une troisième devise est laissée intacte, et seul un admin peut convertir. |
 | `test_regions_settings.py` | Choix du pays (`settings_store.py`, `routes/regions.py`) — France par défaut, refus d'un pays inconnu, écriture réservée à un admin, persistance **en base** et non en mémoire, et repli sur `FR` quand la base garde un pays que le code ne connaît plus (retour arrière, §21.5). |
 | `test_maintenance_routes.py` | Enregistrement d'un entretien via `TestClient` — la clé technique est stockée, deux libellés d'une même intervention partagent une clé, un libellé inconnu n'échoue pas, et l'entretien enregistré ressort bien rattaché à son échéance. |
 | `test_vehicle_status.py` | État d'entretien joint à `GET /vehicles` — présence des compteurs, accord avec `/upcoming`, et surtout : un véhicule **partagé par le groupe famille** porte le sien aussi (voir §23.9). |
@@ -1795,8 +1797,10 @@ parsed = region.parse_plate_response(payload, hint) # → champs véhicule RideL
 
 | Méthode | Route | Protection | Description |
 |---|---|---|---|
-| GET | `/api/regions` | JWT | Pays disponibles + pays actif |
+| GET | `/api/regions` | JWT | Pays disponibles, pays actif, devises, devise active |
 | PUT | `/api/admin/region` | Admin | Choisir le pays de l'instance |
+| PUT | `/api/admin/currency` | Admin | Choisir la devise d'affichage (§20.7) |
+| POST | `/api/admin/currency/convert` | Admin | Convertir tous les montants au taux fourni (§20.7) |
 
 La lecture est ouverte à tout utilisateur connecté : l'exemple de plaque
 s'affiche dans le formulaire véhicule, que n'importe qui remplit. Seule
@@ -1994,6 +1998,8 @@ fmt.dist(vehicle.current_mileage)       // « 62 137 mi »
 fmt.distValue(km)                       // la valeur seule, pour un <input>
 fmt.distUnit                            // « mi » — pour un libellé de champ
 fmt.toStorage(saisie)                   // ← OBLIGATOIRE sur toute saisie
+fmt.money(m.cost_paid, m.currency, 2)   // ← la devise DE LA LIGNE (§20.7)
+fmt.totals(recap.cost_by_currency)      // un total ventilé : « 1 200 € + 300 $ »
 ```
 
 Écrire `formatDistance(km, units, lang)` à la main marche aussi, mais sur des
@@ -2026,7 +2032,16 @@ grep -rn "mileage_at_intervention\|mileage_at_fill\|current_mileage\|km_interval
 ```
 
 Il doit rester **vide** : toute distance envoyée au backend passe par
-`fmt.toStorage`. Une seule ligne qui y échappe, et un utilisateur en miles
+`fmt.toStorage`. Le contrôle jumeau côté devise :
+
+```bash
+grep -rn "fmt.money(" frontend/src --include="*.jsx" | grep -v "currency\|money(cost"
+```
+
+Tout montant venu d'une ligne enregistrée doit passer sa devise en second
+argument — sans quoi il se met à suivre le réglage d'instance et ment (§20.7).
+Restent légitimes : les fourchettes du catalogue et les libellés de champ de
+saisie, qui parlent bien de la devise du moment. Une seule ligne qui y échappe, et un utilisateur en miles
 enregistre des miles dans une colonne de kilomètres — sans erreur, sans trace,
 et l'historique est faussé définitivement.
 
@@ -2066,28 +2081,96 @@ plutôt que spéculatif, ce que §20.4 exigeait.
 `vehicle.country or <pays de l'instance>`. Un oubli ferait diverger un écran
 des rappels en silence, exactement le défaut contre lequel §3 met en garde.
 
-#### La devise est un symbole, pas un taux de change
+#### La devise : le réglage dit comment écrire, le marquage dit ce qui a été payé
 
 `app_settings.currency`, réglage **d'instance** (comme le pays), avec `EUR` et
 `USD` pour l'instant. Chaque région porte sa `default_currency`.
-
-> ⚠️ **Aucune conversion n'est appliquée, et il ne faut pas en ajouter.** Les
-> montants sont stockés comme des nombres nus : un plein à 60 saisi en euros
-> reste 60 après un passage au dollar. Convertir supposerait un taux **à la
-> date de chaque ligne**, donc un service externe et un historique qui
-> changerait tout seul entre deux consultations. L'utilisateur saisit dans SA
-> monnaie ; le réglage dit seulement comment l'écrire.
->
-> C'est verrouillé par `test_changing_the_currency_never_touches_a_stored_amount`.
 
 D'instance et non par utilisateur, pour la même raison que le pays : deux
 membres d'un même groupe famille doivent lire le même nombre avec le même
 symbole, sinon le partage ment.
 
-Le symbole se lit par `fmt.money(montant)` ou `fmt.currencySymbol` (§20.6) —
-plus aucun `€` littéral dans le frontend. La **liste des devises est courte et
-vérifiée à la main** plutôt qu'un référentiel ISO complet : 180 lignes non
-relues donneraient surtout 180 façons de se tromper de symbole.
+La **liste des devises est courte et vérifiée à la main** plutôt qu'un
+référentiel ISO complet : 180 lignes non relues donneraient surtout 180 façons
+de se tromper de symbole. Elle vit dans `backend/currency.py`, recopiée dans
+`frontend/src/lib/currencies.js` — `fmt.money()` est synchrone et tourne sur
+chaque montant affiché, aller chercher un symbole par requête serait absurde.
+Deux listes de deux lignes, dont l'écart se verrait au premier montant affiché.
+
+##### Chaque montant porte sa devise (migration 014)
+
+`maintenances.currency`, `fuel_logs.currency`, `vehicles.currency`. `NULL` =
+ligne antérieure au marquage : elle suit le réglage d'instance, exactement
+comme avant, donc aucune instance existante ne voit un nombre changer.
+
+> ⚠️ **C'est le marquage qui rend l'historique vrai, pas le réglage.** Un
+> montant stocké est un nombre nu. Sans devise à côté, une révision payée
+> 200 $ redevient « 200 € » dès que l'administrateur change le réglage
+> d'affichage, et plus rien ne dit laquelle des deux phrases est vraie. C'est
+> une falsification silencieuse de l'historique — le pire genre, puisqu'aucune
+> erreur n'apparaît nulle part.
+
+La devise est lue **à l'écriture** (`get_active_currency(db)` dans
+`create_maintenance`, `create_fuel_log`, `create_vehicle`) et jamais relue
+ensuite. Sur une modification, elle n'est ré-estampillée que si la ligne
+n'était pas encore marquée : corriger une faute de frappe sur un prix en
+dollars ne doit pas le convertir en euros d'un coup d'éditeur.
+
+**`PUT /admin/currency` fige la devise sortante** sur tout ce qui n'était pas
+encore marqué, avant de basculer (`stamp_unmarked_amounts`). Sans ce geste,
+l'historique antérieur au marquage suivrait le nouveau symbole. Après une
+première bascule, plus aucune ligne n'est ambiguë.
+
+##### La conversion est une commande à part
+
+`POST /api/admin/currency/convert` — `{code, rate, dry_run}`. Aperçu par
+défaut, puis sauvegarde de la base (le `backup_database` des migrations, §13),
+puis recalcul, ré-estampillage, et **enfin** le réglage d'instance.
+
+> ⚠️ **Ne jamais fondre la conversion dans le changement de devise.** Ce sont
+> deux intentions différentes :
+>
+>     « je me suis trompé de symbole »        → changer la devise, rien d'autre
+>     « j'ai déménagé, je repars en dollars » → convertir, puis changer
+>
+> Les réunir obligerait à deviner laquelle, et le premier cas est de loin le
+> plus fréquent — le convertir silencieusement abîmerait l'historique de
+> quelqu'un venu corriger un détail d'affichage.
+
+**Le taux est fourni par l'administrateur, jamais récupéré.** Le bon taux
+serait celui du jour de *chaque ligne* : le plein de mars et celui de novembre
+n'ont pas été payés au même cours. Un taux automatique serait donc tout aussi
+approximatif que celui-ci, mais prétendrait le contraire et ferait bouger
+l'historique tout seul entre deux consultations.
+
+Les lignes marquées d'une **troisième** devise ne sont pas touchées : le taux
+vaut pour un couple, pas pour toutes les monnaies du monde.
+
+##### Un total ne s'additionne pas à travers deux devises
+
+`currency.totals_by_currency()` ventile ; `cost_by_currency` accompagne
+`total_cost` dans le récap, le tableau de bord et les stats carburant. Côté
+frontend, `fmt.totals(cost_by_currency)` écrit « 1 200 € + 300 $ » et
+`fmt.isMixed()` sert à nuancer un libellé.
+
+> ⚠️ 200 € + 200 $ ne fait pas 400. Le cas n'est pas théorique : changer de
+> devise **sans** convertir est légitime — on a déménagé et on saisit désormais
+> en dollars, sans vouloir réécrire l'historique européen. Un total mêlé affiché
+> avec un symbole unique est un chiffre faux qu'on ne recompte jamais.
+
+Les répartitions **par catégorie** additionnent encore sans regarder la devise,
+et le disent : un `Notice` apparaît au-dessus dès que `isMixed`. Les ventiler
+aussi aurait cassé les barres de pourcentage pour un cas que la conversion est
+justement là pour résoudre.
+
+##### Les fourchettes de prix du catalogue ne sont pas des montants
+
+`maintenance_intervals.json` porte des **tarifs français**. Ils s'écrivent avec
+le symbole de l'instance, sans conversion — c'est un ordre de grandeur, pas un
+devis, et c'est la raison du `CountryBadge` posé à côté (§23.10 bis). Un second
+pays apportera ses propres tarifs plutôt qu'un taux de change.
+
+Tests : `tests/test_currency.py`.
 
 #### Ce que ça change pour ajouter un pays
 
@@ -2555,6 +2638,11 @@ composant**.
 Posé aujourd'hui sur : le bloc de décodage de plaque (`VehicleForm`), le
 contrôle technique dans « À venir » (`UpcomingMaintenance`), la recherche de
 stations (`FuelStations`).
+
+Une quatrième chose est nationale sans l'avoir été jusqu'ici : les **fourchettes
+de prix du catalogue** (`maintenance_intervals.json`) sont des tarifs français.
+Elles s'écrivent avec le symbole de l'instance sans conversion — un ordre de
+grandeur, pas un devis (§20.7).
 
 > ⚠️ **À ne poser que sur ce qui change réellement avec le pays.** Sur un champ
 > ordinaire il devient décoratif, et le jour où l'on cherchera ce qu'un
