@@ -241,3 +241,55 @@ def test_an_ordinary_member_cannot_convert(client, open_registration):
         headers=headers,
     )
     assert res.status_code == 403
+
+
+# ── Modifier un montant ────────────────────────────────────────────────────
+
+def test_editing_an_amount_does_not_reconvert_it(client, open_registration):
+    """Corriger une faute de frappe sur un prix en dollars ne doit pas le
+    transformer en euros d'un coup d'éditeur. La ligne est déjà marquée : son
+    marquage fait foi, quel que soit le réglage du jour."""
+    headers = admin_headers(client)
+    vehicle_id = make_vehicle(client, headers)["id"]
+
+    switch_currency(client, headers, "USD")
+    recorded = add_maintenance(client, headers, vehicle_id, 200)
+    switch_currency(client, headers, "EUR")
+
+    res = client.put(
+        f"/api/vehicles/{vehicle_id}/maintenances/{recorded['id']}",
+        json={"cost_paid": 250},
+        headers=headers,
+    )
+    assert res.status_code == 200, res.text
+    assert res.json()["cost_paid"] == 250
+    assert res.json()["currency"] == "USD"
+
+
+def test_editing_an_unmarked_amount_stamps_it(client, open_registration, db_session):
+    """Une ligne antérieure au marquage (migration 014) suit le réglage
+    d'instance faute de mieux. Dès qu'on touche à son montant, on connaît la
+    devise de la saisie : c'est le dernier moment où l'on peut la fixer sans
+    deviner."""
+    from models import Maintenance
+
+    headers = admin_headers(client)
+    vehicle_id = make_vehicle(client, headers)["id"]
+    recorded = add_maintenance(client, headers, vehicle_id, 200)
+    switch_currency(client, headers, "USD")
+
+    # On remet la ligne dans l'état d'avant le marquage. APRÈS la bascule :
+    # `switch_currency` fige justement la devise sortante sur tout ce qui n'est
+    # pas marqué, et l'ordre inverse la re-marquerait avant qu'on ait testé.
+    row = db_session.get(Maintenance, recorded["id"])
+    row.currency = None
+    db_session.commit()
+
+    res = client.put(
+        f"/api/vehicles/{vehicle_id}/maintenances/{recorded['id']}",
+        json={"cost_paid": 250},
+        headers=headers,
+    )
+
+    assert res.status_code == 200, res.text
+    assert res.json()["currency"] == "USD"

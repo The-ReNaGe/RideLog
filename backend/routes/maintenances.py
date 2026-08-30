@@ -420,6 +420,12 @@ async def update_maintenance(
     if "cost_paid" in data:
         cost = data.get("cost_paid")
         maintenance.cost_paid = float(cost) if cost else None
+        # Ré-estampillage seulement si la ligne n'était pas encore marquée
+        # (elle est antérieure à la migration 014). Une ligne déjà marquée
+        # garde sa devise : corriger une faute de frappe sur un prix en
+        # dollars ne doit pas le convertir en euros d'un coup d'éditeur.
+        if maintenance.currency is None and maintenance.cost_paid is not None:
+            maintenance.currency = get_active_currency(db)
 
     if "notes" in data:
         maintenance.notes = data.get("notes")
