@@ -4,6 +4,7 @@ import { useFormat, usePreferences, useT } from '../lib/preferencesContext';
 import CountryBadge from './CountryBadge';
 import Icon from './Icon';
 import Notice from './Notice';
+import PrivateVehicleField from './PrivateVehicleField';
 
 export default function VehicleForm({ onSubmit, onCancel }) {
   const fmt = useFormat();
@@ -886,31 +887,11 @@ export default function VehicleForm({ onSubmit, onCancel }) {
       {/* Encadré plutôt qu'une case nue : au milieu de champs de saisie, une
           case à cocher isolée se lit mal et passe pour un reste de formulaire.
           handleChange lit e.target.value, inadapté ici — gestionnaire dédié. */}
-      {/* Largeur ajustée au contenu : étirée sur toute la ligne pour trois mots,
-          la boîte paraissait vide et cassait l'alignement des champs au-dessus. */}
       <div className="mt-4">
-        <label
-          className="inline-flex items-center gap-2.5 px-3 py-2 rounded-lg cursor-pointer transition-colors"
-          style={{
-            background: formData.is_private ? 'var(--accent-light)' : 'var(--bg-surface)',
-            border: `1px solid ${formData.is_private ? 'var(--accent)' : 'var(--border)'}`,
-          }}
-          title="Un véhicule privé reste invisible aux autres membres de votre groupe famille"
-        >
-          <input
-            type="checkbox"
-            checked={formData.is_private}
-            onChange={(e) => setFormData((prev) => ({ ...prev, is_private: e.target.checked }))}
-            style={{ width: 15, height: 15, flexShrink: 0 }}
-          />
-          <span className="text-sm font-medium" style={{ color: 'var(--text-1)' }}>
-            <Icon name="lock" size={14} />
-            Véhicule privé
-          </span>
-          <span className="text-xs" style={{ color: 'var(--text-3)' }}>
-            non partagé avec la famille
-          </span>
-        </label>
+        <PrivateVehicleField
+          checked={formData.is_private}
+          onChange={(value) => setFormData((prev) => ({ ...prev, is_private: value }))}
+        />
       </div>
 
       <div className="mt-4">

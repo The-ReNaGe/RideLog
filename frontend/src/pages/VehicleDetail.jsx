@@ -8,6 +8,7 @@ import VehiclePhoto from '../components/VehiclePhoto';
 import Icon from '../components/Icon';
 import CategoryTag, { getCategory } from '../components/CategoryTag';
 import Notice from '../components/Notice';
+import PrivateVehicleField from '../components/PrivateVehicleField';
 import { useFormat, useT } from '../lib/preferencesContext';
 
 const motorLabels = {
@@ -281,23 +282,10 @@ export default function VehicleDetail({ vehicleId, onBack, currentUser }) {
                 />
               </div>
               <div>
-                <label className="flex items-start gap-2 cursor-pointer">
-                  <input
-                    type="checkbox"
-                    checked={!!editedVehicle.is_private}
-                    onChange={e => setEditedVehicle({ ...editedVehicle, is_private: e.target.checked })}
-                    className="mt-1"
-                  />
-                  <span>
-                    <span className="inline-flex items-center gap-1.5" style={{ color: 'var(--text-1)', fontWeight: 600 }}>
-                      <Icon name="lock" size={14} />
-                      Véhicule privé
-                    </span>
-                    <span className="block text-xs" style={{ color: 'var(--text-3)' }}>
-                      Exclu du partage avec votre groupe famille. Vous continuez à le voir.
-                    </span>
-                  </span>
-                </label>
+                <PrivateVehicleField
+                  checked={!!editedVehicle.is_private}
+                  onChange={value => setEditedVehicle({ ...editedVehicle, is_private: value })}
+                />
               </div>
             </div>
             <div className="flex gap-2 mt-6">
@@ -580,7 +568,7 @@ export default function VehicleDetail({ vehicleId, onBack, currentUser }) {
           <div>
           <div className="card-label" style={{ marginBottom: 2 }}>Prix d'achat</div>
           <div className="stat-number" style={{ color: 'var(--success)', fontSize: 22 }}>
-            {new Intl.NumberFormat('fr-FR', { style: 'currency', currency: 'EUR', maximumFractionDigits: 0 }).format(estimate.estimated_value)}
+            {fmt.money(estimate.estimated_value)}
           </div>
           </div>
         </div>
@@ -707,7 +695,7 @@ export default function VehicleDetail({ vehicleId, onBack, currentUser }) {
                   le dire produit des chiffres qu'on ne recompte jamais. */}
               {fmt.isMixed(recap.cost_by_currency) && (
                 <Notice tone="warning" title={t('Plusieurs devises dans cet historique')}>
-                  {t('Les répartitions par catégorie additionnent des montants saisis dans des devises différentes. Un administrateur peut tout ramener à une seule devise depuis Paramètres → Préférences.')}
+                  {t('Les répartitions par catégorie additionnent des montants saisis dans des devises différentes. Le total ci-dessus, lui, reste ventilé.')}
                 </Notice>
               )}
 
@@ -775,7 +763,7 @@ export default function VehicleDetail({ vehicleId, onBack, currentUser }) {
                           const dt = (m.intervention_type === 'Autre' && m.other_description) ? m.other_description : m.intervention_type;
                           return (
                             <tr key={m.id} style={{ borderBottom: '1px solid var(--border)' }}>
-                              <td className="py-2.5 pr-4 whitespace-nowrap" style={{ color: 'var(--text-1)' }}>{new Date(m.execution_date).toLocaleDateString('fr-FR')}</td>
+                              <td className="py-2.5 pr-4 whitespace-nowrap" style={{ color: 'var(--text-1)' }}>{fmt.date(m.execution_date)}</td>
                               <td className="py-2.5 pr-4"><CategoryTag category={cat} /></td>
                               <td className="py-2.5 pr-4 font-medium" style={{ color: 'var(--text-1)' }}>
                                 {dt}
@@ -857,7 +845,7 @@ export default function VehicleDetail({ vehicleId, onBack, currentUser }) {
                             </div>
                           )}
                           <div className="flex flex-wrap gap-x-3 gap-y-0.5 text-xs" style={{ color: 'var(--text-3)' }}>
-                            <span className="inline-flex items-center gap-1"><Icon name="calendar" size={12} />{new Date(m.execution_date).toLocaleDateString('fr-FR')}</span>
+                            <span className="inline-flex items-center gap-1"><Icon name="calendar" size={12} />{fmt.date(m.execution_date)}</span>
                             <span className="inline-flex items-center gap-1"><Icon name="gauge" size={12} />{fmt.dist(m.mileage_at_intervention)}</span>
                             {m.cost_paid != null && <span className="inline-flex items-center gap-1" style={{ color: 'var(--success)', fontWeight: 600 }}><Icon name="euro" size={12} />{fmt.money(m.cost_paid, m.currency, 2)}</span>}
                           </div>
