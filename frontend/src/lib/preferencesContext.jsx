@@ -178,10 +178,48 @@ export function useFormat() {
       return `${formatted} ${symbol}`;
     };
 
+    /**
+     * Une date, écrite dans le format de la LANGUE active.
+     *
+     * ⚠️ **Jamais `toLocaleDateString('fr-FR')` en dur.** C'était le cas sur
+     * quatorze sites, et le symptôme est discret : l'interface passe en
+     * anglais, les libellés suivent, et les dates continuent de s'écrire
+     * « 30/08/2026 » au milieu. Rien ne casse, personne ne le signale.
+     *
+     * Le format suit la langue et non les unités, pour la même raison que les
+     * séparateurs de milliers : un francophone qui compte en miles attend
+     * toujours une date française.
+     *
+     * `opts` est passé tel quel à `toLocaleDateString` — mêmes options que
+     * l'appel natif, donc rien de nouveau à apprendre.
+     */
+    const date = (value, opts) => {
+      if (value === null || value === undefined || value === '') return '—';
+      const d = value instanceof Date ? value : new Date(value);
+      if (Number.isNaN(d.getTime())) return '—';
+      return d.toLocaleDateString(localeOf(lang), opts);
+    };
+
+    /**
+     * Un nombre nu, séparateurs de milliers compris.
+     *
+     * Pour tout ce qui n'est ni une distance, ni un montant, ni une
+     * consommation — un décompte, un volume en litres, une valeur d'axe.
+     */
+    const num = (value, opts) => {
+      if (value === null || value === undefined || value === '') return '—';
+      const n = Number(value);
+      if (!Number.isFinite(n)) return '—';
+      return n.toLocaleString(localeOf(lang), opts);
+    };
+
     return {
       units,
       lang,
       locale: localeOf(lang),
+
+      date,
+      num,
 
       // Affichage
       dist: (km, opts) => formatDistance(km, units, lang, opts),
