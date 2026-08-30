@@ -1,13 +1,21 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { api } from '../lib/api';
-import { useFormat, usePreferences } from '../lib/preferencesContext';
+import { useFormat, usePreferences, useT } from '../lib/preferencesContext';
 import CountryBadge from './CountryBadge';
 import Icon from './Icon';
 import Notice from './Notice';
 
 export default function VehicleForm({ onSubmit, onCancel }) {
   const fmt = useFormat();
-  const { plateExample } = usePreferences();
+  const t = useT();
+  const { plateExample, region } = usePreferences();
+  const [countries, setCountries] = useState([]);
+
+  useEffect(() => {
+    api.getRegions()
+      .then((res) => setCountries(res.data.regions))
+      .catch(() => { /* le champ pays reste masqué, le reste du formulaire marche */ });
+  }, []);
   const [creationMode, setCreationMode] = useState('manual');
   const [plateApiAvailable, setPlateApiAvailable] = useState(false);
   const [vehicleModels, setVehicleModels] = useState({ car: {}, motorcycle: {} });
@@ -27,6 +35,9 @@ export default function VehicleForm({ onSubmit, onCancel }) {
     service_interval_km: '',
     service_interval_months: '',
     is_private: false,
+    // '' = suit le pays de l'instance. C'est le défaut, et il convient à un
+    // parc entièrement immatriculé dans le pays de l'instance.
+    country: '',
   });
   const [vin, setVin] = useState('');
   const [licensePlate, setLicensePlate] = useState('');
@@ -325,6 +336,8 @@ export default function VehicleForm({ onSubmit, onCancel }) {
         purchase_price: formData.purchase_price ? parseFloat(formData.purchase_price) : null,
         // Distances saisies dans l'unité de l'utilisateur, stockées en kilomètres.
         current_mileage: fmt.toStorage(formData.current_mileage) || 0,
+        // '' signifie « suit l'instance » : on envoie null, pas une chaîne vide.
+        country: formData.country || null,
         service_interval_km: formData.service_interval_km ? fmt.toStorage(parseInt(formData.service_interval_km)) : null,
         service_interval_months: formData.service_interval_months ? parseInt(formData.service_interval_months) : null,
       };
@@ -827,16 +840,44 @@ export default function VehicleForm({ onSubmit, onCancel }) {
         </div>
 
         <div>
-          <label className="block text-sm font-medium mb-1">Prix d'achat (€)</label>
+          <label className="block text-sm font-medium mb-1">{t("Prix d'achat")} ({fmt.currencySymbol})</label>
           <input
             type="number"
             name="purchase_price"
             value={formData.purchase_price}
             onChange={handleChange}
-            placeholder="Optionnel"
+            placeholder={t('Optionnel')}
             
           />
         </div>
+
+        {/* Pays d'immatriculation — porté par le VÉHICULE, parce que le
+            calendrier du contrôle technique s'en déduit. Un membre du groupe
+            famille doit voir la même échéance que le propriétaire, sur la
+            même machine. */}
+        {countries.length > 0 && (
+          <div>
+            <label className="block text-sm font-medium mb-1 flex items-center gap-2">
+              {t("Pays d'immatriculation")}
+              <CountryBadge reason={t('Décide du calendrier de contrôle technique de ce véhicule.')} />
+            </label>
+            <select
+              name="country"
+              value={formData.country}
+              onChange={handleChange}
+            >
+              <option value="">
+                {t('Pays de l\'instance ({code})', { code: region || '—' })}
+              </option>
+              {countries.map((c) => (
+                <option key={c.code} value={c.code}>{c.name}</option>
+              ))}
+            </select>
+            <p className="text-xs mt-1" style={{ color: 'var(--text-3)' }}>
+              {t('À renseigner seulement si ce véhicule est immatriculé ailleurs.')}
+            </p>
+          </div>
+        )}
       </div>
 
       {/* Encadré plutôt qu'une case nue : au milieu de champs de saisie, une

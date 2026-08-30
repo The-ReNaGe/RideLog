@@ -639,7 +639,7 @@ export default React.memo(function UpcomingMaintenance({ data, vehicleId, onRefr
           const costMin = item.estimated_cost_min;
           const costMax = item.estimated_cost_max;
           const costLabel = costMin && costMax
-            ? (costMin === costMax ? `${costMin} €` : `${costMin} – ${costMax} €`)
+            ? (costMin === costMax ? `${costMin} ${fmt.currencySymbol}` : `${costMin} – ${costMax} ${fmt.currencySymbol}`)
             : '—';
 
           // Le contrôle technique est éditable lui aussi : sa périodicité peut

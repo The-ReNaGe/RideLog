@@ -149,6 +149,11 @@ export const api = {
 
   setRegion: (code) =>
     client.put('/admin/region', { code }),
+
+  // Devise d'affichage de l'instance. ⚠️ Un SYMBOLE, pas une conversion :
+  // les montants stockés ne bougent pas (voir routes/regions.py).
+  setCurrency: (code) =>
+    client.put('/admin/currency', { code }),
   
   checkInvite: (token) =>
     client.get(`/auth/check-invite/${token}`),

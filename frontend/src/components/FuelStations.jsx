@@ -1,9 +1,11 @@
 import React, { useState, useCallback, useEffect, useRef } from 'react';
 import { api } from '../lib/api';
 import CountryBadge from './CountryBadge';
+import { usePreferences } from '../lib/preferencesContext';
 import Icon from './Icon';
 
 export default function FuelStations() {
+	const { currencySymbol } = usePreferences();
 	const [city, setCity] = useState('');
 	const [fuelType, setFuelType] = useState('');
 	const [maxDistance, setMaxDistance] = useState(20);
@@ -290,7 +292,7 @@ export default function FuelStations() {
 												<>
 													<div className="text-xs font-medium" style={{ color: 'var(--text-2)' }}>Prix min</div>
 													<div className="text-2xl font-bold" style={{ color: 'var(--success)' }}>
-														{getMinPrice(station).toFixed(3)}€
+														{getMinPrice(station).toFixed(3)}{currencySymbol}
 													</div>
 													<div className="text-xs" style={{ color: 'var(--text-2)' }}>
 														{station.distance_km} km
@@ -330,7 +332,7 @@ export default function FuelStations() {
 														</div>
 														{price !== null && price !== undefined ? (
 															<div className="text-lg font-bold mt-1" style={{ color: available ? 'var(--success)' : 'var(--text-2)' }}>
-																{price.toFixed(3)}€
+																{price.toFixed(3)}{currencySymbol}
 															</div>
 														) : (
 															<div className="text-sm mt-2" style={{ color: 'var(--text-2)' }}>

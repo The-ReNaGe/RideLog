@@ -163,7 +163,7 @@ export default function MaintenanceHistory({ vehicleId, vehicleType, motorizatio
                     />
                   </div>
                   <div>
-                    <label className="field-label">{t('Coût (€)')}</label>
+                    <label className="field-label">{t('Coût')} ({fmt.currencySymbol})</label>
                     <input
                       type="number"
                       step="0.01"
@@ -306,7 +306,7 @@ export default function MaintenanceHistory({ vehicleId, vehicleType, motorizatio
                   <div>
                     <span className="text-xs" style={{ color: 'var(--text-3)' }}>{t('Coût')} </span>
                     <span className="font-semibold" style={{ color: 'var(--success)' }}>
-                      {maintenance.cost_paid ? `${maintenance.cost_paid.toFixed(2)} €` : '—'}
+                      {maintenance.cost_paid ? `${maintenance.cost_paid.toFixed(2)} ${fmt.currencySymbol}` : '—'}
                     </span>
                   </div>
                 </div>

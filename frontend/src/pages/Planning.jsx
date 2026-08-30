@@ -1,7 +1,7 @@
 import React, { useEffect, useState, useMemo } from 'react';
 import { api } from '../lib/api';
 import { getShortInterventionName } from '../lib/interventionTranslations';
-import { useT } from '../lib/preferencesContext';
+import { useT, usePreferences } from '../lib/preferencesContext';
 import { useFormat } from '../lib/preferencesContext';
 import Icon from '../components/Icon';
 import PageHeader from '../components/PageHeader';
@@ -87,6 +87,7 @@ function CalendarDay({ day, isCurrentMonth, isToday, items, onDayClick }) {
 function DayDetailModal({ date, items, onClose }) {
   const fmt = useFormat();
   const t = useT();
+  const { currencySymbol } = usePreferences();
   if (!date || !items) return null;
 
   return (
@@ -129,7 +130,7 @@ function DayDetailModal({ date, items, onClose }) {
                 )}
                 {item.estimated_cost_max && (
                   <span className="tabular" style={{ marginLeft: 12, color: 'var(--success)', fontWeight: 600 }}>
-                    {item.estimated_cost_min} – {item.estimated_cost_max} €
+                    {item.estimated_cost_min} – {item.estimated_cost_max} {currencySymbol}
                   </span>
                 )}
               </div>

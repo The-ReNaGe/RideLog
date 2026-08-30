@@ -1,6 +1,6 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { api } from '../lib/api';
-import { useFormat } from '../lib/preferencesContext';
+import { useFormat, useT } from '../lib/preferencesContext';
 import Icon from './Icon';
 
 const MONTH_SHORT = ['Jan', 'Fév', 'Mar', 'Avr', 'Mai', 'Juin', 'Juil', 'Aoû', 'Sep', 'Oct', 'Nov', 'Déc'];
@@ -153,6 +153,7 @@ function MiniLineChart({ points, valueKey, color, unit, formatValue, avgValue })
 
 export default function FuelTracking({ vehicleId, onFuelAdded, canEdit = true }) {
 	const fmt = useFormat();
+	const t = useT();
 	const [logs, setLogs] = useState([]);
 	const [stats, setStats] = useState(null);
 	const [loading, setLoading] = useState(true);
@@ -355,11 +356,11 @@ export default function FuelTracking({ vehicleId, onFuelAdded, canEdit = true })
 								<input type="number" name="mileage_at_fill" value={formData.mileage_at_fill} onChange={handleChange} required placeholder="Ex: 32600"  />
 							</div>
 							<div>
-								<label className="block text-sm font-medium mb-1" style={{ color: 'var(--text-2)' }}>Montant payé (€) *</label>
+								<label className="block text-sm font-medium mb-1" style={{ color: 'var(--text-2)' }}>{t('Montant payé')} ({fmt.currencySymbol}) *</label>
 								<input type="number" step="0.01" name="total_cost" value={formData.total_cost} onChange={handleChange} required placeholder="Ex: 45.50"  />
 							</div>
 							<div>
-								<label className="block text-sm font-medium mb-1" style={{ color: 'var(--text-2)' }}>Prix au litre (€) *</label>
+								<label className="block text-sm font-medium mb-1" style={{ color: 'var(--text-2)' }}>{t('Prix au litre')} ({fmt.currencySymbol}) *</label>
 								<input type="number" step="0.001" name="price_per_liter" value={formData.price_per_liter} onChange={handleChange} required placeholder="Ex: 1.85"  />
 								<p style={{ fontSize: 11, color: 'var(--text-3)', marginTop: 2 }}>Les litres seront calculés automatiquement</p>
 							</div>
@@ -396,7 +397,7 @@ export default function FuelTracking({ vehicleId, onFuelAdded, canEdit = true })
 				<div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
 					<div className="card p-4 text-center">
 						<div style={{ fontSize: 11, color: 'var(--text-3)', textTransform: 'uppercase', fontWeight: 600, letterSpacing: 0.5, marginBottom: 4 }}>Dépensé</div>
-						<div style={{ fontSize: 22, fontWeight: 700, color: 'var(--accent)' }}>{(stats.total_fuel_cost || 0).toLocaleString('fr-FR', { minimumFractionDigits: 0, maximumFractionDigits: 0 })} €</div>
+						<div style={{ fontSize: 22, fontWeight: 700, color: 'var(--accent)' }}>{fmt.money(stats.total_fuel_cost || 0)}</div>
 					</div>
 					<div className="card p-4 text-center">
 						<div style={{ fontSize: 11, color: 'var(--text-3)', textTransform: 'uppercase', fontWeight: 600, letterSpacing: 0.5, marginBottom: 4 }}>Pleins</div>
@@ -413,7 +414,7 @@ export default function FuelTracking({ vehicleId, onFuelAdded, canEdit = true })
 						<div style={{ fontSize: 11, color: 'var(--text-3)', textTransform: 'uppercase', fontWeight: 600, letterSpacing: 0.5, marginBottom: 4 }}>Coût /100 {fmt.distUnit}</div>
 						<div style={{ fontSize: 22, fontWeight: 700, color: stats.avg_cost_100km ? 'var(--warning)' : 'var(--text-3)' }}>
 							{stats.avg_cost_100km ? fmt.costPerDist(stats.avg_cost_100km).toLocaleString(fmt.locale, { maximumFractionDigits: 1 }) : '—'}
-							{stats.avg_cost_100km && <span style={{ fontSize: 12, fontWeight: 400 }}> €</span>}
+							{stats.avg_cost_100km && <span style={{ fontSize: 12, fontWeight: 400 }}> {fmt.currencySymbol}</span>}
 						</div>
 					</div>
 					{stats.avg_distance_per_tank && (
@@ -430,7 +431,7 @@ export default function FuelTracking({ vehicleId, onFuelAdded, canEdit = true })
 						<div style={{ fontSize: 11, color: 'var(--text-3)', textTransform: 'uppercase', fontWeight: 600, letterSpacing: 0.5, marginBottom: 4 }}>Moy. /mois</div>
 						<div style={{ fontSize: 22, fontWeight: 700, color: 'var(--accent)' }}>
 							{stats.monthly_avg_cost.toLocaleString('fr-FR', { maximumFractionDigits: 0 })}
-							<span style={{ fontSize: 12, fontWeight: 400 }}> €</span>
+							<span style={{ fontSize: 12, fontWeight: 400 }}> {fmt.currencySymbol}</span>
 						</div>
 					</div>
 					)}
@@ -444,12 +445,12 @@ export default function FuelTracking({ vehicleId, onFuelAdded, canEdit = true })
 					<div>
 						{stats.current_month_cost ? (
 							<div style={{ fontSize: 13, color: 'var(--text-1)', fontWeight: 600 }}>
-								Dépensé ce mois : {stats.current_month_cost.toLocaleString('fr-FR', { maximumFractionDigits: 0 })} €
+								{t('Dépensé ce mois :')} {fmt.money(stats.current_month_cost)}
 							</div>
 						) : null}
 						{stats.monthly_avg_cost && (
 							<div style={{ fontSize: 12, color: 'var(--text-3)' }}>
-								Moyenne mensuelle : {stats.monthly_avg_cost.toLocaleString('fr-FR', { maximumFractionDigits: 0 })} €/mois
+								{t('Moyenne mensuelle :')} {fmt.money(stats.monthly_avg_cost)}{t('/mois')}
 							</div>
 						)}
 					</div>
@@ -462,7 +463,7 @@ export default function FuelTracking({ vehicleId, onFuelAdded, canEdit = true })
 					{/* Monthly cost chart */}
 					<div className="card p-5">
 						<h4 className="card-label">Dépenses par mois</h4>
-						<BarChart data={monthlyData} valueKey="total_cost" color="var(--accent)" unit=" €"
+						<BarChart data={monthlyData} valueKey="total_cost" color="var(--accent)" unit={` ${fmt.currencySymbol}`}
 							formatValue={v => v.toLocaleString('fr-FR', { maximumFractionDigits: 0 })}
 							avgValue={stats.monthly_avg_cost}
 							prevComparison={monthlyComparison} />
@@ -488,8 +489,8 @@ export default function FuelTracking({ vehicleId, onFuelAdded, canEdit = true })
 
 					{/* Cost per 100km trend */}
 					<div className="card p-5">
-						<h4 className="card-label">Évolution du coût (€ / 100 {fmt.distUnit})</h4>
-						<MiniLineChart points={chartPoints} valueKey="cost_100km" color="var(--warning)" unit="€"
+						<h4 className="card-label">{t('Évolution du coût')} ({fmt.currencySymbol} / 100 {fmt.distUnit})</h4>
+						<MiniLineChart points={chartPoints} valueKey="cost_100km" color="var(--warning)" unit={fmt.currencySymbol}
 							formatValue={v => v.toFixed(1)} avgValue={stats.avg_cost_100km} />
 					</div>
 				</div>
@@ -504,11 +505,11 @@ export default function FuelTracking({ vehicleId, onFuelAdded, canEdit = true })
 							<div key={i} style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '8px 12px', background: i === 0 ? 'rgba(34, 197, 94, 0.06)' : 'transparent', borderRadius: 6, border: '1px solid var(--border)' }}>
 								<div style={{ flex: 1 }}>
 									<div style={{ fontSize: 13, fontWeight: 600, color: 'var(--text-1)' }}>{s.station}</div>
-									<div style={{ fontSize: 11, color: 'var(--text-3)' }}>{s.visits} visite{s.visits > 1 ? 's' : ''} · {s.total_liters.toFixed(1)} L · {s.total_cost.toLocaleString('fr-FR', { maximumFractionDigits: 0 })} €</div>
+									<div style={{ fontSize: 11, color: 'var(--text-3)' }}>{s.visits} visite{s.visits > 1 ? 's' : ''} · {s.total_liters.toFixed(1)} L · {fmt.money(s.total_cost)}</div>
 								</div>
 								{s.avg_price_per_liter && (
 									<div style={{ textAlign: 'right' }}>
-										<div style={{ fontSize: 16, fontWeight: 700, color: i === 0 ? 'var(--success)' : 'var(--text-1)' }}>{s.avg_price_per_liter.toFixed(3)} €/L</div>
+										<div style={{ fontSize: 16, fontWeight: 700, color: i === 0 ? 'var(--success)' : 'var(--text-1)' }}>{s.avg_price_per_liter.toFixed(3)} {fmt.currencySymbol}/L</div>
 									</div>
 								)}
 							</div>
@@ -549,13 +550,13 @@ export default function FuelTracking({ vehicleId, onFuelAdded, canEdit = true })
 														className="w-full" />
 												</div>
 												<div>
-													<label className="block text-xs font-medium mb-1">Montant (€) *</label>
+													<label className="block text-xs font-medium mb-1">{t('Montant')} ({fmt.currencySymbol}) *</label>
 													<input type="number" step="0.01" value={formData.total_cost}
 														onChange={(e) => setFormData({ ...formData, total_cost: e.target.value })}
 														className="w-full" />
 												</div>
 												<div>
-													<label className="block text-xs font-medium mb-1">Prix/L (€) *</label>
+													<label className="block text-xs font-medium mb-1">{t('Prix/L')} ({fmt.currencySymbol}) *</label>
 													<input type="number" step="0.001" value={formData.price_per_liter}
 														onChange={(e) => setFormData({ ...formData, price_per_liter: e.target.value })}
 														className="w-full" />
@@ -591,10 +592,10 @@ export default function FuelTracking({ vehicleId, onFuelAdded, canEdit = true })
 										<div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
 											<div style={{ flex: 1, display: 'flex', flexWrap: 'wrap', gap: '4px 16px', fontSize: 13 }}>
 												<span style={{ color: 'var(--text-2)', minWidth: 75 }}>{new Date(log.fill_date).toLocaleDateString('fr-FR')}</span>
-												<span style={{ color: 'var(--text-1)', fontWeight: 600 }}>{log.total_cost.toFixed(2)} €</span>
+												<span style={{ color: 'var(--text-1)', fontWeight: 600 }}>{log.total_cost.toFixed(2)} {fmt.currencySymbol}</span>
 												<span style={{ color: 'var(--text-3)' }}>{fmt.dist(log.mileage_at_fill)}</span>
 												{log.liters > 0 && <span style={{ color: 'var(--text-3)' }}>{log.liters.toFixed(1)} L</span>}
-												{log.price_per_liter > 0 && <span style={{ color: 'var(--text-3)' }}>{log.price_per_liter.toFixed(3)} €/L</span>}
+												{log.price_per_liter > 0 && <span style={{ color: 'var(--text-3)' }}>{log.price_per_liter.toFixed(3)} {fmt.currencySymbol}/L</span>}
 												{log.station && <span style={{ color: 'var(--text-3)', fontStyle: 'italic' }}>{log.station}</span>}
 											</div>
 											{canEdit && (

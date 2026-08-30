@@ -58,7 +58,8 @@ export default function Dashboard({ onSelectVehicle, currentUser }) {
   if (!data) return null;
 
   const fmt = (n) => new Intl.NumberFormat(u.locale).format(n);
-  const fmtEuro = (n) => new Intl.NumberFormat('fr-FR', { style: 'currency', currency: 'EUR', maximumFractionDigits: 0 }).format(n);
+  // Symbole et format viennent des préférences : plus de devise en dur.
+  const fmtEuro = (n) => u.money(n);
 
   return (
     <div>
@@ -240,7 +241,9 @@ const MONTH_LABELS = ['Jan', 'Fév', 'Mar', 'Avr', 'Mai', 'Jun', 'Jul', 'Aoû', 
 
 function CostCharts({ monthlyCosts }) {
   const t = useT();
-  const fmtEuro = (n) => new Intl.NumberFormat('fr-FR', { style: 'currency', currency: 'EUR', maximumFractionDigits: 0 }).format(n);
+  const u = useFormat();
+  // Symbole et format viennent des préférences : plus de devise en dur.
+  const fmtEuro = (n) => u.money(n);
 
   // Construire les données par année et par mois depuis monthlyCosts
   // monthlyCosts = [{ month: "2024-03", cost: 150 }, ...]

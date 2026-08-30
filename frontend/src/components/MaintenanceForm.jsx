@@ -253,7 +253,7 @@ export default function MaintenanceForm({
 
             {estimatedPrice && (
               <p className="mt-2 text-sm p-2 rounded" style={{ background: 'var(--accent-light)', border: '1px solid var(--accent)', color: 'var(--text-1)' }}>
-                <strong>{t('Prix estimé :')}</strong> €{estimatedPrice.min}–€{estimatedPrice.max}
+                <strong>{t('Prix estimé :')}</strong> {estimatedPrice.min}–{estimatedPrice.max} {fmt.currencySymbol}
                 <span className="text-xs ml-1" style={{ color: 'var(--text-3)' }}>
                   (catégorie {rangeCategory || 'generalist'})
                 </span>
@@ -289,7 +289,7 @@ export default function MaintenanceForm({
           </div>
 
           <div>
-            <label className="block text-sm font-medium mb-1">{t('Coût payé (€)')}</label>
+            <label className="block text-sm font-medium mb-1">{t('Coût payé')} ({fmt.currencySymbol})</label>
             <input
               type="number"
               name="cost_paid"

@@ -85,6 +85,8 @@ export default function Settings({ currentUser }) {
   );
 }
 
+// Noms de devise, renvoyés par le backend et passés à t() dynamiquement.
+// i18n: 'Euro', 'Dollar américain'
 // ═══════════════════════════════════════════════════════════════════════════
 // PRÉFÉRENCES — pays, langue, unités
 // ═══════════════════════════════════════════════════════════════════════════
@@ -154,8 +156,9 @@ function OptionButton({ active, onClick, disabled, flag, label, hint }) {
 }
 
 function PreferencesSettings({ currentUser }) {
-  const { lang, units, region, setLang, setUnits, t } = usePreferences();
+  const { lang, units, region, currency, setLang, setUnits, t } = usePreferences();
   const [regions, setRegions] = useState([]);
+  const [currencies, setCurrencies] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
 
@@ -166,6 +169,7 @@ function PreferencesSettings({ currentUser }) {
       try {
         const res = await api.getRegions();
         setRegions(res.data.regions);
+        setCurrencies(res.data.currencies || []);
       } catch (err) {
         setError(err.response?.data?.detail || err.message);
       } finally {
@@ -183,6 +187,20 @@ function PreferencesSettings({ currentUser }) {
     try {
       const res = await api.setPreferences(patch);
       localStorage.setItem('user', JSON.stringify(res.data));
+    } catch (err) {
+      setError(err.response?.data?.detail || err.message);
+    }
+  };
+
+  const chooseCurrency = async (code) => {
+    if (code === currency) return;
+    setError(null);
+    try {
+      await api.setCurrency(code);
+      // Relire le compte : la devise effective est résolue côté serveur.
+      const me = await api.getCurrentUser();
+      localStorage.setItem('user', JSON.stringify(me.data));
+      window.location.reload();
     } catch (err) {
       setError(err.response?.data?.detail || err.message);
     }
@@ -295,6 +313,36 @@ function PreferencesSettings({ currentUser }) {
             />
           ))}
         </OptionRow>
+      </div>
+
+      {/* ── Devise ───────────────────────────────────────────────────── */}
+      <div className="card p-6 mt-5">
+        <h3 className="section-title mb-1">{t('Devise')}</h3>
+        <p className="field-hint mb-3">
+          {t("Change le symbole affiché, rien d'autre : aucun montant déjà enregistré n'est converti.")}
+        </p>
+
+        <OptionRow>
+          {currencies.map((c) => (
+            <OptionButton
+              key={c.code}
+              active={c.code === currency}
+              disabled={!isAdmin}
+              onClick={() => chooseCurrency(c.code)}
+              label={`${c.symbol}  ${t(c.name)}`}
+              hint={c.code}
+            />
+          ))}
+        </OptionRow>
+
+        {!isAdmin && (
+          <p className="field-hint">
+            {t("Seul un administrateur peut changer la devise de l'instance.")}
+          </p>
+        )}
+        <Notice tone="warning" icon="info" className="mt-3">
+          {t("RideLog ne convertit pas les montants : il n'applique aucun taux de change. Saisissez vos dépenses dans votre monnaie, ce réglage dit seulement comment l'écrire.")}
+        </Notice>
       </div>
     </div>
   );

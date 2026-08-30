@@ -7,7 +7,7 @@ import FuelTracking from '../components/FuelTracking';
 import VehiclePhoto from '../components/VehiclePhoto';
 import Icon from '../components/Icon';
 import CategoryTag, { getCategory } from '../components/CategoryTag';
-import { useFormat } from '../lib/preferencesContext';
+import { useFormat, useT } from '../lib/preferencesContext';
 
 const motorLabels = {
   essence: 'Essence', diesel: 'Diesel', hybride: 'Hybride', hybrid: 'Hybride',
@@ -28,6 +28,7 @@ const tabs = [
 
 export default function VehicleDetail({ vehicleId, onBack, currentUser }) {
   const fmt = useFormat();
+  const t = useT();
   const [vehicle, setVehicle] = useState(null);
   const [upcoming, setUpcoming] = useState(null);
   const [recommendations, setRecommendations] = useState(null);
@@ -502,7 +503,7 @@ export default function VehicleDetail({ vehicleId, onBack, currentUser }) {
           : 'var(--text-1)';
         const nextName = next?.intervention_type || null;
 
-        const fmtEuro = (n) => n.toLocaleString('fr-FR', { style: 'currency', currency: 'EUR', maximumFractionDigits: 0 });
+        const fmtEuro = (n) => fmt.money(n);
 
         // Style commun à toutes les cards — libellé, valeur, précision.
         // Toutes partagent la même taille de valeur et la même hauteur : une
@@ -689,7 +690,7 @@ export default function VehicleDetail({ vehicleId, onBack, currentUser }) {
               <div className="card text-center">
                 <div className="card-label">Coût total toutes catégories</div>
                 <div className="tabular" style={{ fontSize: 34, fontWeight: 800, letterSpacing: '-0.03em', color: 'var(--accent)' }}>
-                  {recap.total_cost.toLocaleString('fr-FR', { minimumFractionDigits: 2 })} €
+                  {fmt.money(recap.total_cost)}
                 </div>
                 <div className="text-sm mt-1" style={{ color: 'var(--text-3)' }}>
                   {recap.total_interventions} intervention{recap.total_interventions > 1 ? 's' : ''} · {recap.documents_count} document{recap.documents_count > 1 ? 's' : ''}
@@ -717,7 +718,7 @@ export default function VehicleDetail({ vehicleId, onBack, currentUser }) {
                           <span className="badge badge-neutral">{count}</span>
                         </div>
                         <div className="tabular" style={{ fontSize: 22, fontWeight: 800, letterSpacing: '-0.02em', color: cat.color }}>
-                          {cost.toLocaleString('fr-FR', { minimumFractionDigits: 2 })} €
+                          {fmt.money(cost)}
                         </div>
                         {recap.total_cost > 0 && (
                           <div className="mt-2">
@@ -783,7 +784,7 @@ export default function VehicleDetail({ vehicleId, onBack, currentUser }) {
                                 )}
                               </td>
                               <td className="py-2.5 pr-4 text-right" style={{ color: 'var(--text-2)' }}>{fmt.dist(m.mileage_at_intervention)}</td>
-                              <td className="py-2.5 pr-4 text-right font-medium" style={{ color: 'var(--text-1)' }}>{m.cost_paid != null ? `${m.cost_paid.toFixed(2)} €` : '—'}</td>
+                              <td className="py-2.5 pr-4 text-right font-medium" style={{ color: 'var(--text-1)' }}>{m.cost_paid != null ? `${m.cost_paid.toFixed(2)} ${fmt.currencySymbol}` : '—'}</td>
                               <td className="py-2.5 pr-4 max-w-[200px] truncate" style={{ color: 'var(--text-3)' }}>{m.notes || '—'}</td>
                               <td className="py-2.5">
                                 {m.has_invoice ? (
@@ -804,7 +805,7 @@ export default function VehicleDetail({ vehicleId, onBack, currentUser }) {
                           <tr style={{ borderTop: '2px solid var(--text-3)' }} className="font-bold">
                             <td colSpan="3" className="pt-3" style={{ color: 'var(--text-1)' }}>Total</td>
                             <td></td>
-                            <td className="pt-3 text-right" style={{ color: 'var(--accent)' }}>{recap.total_cost.toFixed(2)} €</td>
+                            <td className="pt-3 text-right" style={{ color: 'var(--accent)' }}>{fmt.money(recap.total_cost)}</td>
                             <td></td>
                             <td className="pt-3 text-sm" style={{ color: 'var(--text-3)' }}>{recap.documents_count} doc(s)</td>
                           </tr>
@@ -844,7 +845,7 @@ export default function VehicleDetail({ vehicleId, onBack, currentUser }) {
                           <div className="flex flex-wrap gap-x-3 gap-y-0.5 text-xs" style={{ color: 'var(--text-3)' }}>
                             <span className="inline-flex items-center gap-1"><Icon name="calendar" size={12} />{new Date(m.execution_date).toLocaleDateString('fr-FR')}</span>
                             <span className="inline-flex items-center gap-1"><Icon name="gauge" size={12} />{fmt.dist(m.mileage_at_intervention)}</span>
-                            {m.cost_paid != null && <span className="inline-flex items-center gap-1" style={{ color: 'var(--success)', fontWeight: 600 }}><Icon name="euro" size={12} />{m.cost_paid.toFixed(2)} €</span>}
+                            {m.cost_paid != null && <span className="inline-flex items-center gap-1" style={{ color: 'var(--success)', fontWeight: 600 }}><Icon name="euro" size={12} />{m.cost_paid.toFixed(2)} {fmt.currencySymbol}</span>}
                           </div>
                           {m.notes && <p className="text-xs mt-1" style={{ color: 'var(--text-2)' }}>{m.notes}</p>}
                           {m.has_invoice && (
@@ -860,7 +861,7 @@ export default function VehicleDetail({ vehicleId, onBack, currentUser }) {
                     })}
                     {recap.total_cost > 0 && (
                       <div className="card p-3 text-right font-bold" style={{ color: 'var(--accent)' }}>
-                        Total : {recap.total_cost.toFixed(2)} €
+                        {t('Total :')} {fmt.money(recap.total_cost)}
                       </div>
                     )}
                   </div>

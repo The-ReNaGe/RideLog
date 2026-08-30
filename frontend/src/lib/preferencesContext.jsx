@@ -64,6 +64,8 @@ const PreferencesContext = createContext({
   units: DEFAULT_UNITS,
   region: null,
   plateExample: null,
+  currency: null,
+  currencySymbol: '€',
   setLang: () => {},
   setUnits: () => {},
   t: (text) => text,
@@ -73,6 +75,11 @@ export function PreferencesProvider({ user, children }) {
   const [prefs, setPrefs] = useState(readStored);
   const [region, setRegion] = useState(null);
   const [plateExample, setPlateExample] = useState(null);
+  const [currency, setCurrency] = useState(null);
+  // Seul « € » littéral admis du frontend : la valeur affichée au tout premier
+  // rendu, avant que /auth/me ait dit quelle devise l'instance utilise. Tout
+  // le reste passe par fmt.money() ou fmt.currencySymbol.
+  const [currencySymbol, setCurrencySymbol] = useState('€');
 
   // Ce que le backend a résolu l'emporte dès qu'on le connaît.
   useEffect(() => {
@@ -80,6 +87,8 @@ export function PreferencesProvider({ user, children }) {
     if (!effective) return;
     setRegion(effective.region || null);
     setPlateExample(effective.plate_example || null);
+    setCurrency(effective.currency || null);
+    setCurrencySymbol(effective.currency_symbol || '€');
     setPrefs((current) => {
       const next = {
         lang: isSupportedLanguage(effective.language) ? effective.language : current.lang,
@@ -98,6 +107,8 @@ export function PreferencesProvider({ user, children }) {
     units: prefs.units,
     region,
     plateExample,
+    currency,
+    currencySymbol,
     setLang: (code) => {
       if (!isSupportedLanguage(code)) return;
       setPrefs((c) => { const n = { ...c, lang: code }; store(n); return n; });
@@ -107,7 +118,7 @@ export function PreferencesProvider({ user, children }) {
       setPrefs((c) => { const n = { ...c, units: code }; store(n); return n; });
     },
     t: (text, vars) => translate(prefs.lang, text, vars),
-  }), [prefs, region, plateExample]);
+  }), [prefs, region, plateExample, currency, currencySymbol]);
 
   return (
     <PreferencesContext.Provider value={value}>{children}</PreferencesContext.Provider>
@@ -138,7 +149,7 @@ export function useT() {
  * ses miles enregistrés comme des kilomètres.
  */
 export function useFormat() {
-  const { units, lang } = useContext(PreferencesContext);
+  const { units, lang, currencySymbol } = useContext(PreferencesContext);
   return useMemo(() => ({
     units,
     lang,
@@ -152,6 +163,17 @@ export function useFormat() {
     // Valeurs brutes, quand le libellé est posé séparément
     distValue: (km) => distanceToDisplay(km, units),
 
+    // Montants. Le symbole vient du réglage d'instance ; le FORMAT du nombre
+    // suit la langue, comme pour les distances. Aucune conversion : le nombre
+    // stocké est affiché tel quel (voir routes/regions.py).
+    money: (amount) => {
+      if (amount === null || amount === undefined || amount === '') return '—';
+      const n = Number(amount);
+      if (!Number.isFinite(n)) return '—';
+      return `${n.toLocaleString(localeOf(lang), { maximumFractionDigits: 0 })} ${currencySymbol}`;
+    },
+    currencySymbol,
+
     // Unités, pour les libellés de champs et les en-têtes de colonne.
     // Pas de `volUnit` : le carburant reste en litres même en miles, voir
     // le bloc « Volumes » de units.js.
@@ -160,5 +182,5 @@ export function useFormat() {
 
     // Saisie → stockage. Obligatoire sur TOUT champ de distance.
     toStorage: (value) => distanceToStorage(value, units),
-  }), [units, lang]);
+  }), [units, lang, currencySymbol]);
 }

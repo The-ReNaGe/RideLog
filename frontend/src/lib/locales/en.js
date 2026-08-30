@@ -201,8 +201,6 @@ export const EN = {
   'Distance': 'Distance',
   '(optionnel — estimé si absent)': '(optional — estimated if left blank)',
   'Laisser vide pour une estimation automatique': 'Leave blank for an automatic estimate',
-  'Coût payé (€)': 'Cost paid (€)',
-  'Coût (€)': 'Cost (€)',
   'Coût': 'Cost',
   'Optionnel': 'Optional',
   "Catégorie d'intervention": 'Service category',
@@ -222,4 +220,32 @@ export const EN = {
   'Impossible de modifier cette intervention': 'Could not edit this service record',
   "Chargement de l'historique…": 'Loading the history…',
   'Aucune intervention enregistrée pour le moment.': 'No service recorded yet.',
+  // ── Devise et pays du véhicule ──────────────────────────────────────────
+  'Devise': 'Currency',
+  "Change le symbole affiché, rien d'autre : aucun montant déjà enregistré n'est converti.":
+    'Changes the symbol shown, nothing else — no amount already recorded is converted.',
+  "Seul un administrateur peut changer la devise de l'instance.":
+    'Only an administrator can change the currency of this instance.',
+  "RideLog ne convertit pas les montants : il n'applique aucun taux de change. Saisissez vos dépenses dans votre monnaie, ce réglage dit seulement comment l'écrire.":
+    'RideLog does not convert amounts — it applies no exchange rate. Enter your spending in your own currency; this setting only says how to write it.',
+  'Euro': 'Euro',
+  'Dollar américain': 'US dollar',
+  "Pays d'immatriculation": 'Country of registration',
+  'Décide du calendrier de contrôle technique de ce véhicule.':
+    "Sets this vehicle's roadworthiness-test schedule.",
+  "Pays de l'instance ({code})": 'Instance country ({code})',
+  'À renseigner seulement si ce véhicule est immatriculé ailleurs.':
+    'Only fill this in if the vehicle is registered elsewhere.',
+
+  // ── Montants ────────────────────────────────────────────────────────────
+  'Coût payé': 'Cost paid',
+  'Montant payé': 'Amount paid',
+  'Montant': 'Amount',
+  'Prix au litre': 'Price per litre',
+  'Prix/L': 'Price/L',
+  'Dépensé ce mois :': 'Spent this month:',
+  'Moyenne mensuelle :': 'Monthly average:',
+  '/mois': '/month',
+  'Évolution du coût': 'Cost trend',
+  'Total :': 'Total:',
 };
