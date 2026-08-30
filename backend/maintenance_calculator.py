@@ -306,38 +306,23 @@ class MaintenanceCalculator:
         vehicle_type: str,
         registration_date: Optional[datetime],
         last_inspection_date: Optional[datetime],
+        region_code: Optional[str] = None,
     ) -> Optional[datetime]:
-        """Calculate the next inspection technical date based on French regulations."""
-        if not registration_date:
-            return None
-        
-        today = datetime.utcnow()
-        reg_year = registration_date.year
-        
-        if vehicle_type == "motorcycle":
-            if last_inspection_date is None:
-                if reg_year in (2020, 2021):
-                    fifth_anniversary = registration_date + relativedelta(years=5)
-                    four_months_after = fifth_anniversary + relativedelta(months=4)
-                    latest = datetime(2026, 12, 31)
-                    return min(four_months_after, latest)
-                elif reg_year >= 2022:
-                    fifth_anniversary = registration_date + relativedelta(years=5)
-                    return fifth_anniversary
-                else:
-                    return None
-            else:
-                return last_inspection_date + relativedelta(years=3)
-        
-        elif vehicle_type == "car":
-            if last_inspection_date is None:
-                fourth_anniversary = registration_date + relativedelta(years=4)
-                six_months_after = fourth_anniversary + relativedelta(months=6)
-                return six_months_after
-            else:
-                return last_inspection_date + relativedelta(years=2)
-        
-        return None
+        """Prochaine échéance de contrôle technique, selon la règle du PAYS.
+
+        La règle vivait ici, écrite en dur pour la France et appliquée à tous
+        les véhicules. Elle est descendue dans `regions/` le jour où un véhicule
+        a pu nommer son propre pays : c'est ce qui a rendu le point de dispatch
+        réel plutôt que spéculatif.
+
+        `region_code` absent → pays par défaut du registre. Le comportement
+        d'une instance existante est donc inchangé.
+        """
+        from regions import get_region
+
+        return get_region(region_code).next_inspection_date(
+            vehicle_type, registration_date, last_inspection_date
+        )
 
     def calculate_maintenance_status(
         self,
@@ -629,6 +614,7 @@ class MaintenanceCalculator:
         service_interval_months: Optional[int] = None,
         motorization: Optional[str] = None,
         overrides: Optional[Dict] = None,
+        region_code: Optional[str] = None,
     ) -> List[Dict]:
         """Get all upcoming maintenances for a vehicle, sorted by urgency.
         
@@ -729,6 +715,7 @@ class MaintenanceCalculator:
                     vehicle_type,
                     registration_date,
                     last_date,
+                    region_code,
                 )
                 
                 if next_due_date:

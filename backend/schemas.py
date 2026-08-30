@@ -23,6 +23,10 @@ class VehicleCreate(BaseModel):
     notes: Optional[str] = Field(None, max_length=2000)
     # Exclut le véhicule du partage famille (voir routes/access.py).
     is_private: bool = Field(False)
+    # Pays d'immatriculation. Absent ou vide = suit le pays de l'instance,
+    # ce qui est le cas courant d'un parc immatriculé sur place.
+    country: Optional[str] = Field(None, max_length=5)
+
 
 class VehicleUpdate(BaseModel):
     name: Optional[str] = Field(None, min_length=1, max_length=255)
@@ -34,6 +38,10 @@ class VehicleUpdate(BaseModel):
     service_interval_months: Optional[int] = Field(None, ge=1, le=60)
     notes: Optional[str] = Field(None, max_length=2000)
     is_private: Optional[bool] = Field(None)
+    # Pays d'immatriculation. None = champ absent (ne pas toucher) ; chaîne
+    # vide = remettre le véhicule sous le pays de l'instance. D'où l'absence de
+    # min_length, qui interdirait ce second cas.
+    country: Optional[str] = Field(None, max_length=5)
 
     @field_validator('registration_date', mode='before')
     @classmethod

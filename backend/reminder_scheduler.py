@@ -20,6 +20,7 @@ from maintenance_calculator import (
     resolve_sub_intervention_key,
 )
 from routes.webhooks import send_webhook_notification
+from settings_store import get_active_region_code
 
 logger = logging.getLogger("ridelog.scheduler")
 calculator = MaintenanceCalculator()
@@ -53,6 +54,9 @@ async def _check_vehicle_reminders(vehicle, db):
         service_interval_months=vehicle.service_interval_months,
         motorization=vehicle.motorization,
         overrides=vehicle_overrides,  # ← overrides appliqués
+        # Le pays du véhicule décide du calendrier de contrôle technique ;
+        # NULL → pays de l'instance.
+        region_code=vehicle.country or get_active_region_code(db),
     )
 
     maint_category = calculator.get_maintenance_category(

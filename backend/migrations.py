@@ -571,6 +571,21 @@ def _m012_user_units(conn: Connection) -> None:
     add_column_if_missing(conn, "users", "units", "VARCHAR(10)")
 
 
+def _m013_vehicle_country(conn: Connection) -> None:
+    """Le pays d'immatriculation du véhicule.
+
+    NULL = « suit le pays de l'instance », et c'est le bon défaut : aucune
+    instance existante ne change de comportement, et un parc entièrement
+    français n'a rien à renseigner.
+
+    Pourquoi sur le VÉHICULE et pas sur l'utilisateur : le calendrier du
+    contrôle technique s'en déduit, et c'est un fait sur la machine. Par
+    utilisateur, un membre du groupe famille verrait une échéance différente de
+    celle du propriétaire, sur le même véhicule.
+    """
+    add_column_if_missing(conn, "vehicles", "country", "VARCHAR(5)")
+
+
 MIGRATIONS: list[Migration] = [
     Migration(
         1, "maintenance_category",
@@ -648,6 +663,11 @@ MIGRATIONS: list[Migration] = [
         12, "user_units",
         _m012_user_units,
         lambda c: has_all_columns(c, "users", "units"),
+    ),
+    Migration(
+        13, "vehicle_country",
+        _m013_vehicle_country,
+        lambda c: has_all_columns(c, "vehicles", "country"),
     ),
 ]
 

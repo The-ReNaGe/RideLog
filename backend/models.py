@@ -148,6 +148,11 @@ class Vehicle(Base):
     # les autres membres du groupe ne le voient jamais. Sans groupe famille,
     # ce drapeau n'a aucun effet.
     is_private = Column(Boolean, default=False)
+    # Pays d'immatriculation. NULL = suit le pays de l'instance. Porté par le
+    # VÉHICULE et non par l'utilisateur : le calendrier du contrôle technique
+    # s'en déduit, et c'est un fait sur la machine, pas sur qui la regarde
+    # (voir migration 013).
+    country = Column(String(5), nullable=True)
     created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
     updated_at = Column(DateTime, default=lambda: datetime.now(timezone.utc), onupdate=lambda: datetime.now(timezone.utc))
     user_id = Column(Integer, ForeignKey("users.id"), nullable=False, index=True)
@@ -177,6 +182,7 @@ class Vehicle(Base):
             "photo_url": f"/api/vehicles/{self.id}/photo" if self.photo_path else None,
             "notes": self.notes,
             "is_private": bool(self.is_private),
+            "country": self.country,
             # Le front en a besoin pour distinguer un véhicule consulté via le
             # groupe famille du sien propre, et masquer les actions d'écriture
             # qui échoueraient de toute façon en 404.

@@ -13,6 +13,7 @@ from sqlalchemy.orm import Session
 
 from maintenance_calculator import MaintenanceCalculator, get_intervention_key, build_last_maintenances_dict
 from models import User, Vehicle, Maintenance, MaintenanceInvoice, VehicleMaintenanceOverride, get_db
+from settings_store import get_active_region_code
 from schemas import IntervalOverrideUpdate, CustomMaintenanceCreate
 from security import get_current_user
 from routes import secure_delete
@@ -608,6 +609,7 @@ def _compute_upcoming(vehicle: Vehicle, db: Session) -> dict:
         brand=vehicle.brand, service_interval_km=vehicle.service_interval_km,
         service_interval_months=vehicle.service_interval_months,
         motorization=vehicle.motorization, overrides=overrides,
+        region_code=vehicle.country or get_active_region_code(db),
     )
     maintenance_category = calculator.get_maintenance_category(vehicle.vehicle_type, vehicle.brand, vehicle.year)
     for item in upcoming:

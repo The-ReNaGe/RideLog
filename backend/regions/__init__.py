@@ -22,12 +22,14 @@ installation existante est donc inchangé.
 
 Ce qu'il reste à y faire remonter
 ─────────────────────────────────
-Trois blocs sont encore franco-spécifiques et à déplacer ici quand un second
-pays sera réellement demandé — les déplacer avant serait de l'abstraction sans
-second cas pour la valider :
+Le calendrier du contrôle technique EST déjà ici (`next_inspection_date`) : il
+a été déplacé le jour où un véhicule a pu nommer son propre pays, donc le jour
+où le point de dispatch est devenu réel.
 
-- `maintenance_calculator.calculate_inspection_technical_date()` — calendrier
-  du contrôle technique, purement réglementaire français ;
+Deux blocs restent franco-spécifiques, à déplacer quand un second pays sera
+réellement demandé — les déplacer avant serait de l'abstraction sans second cas
+pour la valider :
+
 - `routes/fuel_stations.py` — `communes.csv` et prix-carburants.gouv.fr ;
 - `data/maintenance_intervals.json` — libellés français, dont les clés
   techniques sont désormais découplées (voir migration 007).
@@ -46,12 +48,16 @@ class Region(Protocol):
     plate_example: str
     default_language: str
     default_units: str
+    default_currency: str
 
     def normalize_plate(self, plate: str) -> str:
         """Forme canonique de la plaque, ou chaîne vide si le format est invalide."""
 
     def parse_plate_response(self, payload: dict, vehicle_type_hint: str = None) -> dict:
         """Traduit la réponse du service national en champs véhicule RideLog."""
+
+    def next_inspection_date(self, vehicle_type, registration_date, last_inspection_date):
+        """Prochaine échéance de contrôle technique, selon la règle du pays."""
 
 
 def format_model_text(value: str) -> str:
@@ -137,6 +143,7 @@ def list_regions() -> list[dict]:
                 "plate_example": r.plate_example,
                 "default_language": r.default_language,
                 "default_units": r.default_units,
+                "default_currency": r.default_currency,
             }
             for r in REGIONS.values()
         ),

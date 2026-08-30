@@ -24,7 +24,7 @@ from schemas import VehicleCreate, VehicleUpdate
 from maintenance_calculator import MaintenanceCalculator, build_last_maintenances_dict
 from routes.vehicle_status import alert_counts_for
 from regions import format_model_text
-from settings_store import get_active_region
+from settings_store import get_active_region, get_active_region_code
 
 PHOTO_STORAGE_DIR = Path(os.getenv("PHOTO_STORAGE_DIR", "/data/photos"))
 ALLOWED_PHOTO_MIME = {"image/jpeg", "image/png", "image/webp"}
@@ -69,6 +69,10 @@ def get_planning(
         overrides_by_vehicle.setdefault(o.vehicle_id, {})[o.intervention_key] = o
 
     all_items = []
+    # Pays de l'instance, lu une fois : il sert de repli pour tout véhicule
+    # qui ne nomme pas le sien.
+    instance_region = get_active_region_code(db)
+
     for vehicle in vehicles:
         all_maintenances = db.query(Maintenance).filter(Maintenance.vehicle_id == vehicle.id).all()
         # Cette boucle était recopiée à la main ici, sans le traitement des
@@ -91,6 +95,7 @@ def get_planning(
             service_interval_months=vehicle.service_interval_months,
             motorization=vehicle.motorization,
             overrides=vehicle_overrides,  # ← overrides appliqués
+            region_code=vehicle.country or instance_region,
         )
 
         maintenance_category = planning_calculator.get_maintenance_category(
@@ -174,6 +179,8 @@ def create_vehicle(
         service_interval_months=data.service_interval_months,
         notes=data.notes,
         is_private=data.is_private,
+        # Vide ou absent → NULL, c'est-à-dire « suit le pays de l'instance ».
+        country=(data.country or "").strip().upper() or None,
         user_id=current_user.id
     )
     db.add(vehicle)
@@ -451,6 +458,12 @@ def update_vehicle(
         vehicle.is_private = data.is_private
     if data.registration_date is not None:
         vehicle.registration_date = data.registration_date
+    # Pays d'immatriculation. `None` signifie ici « champ absent du corps »,
+    # donc « ne touche pas » — la chaîne vide, elle, remet le véhicule sous le
+    # pays de l'instance. Sans ce second cas, un véhicule déclaré à l'étranger
+    # ne pourrait plus jamais revenir au défaut.
+    if data.country is not None:
+        vehicle.country = data.country.strip().upper() or None
     if data.current_mileage is not None and data.current_mileage != vehicle.current_mileage:
         if data.current_mileage < vehicle.current_mileage:
             max_maintenance_km = db.query(

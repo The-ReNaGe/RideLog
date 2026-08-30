@@ -6,6 +6,7 @@ from sqlalchemy.orm import Session
 from sqlalchemy import func
 
 from models import Maintenance, FuelLog, User, VehicleMaintenanceOverride, get_db
+from settings_store import get_active_region_code
 from security import get_current_user
 from routes.access import list_owned_vehicles
 from maintenance_calculator import MaintenanceCalculator, get_intervention_key, build_last_maintenances_dict
@@ -60,6 +61,10 @@ def get_dashboard(
     alert_details = []
     vehicle_summaries = []
 
+    # Pays de l'instance, lu une fois : il sert de repli pour tout véhicule
+    # qui ne nomme pas le sien.
+    instance_region = get_active_region_code(db)
+
     for v in vehicles:
         v_maintenances = [m for m in all_maintenances if m.vehicle_id == v.id]
         last_maintenances = build_last_maintenances_dict(v_maintenances)
@@ -75,6 +80,7 @@ def get_dashboard(
             service_interval_months=v.service_interval_months,
             motorization=v.motorization,
             overrides=vehicle_overrides,  # ← overrides appliqués
+            region_code=v.country or instance_region,
         )
 
         overdue = sum(1 for u in upcoming if u["status"] == "overdue")
