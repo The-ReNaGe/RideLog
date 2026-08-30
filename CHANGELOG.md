@@ -1,5 +1,46 @@
 # Changelog
 
+## [2.4.0](https://github.com/The-ReNaGe/RideLog/compare/v2.3.1...v2.4.0) (2026-08-30)
+
+
+### Features
+
+* affiche chaque montant dans la devise où il a été saisi ([9b92ee0](https://github.com/The-ReNaGe/RideLog/commit/9b92ee03fb76184f6c56d0dc4cd773db542361e5))
+* affiche les kilométrages dans l'unité choisie ([b59fde8](https://github.com/The-ReNaGe/RideLog/commit/b59fde8484c2e36188e8d1ef4dd98e13e7f36fe6))
+* ajoute le choix de la devise, euro et dollar ([c95d4c7](https://github.com/The-ReNaGe/RideLog/commit/c95d4c75394bbacedc2a6604fae049ba16345bbe))
+* ajoute un moteur de traduction dont les clés sont les chaînes françaises ([b4d2fd2](https://github.com/The-ReNaGe/RideLog/commit/b4d2fd21377a2ce787ff5ac5550cb11cad6bab39))
+* applique l'unité choisie à tous les kilométrages, affichage et saisie ([844eb5b](https://github.com/The-ReNaGe/RideLog/commit/844eb5b8051380f6b79f53f904a7c500924dd248))
+* choisit le pays de l'instance depuis les paramètres ([c00acb5](https://github.com/The-ReNaGe/RideLog/commit/c00acb52d64cbc89e6e426610cc3f260c5367dc8))
+* convertit les distances en miles sans jamais passer par une virgule ([51f3083](https://github.com/The-ReNaGe/RideLog/commit/51f3083fba10505f0fccb0407ff7600921db9b14))
+* convertit les montants vers une autre devise, au taux choisi ([8f26183](https://github.com/The-ReNaGe/RideLog/commit/8f261839366d804ad011595ee0e352adbfeddda2))
+* dessine les drapeaux de pays dans un composant à part ([fe7afa1](https://github.com/The-ReNaGe/RideLog/commit/fe7afa12231b5b646b0859a278fce01d6bd86941))
+* enregistre la devise de chaque montant saisi ([6ac82cd](https://github.com/The-ReNaGe/RideLog/commit/6ac82cd94e3b36e740e49b53e5b68814e9490758))
+* expose le pays du véhicule et la devise dans l'interface ([e8358c9](https://github.com/The-ReNaGe/RideLog/commit/e8358c921ce1e560597e26ebc404937b79b11857))
+* expose un formateur d'unités lié aux préférences ([c9be971](https://github.com/The-ReNaGe/RideLog/commit/c9be9716df65cb3b399957f0a3ed9d0f2e72c6c8))
+* expose un formateur de date et de nombre lié à la langue ([37ed7b3](https://github.com/The-ReNaGe/RideLog/commit/37ed7b3e91f97226fd93422fa9e0e1fe4ae6c6c9))
+* rattache le contrôle technique au pays du véhicule ([ef6f1ec](https://github.com/The-ReNaGe/RideLog/commit/ef6f1ec0293784086834c5d581fc4e452057c8cc))
+* retient aussi le système d'unités, et fait du pays le défaut des deux ([b054add](https://github.com/The-ReNaGe/RideLog/commit/b054add8140f0150161f9ef926d44c663377b90f))
+* retient la langue d'interface choisie par chaque utilisateur ([08abecf](https://github.com/The-ReNaGe/RideLog/commit/08abecfaabb2cc42de58dcfaab9b871cdcd60205))
+* réunit pays, langue et unités dans un onglet Préférences ([5721d00](https://github.com/The-ReNaGe/RideLog/commit/5721d00177f3e5e9073ac66a4a6883114ea130fb))
+* signale à l'écran ce qui dépend du pays ([8d19f51](https://github.com/The-ReNaGe/RideLog/commit/8d19f5165dd04e8afd123050f8f1276138c7228c))
+* traduit l'écran de connexion, le garage, le tableau de bord et l'entretien ([393c875](https://github.com/The-ReNaGe/RideLog/commit/393c875e16bbe21d7fe544209d296d15928e25c5))
+* traduit la console d'administration ([231b44a](https://github.com/The-ReNaGe/RideLog/commit/231b44a4c9ffa31a27f6727783f158c4cfdc088d))
+* traduit la coquille de l'application et ouvre le choix de la langue ([659fb20](https://github.com/The-ReNaGe/RideLog/commit/659fb20fc09141bcc9016484d1c14f6977726c49))
+
+
+### Bug Fixes
+
+* fait lire à l'audit i18n le texte reçu à l'exécution ([35d966b](https://github.com/The-ReNaGe/RideLog/commit/35d966be87879dc017a87d544cee05697a518de0))
+* intitule la page du garage d'après le nom du foyer ([03c4039](https://github.com/The-ReNaGe/RideLog/commit/03c4039257a1d93420dbc4f32f08fd337b129cbf))
+* marque la devise d'un montant modifié qui n'en portait pas ([9bd219d](https://github.com/The-ReNaGe/RideLog/commit/9bd219d640d5a4c02f8876e346fc824101ca31e3))
+* refuse un pays d'immatriculation que cette version ne connaît pas ([6b241f8](https://github.com/The-ReNaGe/RideLog/commit/6b241f8afb0a70cd1cdfb0c11baecad6bacecdc9))
+* rend le bloc de décodage VIN lisible en thème sombre ([0342bb5](https://github.com/The-ReNaGe/RideLog/commit/0342bb5ac016879386c7a66bef8c4a176e91131a))
+* rétablit t() dans les composants qui ne l'avaient pas ([fbf23ae](https://github.com/The-ReNaGe/RideLog/commit/fbf23ae446e7f38727e72ca43ea7dea11886cf15))
+* signale les statistiques carburant qui enjambent deux devises ([acf3ae9](https://github.com/The-ReNaGe/RideLog/commit/acf3ae98a62258522cdda79272d21405bb4572d9))
+* ventile les totaux du tableau de bord au lieu de les additionner ([396e0c4](https://github.com/The-ReNaGe/RideLog/commit/396e0c402ffef670ef56f53695d584f3a70733d9))
+* ventile les totaux qui enjambent deux devises au lieu de les additionner ([b58eb12](https://github.com/The-ReNaGe/RideLog/commit/b58eb12d6e6236bf068fa693d7d1c93e743b2ec5))
+* écrit les dates dans la langue de l'interface, plus en français ([fa476b6](https://github.com/The-ReNaGe/RideLog/commit/fa476b644454bc95f39a2554008ee006e8fcf58a))
+
 ## [2.3.1](https://github.com/The-ReNaGe/RideLog/compare/v2.3.0...v2.3.1) (2026-08-30)
 
 
