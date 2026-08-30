@@ -14,13 +14,22 @@
  * orpheline se voit au diff — mais elle ne lève aucune erreur.
  *
  * ── Avancement ────────────────────────────────────────────────────────────
- * Vague 1 : coquille de l'application (navigation, en-tête, pied de page) et
- * onglets des paramètres. Ce sont les libellés visibles depuis tous les
- * écrans, donc ceux dont la traduction se remarque le plus tôt.
+ * L'état à jour vit dans le tableau du §20.5 de CLAUDE.md — le répéter ici en
+ * ferait une seconde source qui se périme. Ce qui est fait : la coquille de
+ * l'application, l'authentification, le garage, le tableau de bord, le
+ * planning, l'entretien et la console d'administration.
  *
- * Restent à faire : AuthPage, les écrans véhicules, entretiens, carburant, et
- * les 82 messages d'erreur du backend (qui demandent d'abord de décider si
- * l'API renvoie des codes ou du texte).
+ * Restent à faire : « À venir », le carburant, la fiche et le formulaire
+ * véhicule, les réglages, les intégrations, la documentation d'API, puis les
+ * 82 messages d'erreur du backend (qui demandent d'abord de décider si l'API
+ * renvoie des codes ou du texte).
+ *
+ * ── Pour ajouter une langue ────────────────────────────────────────────────
+ * Copier ce fichier en `xx.js`, traduire les valeurs sans jamais toucher aux
+ * clés, puis l'inscrire dans `CATALOGS` et `LANGUAGES` (`lib/i18n.js`). Une
+ * clé absente s'affiche en français : un catalogue partiel est utilisable dès
+ * la première ligne, il n'y a pas de seuil à atteindre avant de publier.
+ * `npm run i18n` dit ce qui manque et ce qui est orphelin.
  */
 
 export const EN = {
@@ -153,6 +162,8 @@ export const EN = {
   "Vue d'ensemble du garage": 'An overview of the garage',
   "Vue d'ensemble du garage de {name}": "An overview of {name}'s garage",
   'Coût total': 'Total cost',
+  'Carburant': 'Fuel',
+  "Prix d'achat cumulé du parc": 'Combined purchase price of the fleet',
   'Distance totale': 'Total distance',
   "Valeur d'achat": 'Purchase value',
   "Prix d'achat": 'Purchase price',
@@ -230,10 +241,21 @@ export const EN = {
     'Every amount keeps the currency it was entered in: a service paid $200 still shows as “$200” after a switch to euros. Changing this setting recalculates nothing.',
 
   'Plusieurs devises dans cet historique': 'Several currencies in this history',
-  'Les répartitions par catégorie additionnent des montants saisis dans des devises différentes. Un administrateur peut tout ramener à une seule devise depuis Paramètres → Préférences.':
-    'The per-category breakdowns add up amounts entered in different currencies. An administrator can bring everything back to a single currency from Settings → Preferences.',
+  // Ces trois messages renvoyaient vers un écran de conversion qui n'existe
+  // pas : il a été retiré à dessein (§20.7, « la conversion est une commande
+  // à part, et sans écran »). Dire à quelqu'un d'aller quelque part où il ne
+  // trouvera rien est pire que de ne rien dire.
+  'Les répartitions par catégorie additionnent des montants saisis dans des devises différentes. Le total ci-dessus, lui, reste ventilé.':
+    'The per-category breakdowns add up amounts entered in different currencies. The total above stays split by currency.',
+  'Les graphiques additionnent des montants saisis dans des devises différentes. Les totaux ci-dessus, eux, restent ventilés.':
+    'The charts add up amounts entered in different currencies. The totals above stay split by currency.',
+  'Les moyennes, les graphiques et les totaux par station additionnent des montants saisis dans des devises différentes. Le total dépensé, lui, reste ventilé.':
+    'Averages, charts and per-station totals add up amounts entered in different currencies. The total spent stays split by currency.',
   'Euro': 'Euro',
   'Dollar américain': 'US dollar',
+  'Véhicule privé': 'Private vehicle',
+  'Exclu du partage avec votre groupe famille. Vous continuez à le voir.':
+    'Left out of sharing with your family group. You still see it yourself.',
   "Pays d'immatriculation": 'Country of registration',
   'Décide du calendrier de contrôle technique de ce véhicule.':
     "Sets this vehicle's roadworthiness-test schedule.",

@@ -1,11 +1,12 @@
 import React, { useState, useCallback, useEffect, useRef } from 'react';
 import { api } from '../lib/api';
 import CountryBadge from './CountryBadge';
-import { usePreferences } from '../lib/preferencesContext';
+import { useFormat, usePreferences } from '../lib/preferencesContext';
 import Icon from './Icon';
 
 export default function FuelStations() {
 	const { currencySymbol } = usePreferences();
+	const fmt = useFormat();
 	const [city, setCity] = useState('');
 	const [fuelType, setFuelType] = useState('');
 	const [maxDistance, setMaxDistance] = useState(20);
@@ -316,7 +317,7 @@ export default function FuelStations() {
 												const label = type.charAt(0).toUpperCase() + type.slice(1).toLowerCase();
 												const price = fuel_info.price;
 												const available = fuel_info.available;
-												const updated = fuel_info.updated ? new Date(fuel_info.updated).toLocaleDateString('fr-FR', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' }) : null;
+												const updated = fuel_info.updated ? fmt.date(fuel_info.updated, { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' }) : null;
 												
 												return (
 													<div 

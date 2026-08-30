@@ -1,8 +1,7 @@
 import React, { useEffect, useState, useMemo } from 'react';
 import { api } from '../lib/api';
 import { getShortInterventionName } from '../lib/interventionTranslations';
-import { useT, usePreferences } from '../lib/preferencesContext';
-import { useFormat } from '../lib/preferencesContext';
+import { useFormat, useT, usePreferences } from '../lib/preferencesContext';
 import Icon from '../components/Icon';
 import PageHeader from '../components/PageHeader';
 
@@ -99,7 +98,7 @@ function DayDetailModal({ date, items, onClose }) {
           <h3 className="flex items-center gap-2" style={{ margin: 0, fontSize: '1.05rem' }}>
             <Icon name="calendar" size={17} style={{ color: 'var(--text-3)' }} />
             <span style={{ textTransform: 'capitalize' }}>
-              {date.toLocaleDateString('fr-FR', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })}
+              {fmt.date(date, { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })}
             </span>
           </h3>
           <button onClick={onClose} className="btn-icon" aria-label="Fermer">

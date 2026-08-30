@@ -8,7 +8,7 @@ import { copyToClipboard } from '../lib/clipboard';
 import Icon from '../components/Icon';
 import PageHeader from '../components/PageHeader';
 import Notice from '../components/Notice';
-import { usePreferences } from '../lib/preferencesContext';
+import { useFormat, usePreferences } from '../lib/preferencesContext';
 import { LANGUAGES } from '../lib/i18n';
 import { UNIT_SYSTEMS } from '../lib/units';
 import Flag from '../components/Flag';
@@ -585,6 +585,7 @@ const MODE_OPTIONS = [
 ];
 
 function InscriptionSettings() {
+  const fmt = useFormat();
   const [mode, setMode] = useState(null);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -815,10 +816,10 @@ function InscriptionSettings() {
                         </td>
                         <td style={{ color: 'var(--text-2)' }}>@{inv.creator_username}</td>
                         <td className="text-xs" style={{ color: 'var(--text-3)' }}>
-                          {new Date(inv.created_at).toLocaleDateString('fr-FR', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' })}
+                          {fmt.date(inv.created_at, { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' })}
                         </td>
                         <td className="text-xs" style={{ color: 'var(--text-3)' }}>
-                          {new Date(inv.expires_at).toLocaleDateString('fr-FR', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' })}
+                          {fmt.date(inv.expires_at, { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' })}
                         </td>
                         <td>
                           <div className="flex gap-1 items-center">

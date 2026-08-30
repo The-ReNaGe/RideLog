@@ -30,11 +30,14 @@ function StatusBadge({ status }) {
 
 const OVERDUE = Symbol('overdue');
 
-function formatDueDate(value) {
+// `fmt` est passé plutôt que capturé : c'est une fonction pure, hors
+// composant, donc hors de portée des hooks — même convention que
+// `formatDistance` juste en dessous.
+function formatDueDate(value, fmt) {
   if (!value) return 'sans échéance';
   const date = new Date(value);
   if (Number.isNaN(date.getTime())) return 'sans échéance';
-  return date.toLocaleDateString('fr-FR');
+  return fmt.date(date);
 }
 
 // `fmt` vient de useFormat() : les sentinelles et le cas « en retard » sont
@@ -739,7 +742,7 @@ export default React.memo(function UpcomingMaintenance({ data, vehicleId, onRefr
                     {item.next_due_mileage ? fmt.dist(item.next_due_mileage) : ''}
                     {item.next_due_mileage && item.next_due_date ? ' · ' : ''}
                     {item.next_due_date
-                      ? formatDueDate(item.next_due_date)
+                      ? formatDueDate(item.next_due_date, fmt)
                       : (item.next_due_mileage ? '' : 'sans échéance')}
                   </p>
                 </div>

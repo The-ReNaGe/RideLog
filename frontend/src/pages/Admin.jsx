@@ -44,10 +44,9 @@ function ToggleSwitch({ checked, onChange, disabled, title }) {
 
 export default function Admin({ currentUser }) {
   const t = useT();
-  // Les dates suivaient 'fr-FR' en dur : « 30/08/2026 » dans une interface
-  // anglaise. Le format d'une date suit la LANGUE, comme les séparateurs de
-  // milliers (§20.6).
-  const { locale: fmtLocale } = useFormat();
+  // Le format d'une date suit la LANGUE, comme les séparateurs de milliers
+  // (§20.6) — d'où fmt.date() plutôt qu'une locale en dur.
+  const fmt = useFormat();
   const [users, setUsers] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
@@ -452,7 +451,7 @@ export default function Admin({ currentUser }) {
                         {user.password_reset_requested_at && (
                           <span
                             className="badge badge-warning"
-                            title={t('Demande de réinitialisation le {date}', { date: new Date(user.password_reset_requested_at).toLocaleString(fmtLocale) })}
+                            title={t('Demande de réinitialisation le {date}', { date: fmt.date(user.password_reset_requested_at, { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' }) })}
                           >
                             <Icon name="bell" size={11} strokeWidth={2.2} />
                             {t('Reset demandé')}
@@ -485,7 +484,7 @@ export default function Admin({ currentUser }) {
                       )}
                     </td>
                     <td className="text-xs" style={{ color: 'var(--text-3)' }}>
-                      {new Date(user.created_at).toLocaleDateString(fmtLocale)}
+                      {fmt.date(user.created_at)}
                     </td>
                     <td>
                       <div className="flex gap-1.5 items-center flex-wrap">

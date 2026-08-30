@@ -273,7 +273,7 @@ export default function MaintenanceHistory({ vehicleId, vehicleType, motorizatio
                     </div>
                     <div className="flex flex-wrap gap-x-2 gap-y-0.5 text-xs" style={{ color: 'var(--text-3)' }}>
                       <span>
-                        {new Date(maintenance.execution_date).toLocaleDateString('fr-FR', {
+                        {fmt.date(maintenance.execution_date, {
                           day: 'numeric', month: 'short', year: 'numeric',
                         })}
                       </span>
