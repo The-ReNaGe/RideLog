@@ -229,21 +229,6 @@ export const EN = {
   "Chaque montant garde la devise dans laquelle il a été saisi : une révision payée 200 $ continue de s'afficher « 200 $ » même après un passage à l'euro. Changer ce réglage ne recalcule rien.":
     'Every amount keeps the currency it was entered in: a service paid $200 still shows as “$200” after a switch to euros. Changing this setting recalculates nothing.',
 
-  // ── Convertir l'historique ──────────────────────────────────────────────
-  'Convertir les montants enregistrés': 'Convert recorded amounts',
-  "À n'utiliser que pour repartir dans une autre monnaie : tous les montants sont recalculés au taux indiqué, et une sauvegarde de la base est prise avant.":
-    'Only for starting over in another currency: every amount is recalculated at the rate you give, and a database backup is taken first.',
-  'Convertir vers': 'Convert to',
-  'Choisir une devise…': 'Pick a currency…',
-  'Taux appliqué': 'Rate applied',
-  'Voir ce qui serait converti': 'Preview what would change',
-  'Convertir maintenant': 'Convert now',
-  'Indiquez un taux strictement positif.': 'Enter a rate greater than zero.',
-  "Rien n'a encore été modifié": 'Nothing has changed yet',
-  '{count} montants seraient convertis de {from} vers {to}.':
-    '{count} amounts would be converted from {from} to {to}.',
-  'Cette opération est irréversible ; une sauvegarde de la base sera déposée dans /data/backups avant de commencer.':
-    'This cannot be undone; a database backup will be written to /data/backups before it starts.',
   'Plusieurs devises dans cet historique': 'Several currencies in this history',
   'Les répartitions par catégorie additionnent des montants saisis dans des devises différentes. Un administrateur peut tout ramener à une seule devise depuis Paramètres → Préférences.':
     'The per-category breakdowns add up amounts entered in different currencies. An administrator can bring everything back to a single currency from Settings → Preferences.',
@@ -267,4 +252,104 @@ export const EN = {
   '/mois': '/month',
   'Évolution du coût': 'Cost trend',
   'Total :': 'Total:',
+
+  // ── Administration ──────────────────────────────────────────────────────
+  'Administration': 'Administration',
+  'Comptes, rôles et mots de passe de cette instance.':
+    'Accounts, roles and passwords for this instance.',
+  'Accès refusé': 'Access denied',
+  'Cette console est réservée aux administrateurs.': 'This console is for administrators only.',
+  'Gestion des utilisateurs': 'User management',
+  'Aucun utilisateur.': 'No users.',
+  'Utilisateur': 'User',
+  'Nom affiché': 'Display name',
+  'Nom affiché*': 'Display name*',
+  'Identifiant*': 'Username*',
+  'Rôle': 'Role',
+  'Créé le': 'Created',
+  'Actions': 'Actions',
+  '(vous)': '(you)',
+  'Service': 'Service',
+  'Fermer': 'Close',
+  'Nouveau compte': 'New account',
+  'Créer le compte': 'Create the account',
+  "Créer en tant qu'administrateur": 'Create as an administrator',
+  'Laisser vide pour génération automatique': 'Leave empty to generate one',
+  '(optionnel — généré automatiquement si laissé vide, affiché une seule fois pour que vous le transmettiez)':
+    '(optional — generated automatically if left empty, shown once so you can pass it on)',
+  "Le mode d'inscription est « Sur invitation ». Pour faire entrer quelqu'un, générez un lien depuis Paramètres → Inscription, ou changez le mode d'inscription.":
+    'Registration is set to “By invitation”. To let someone in, generate a link from Settings → Registration, or change the registration mode.',
+  'Compte @{name} créé.': 'Account @{name} created.',
+  "Mot de passe généré — copiez-le maintenant et transmettez-le à l'utilisateur par un canal sécurisé (il ne sera plus jamais affiché) :":
+    'Generated password — copy it now and pass it on over a secure channel (it will never be shown again):',
+
+  'Réinitialisation de mot de passe': 'Password reset',
+  "Les admins peuvent réinitialiser le mot de passe d'un utilisateur (pas de SMTP/lien par email disponible).":
+    'Admins can reset a user’s password (no SMTP or email link is available).',
+  'Désactivée : aucun admin ne peut réinitialiser un mot de passe actuellement.':
+    'Disabled: no admin can reset a password right now.',
+  'Patientez…': 'Please wait…',
+  'Activé': 'Enabled',
+  'Désactivé': 'Disabled',
+  'Cliquer pour désactiver': 'Click to disable',
+  'Cliquer pour activer': 'Click to enable',
+  'Mot de passe de @{name} réinitialisé.': 'Password for @{name} has been reset.',
+  "Copiez-le maintenant et transmettez-le à l'utilisateur par un canal sécurisé (il ne sera plus jamais affiché) :":
+    'Copy it now and pass it on over a secure channel (it will never be shown again):',
+  'Reset demandé': 'Reset requested',
+  'Demande de réinitialisation le {date}': 'Reset requested on {date}',
+  'Doit encore choisir son propre mot de passe': 'Still has to choose their own password',
+  'Mot de passe temporaire': 'Temporary password',
+  'Rétrograder en utilisateur': 'Demote to user',
+  'Promouvoir administrateur': 'Promote to administrator',
+  'Rétrograder': 'Demote',
+  'Promouvoir': 'Promote',
+  'Compte protégé': 'Protected account',
+  "Réinitialiser le mot de passe (utile en l'absence d'email)":
+    'Reset the password (useful with no email available)',
+  'Réinitialiser': 'Reset',
+  'Supprimer @{name}': 'Delete @{name}',
+  'Supprimer cet utilisateur': 'Delete this user',
+  'Impossible : compte de service protégé': 'Not possible: protected service account',
+  "Impossible : rétrogradez-le d'abord": 'Not possible: demote them first',
+
+  'Erreur lors du chargement des utilisateurs': 'Could not load the users',
+  'Erreur lors du changement de statut': 'Could not change the status',
+  'Erreur lors de la suppression': 'Could not delete',
+  'Le changement de rôle a échoué.': 'The role change failed.',
+  'Erreur lors de la réinitialisation du mot de passe': 'Could not reset the password',
+  'Réactiver la réinitialisation de mot de passe par les admins ?':
+    'Let admins reset passwords again?',
+  "Désactiver la réinitialisation de mot de passe ?\n\nAucun admin (y compris vous) ne pourra plus réinitialiser un mot de passe tant que ce n'est pas réactivé ici.":
+    'Disable password resets?\n\nNo admin — including you — will be able to reset a password until this is turned back on here.',
+  "Êtes-vous sûr de vouloir supprimer l'utilisateur « {name} » ?\n\nSes véhicules et données seront supprimés.":
+    'Delete the user “{name}”?\n\nTheir vehicles and data will be deleted too.',
+  'Rétrograder « {name} » en simple utilisateur ?': 'Demote “{name}” to a plain user?',
+  'Promouvoir « {name} » administrateur ?': 'Promote “{name}” to administrator?',
+  "Réinitialiser le mot de passe de « {name} » ?\n\nUn nouveau mot de passe aléatoire sera généré et affiché une seule fois. Toutes ses sessions en cours seront invalidées — l'utilisateur devra se reconnecter avec le nouveau mot de passe.":
+    'Reset the password for “{name}”?\n\nA new random password will be generated and shown once. All their current sessions will be invalidated — they will have to sign in again with the new password.',
+
+  "Ce que cette console permet, et ce qu'elle interdit": 'What this console allows, and what it does not',
+  "Le premier compte créé sur l'instance est automatiquement administrateur.":
+    'The first account created on the instance is automatically an administrator.',
+  'Un administrateur peut promouvoir ou rétrograder les autres, mais pas lui-même.':
+    'An administrator can promote or demote others, but never themselves.',
+  'En mode « Privé » ou « Ouvert », un administrateur crée un compte directement ; en mode « Sur invitation », il passe par un lien (Paramètres → Inscription).':
+    'In “Private” or “Open” mode an administrator creates an account directly; in “By invitation” mode they go through a link (Settings → Registration).',
+  'Un mot de passe créé ou réinitialisé par un administrateur est temporaire : la personne devra en choisir un à sa prochaine connexion, et ses sessions en cours sont déconnectées.':
+    'A password created or reset by an administrator is temporary: the person will have to choose their own at next sign-in, and their current sessions are ended.',
+  "Depuis l'écran de connexion, un utilisateur peut signaler un mot de passe oublié : un badge apparaît ici. Il n'y a pas d'envoi d'email en self-hosted.":
+    'From the sign-in screen a user can report a forgotten password: a badge shows up here. Nothing is emailed in a self-hosted setup.',
+  "Un administrateur ne peut pas réinitialiser son propre mot de passe ici — il risquerait de se déconnecter sans pouvoir revenir. Passez par Paramètres → Compte.":
+    'An administrator cannot reset their own password here — they could lock themselves out. Use Settings → Account instead.',
+  "Les administrateurs ne peuvent pas être supprimés : rétrogradez-les d'abord.":
+    'Administrators cannot be deleted: demote them first.',
+  'Supprimer un utilisateur supprime aussi tous ses véhicules.':
+    'Deleting a user deletes all their vehicles too.',
+
+  // ── Garage ──────────────────────────────────────────────────────────────
+  'Mes véhicules': 'My vehicles',
+  'Les véhicules du foyer, un garage par membre.':
+    'The household’s vehicles, one garage per member.',
+  "Vos véhicules et leur état d'entretien.": 'Your vehicles and their service status.',
 };
