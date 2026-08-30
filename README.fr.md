@@ -1,0 +1,456 @@
+<img src="docs/screenshots/RideLog.png" alt="RideLog Logo" width="160" align="left"/>
+<br clear="left"/>
+
+<p align="right"><a href="README.md">English</a> · <strong>Français</strong></p>
+
+## Description
+
+**RideLog** est une application self-hosted de suivi d'entretien de véhicules.
+Gardez un œil sur vos kilométrages, planifiez vos maintenances, suivez votre consommation de carburant et recevez des rappels automatiques — le tout hébergé chez vous, sans dépendance cloud.
+
+Conçu pour les particuliers passionnés comme pour les petits parcs de véhicules, RideLog supporte voitures et motos avec des plans d'entretien intelligents adaptés à chaque motorisation.
+
+---
+
+<p align="center">
+  <img src="docs/screenshots/Accueil.png" alt="Accueil RideLog" width="1800"/>
+</p>
+
+---
+
+## Fonctionnalités
+
+- **Gestion multi-véhicules** — voitures et motos, avec photo, VIN et plaque d'immatriculation
+- **Plan d'entretien intelligent** — intervalles adaptés par type, motorisation et marque, avec filtrage diesel/essence
+- **Anti-drift kilométrique** — les échéances s'alignent sur des multiples propres, pas de décalage cumulatif
+- **Plan ajustable par véhicule** — intervalles personnalisés, entretiens écartés quand ils ne concernent pas la machine, et entretiens de votre cru avec l'intervalle de votre choix
+- **Suivi carburant** — historique des pleins, consommation L/100km, coût/km, projections annuelles
+- **Recherche stations-service** — prix temps réel sur 39 202 communes françaises (données gouv.fr)
+- **Rappels automatiques** — 3 paliers de notifications (à planifier, à prévoir, en retard)
+- **Webhooks** — Discord
+- **Intégration Home Assistant** — custom component avec capteurs par véhicule + cartes Lovelace
+- **Planning** — calendrier mensuel des entretiens à venir
+- **Dashboard** — statistiques agrégées du parc
+- **Export** — récapitulatif en ZIP (CSV + factures)
+- **Multi-utilisateurs** — inscription par invitation, rôles admin, compte de service HA
+- **Groupes famille** — partagez la consultation de vos véhicules avec votre foyer, en lecture seule, sur invitation (véhicules privés possibles)
+- **Mode sombre** — thème clair/sombre avec persistance
+
+---
+
+## Démarrage rapide
+
+```bash
+git clone https://github.com/The-ReNaGe/RideLog.git RideLog && cd RideLog
+```
+
+**Avant de lancer les containers, créez votre fichier de configuration :**
+
+```bash
+cp .env.example .env
+```
+
+Ouvrez `.env` et renseignez au minimum :
+- `JWT_SECRET` — clé secrète JWT (`openssl rand -hex 32`)
+- `HA_INIT_KEY` — clé pour Home Assistant (`openssl rand -hex 16`)
+
+Puis lancez :
+
+```bash
+docker compose pull
+docker compose up -d
+```
+
+Les images sont téléchargées depuis GitHub Container Registry — plus rien à
+construire. Comptez quelques dizaines de secondes au lieu de plusieurs minutes.
+
+**Interface** : [http://localhost:3100](http://localhost:3100)
+
+Le premier utilisateur créé est automatiquement admin.
+La documentation de l'API est accessible depuis l'interface : **Paramètres → Documentation API**.
+
+---
+
+## Configuration
+
+Toute la configuration se fait via le fichier `.env` (créé depuis `.env.example`).  
+Le fichier `.env` n'est jamais commité — il reste sur votre machine uniquement.
+
+```bash
+cp .env.example .env   # à faire une seule fois à l'installation
+```
+
+| Variable | Défaut | Description |
+|---|---|---|
+| `JWT_SECRET` | *(à définir)* | Secret pour les tokens JWT — **obligatoire** |
+| `HA_INIT_KEY` | *(à définir)* | Clé pour initialiser le compte Home Assistant — **obligatoire** |
+| `REGISTRATION_MODE` | `invite` | Mode d'inscription : `open`, `invite`, `closed` |
+| `RAPIDAPI_KEY` | — | Clé RapidAPI pour le décodage de plaque (optionnel) |
+| `REMINDER_INTERVAL` | `3600` | Intervalle du scheduler de rappels en secondes |
+| `REMINDER_ENABLED` | `true` | Active/désactive les rappels automatiques |
+| `LOG_LEVEL` | `INFO` | Niveau de log (`DEBUG`, `INFO`, `WARNING`, `ERROR`) |
+| `CORS_ORIGINS` | *(vide)* | Origines CORS autorisées. Laisser vide en déploiement standard |
+| `RIDELOG_TAG` | `stable` | Canal de mise à jour — voir ci-dessous |
+
+### Choisir son canal de mise à jour
+
+`RIDELOG_TAG` dans `.env` décide de l'image téléchargée :
+
+| Valeur | Contenu | Pour qui |
+|---|---|---|
+| `stable` | Version validée à la main | **Recommandé.** Le canal sur lequel on peut rester sans surprise |
+| `latest` | Reconstruit à chaque modification du projet | Ceux qui veulent les nouveautés tôt et acceptent le risque |
+| `1.9.0` | Une version précise, figée | Ceux qui veulent maîtriser exactement quand ils changent |
+
+> ⚠️ `latest` n'est **pas** synonyme de « dernière version stable ». C'est le
+> code le plus récent, non validé. Si vous ne savez pas lequel choisir, gardez
+> `stable`.
+
+**Architectures publiées** : `linux/amd64` et `linux/arm64` (Raspberry Pi
+64 bits, NAS ARM). Un seul tag fonctionne partout, Docker sélectionne l'image
+correspondant à votre machine. Sur une autre architecture, voir
+[Construire depuis les sources](#construire-depuis-les-sources).
+
+### Changer le port
+
+Modifier la ligne `ports` du service `frontend` dans `docker-compose.yml` :
+
+```yaml
+ports:
+  - "8080:80"  # Interface accessible sur le port 8080
+```
+
+---
+
+## Stack technique
+
+| Composant | Technologie |
+|---|---|
+| Backend | Python 3.11, FastAPI, SQLAlchemy, SQLite |
+| Frontend | React 18, Vite 5, Tailwind CSS 3 |
+| Auth | JWT HS256 (7 jours), bcrypt, rate limiting progressif |
+| Conteneurs | Docker Compose (backend + nginx) |
+| Données | SQLite dans `./data/ridelog.db` (volume persistant) |
+
+---
+
+## Entretien véhicules
+
+### Voitures
+
+| Entretien | Intervalle | Motorisation |
+|---|---|---|
+| Vidange + filtre à huile | 10 000 km / 12 mois | Toutes |
+| Filtre à air | 20 000 km / 12 mois | Toutes |
+| Filtre d'habitacle | 15 000 km / 12 mois | Toutes |
+| Filtre à gasoil | 20 000 km / 24 mois | Diesel uniquement |
+| Filtre à essence | 50 000 km / 48 mois | Essence uniquement |
+| Bougies d'allumage | 30 000 km | Essence / hybride |
+| Purge de frein | 24 mois | Toutes |
+| Courroie de distribution | 80 000 km / 72 mois | Toutes |
+| Liquide de refroidissement | 60 000 km / 48 mois | Toutes |
+| Liquide de transmission | 80 000 km / 48 mois | Toutes |
+| Contrôle technique | Réglementaire | Toutes |
+
+### Motos
+
+Les intervalles de révision sont configurés par marque et cylindrée (ex: Triumph 660cc = 16 000 km, Honda 125cc = 4 000 km). L'utilisateur peut les surcharger à la création du véhicule.
+
+Chaque échéance reste ajustable ensuite, depuis l'onglet « À venir » du véhicule : changer un intervalle, écarter un entretien qui ne concerne pas la machine (une moto refroidie par air n'a pas de liquide de refroidissement), ou ajouter un entretien absent du catalogue avec l'intervalle voulu — une vérification des plaquettes tous les 500 km, par exemple. Les entretiens écartés restent listés en bas de l'onglet et se rétablissent d'un clic.
+
+- **Révision périodique** — basée sur le kilométrage (configurable)
+- **Entretien annuel** — tous les 12 mois, contrôle simplifié si le km n'est pas atteint
+- **Soupapes** — toutes les 2 révisions (automatique)
+- **Purge frein + embrayage** — tous les 2 ans
+- **Liquide refroidissement** — tous les 3 ans
+- **Révision fourche** — tous les 3 ans
+- **Huile transmission** — tous les 4 ans
+- **Contrôle technique** — réglementaire français (2020-2021 : 2026, 2022+ : 5ème anniversaire)
+
+---
+
+## Système de rappels
+
+Le scheduler vérifie les échéances toutes les heures et envoie des notifications via les webhooks configurés :
+
+| Palier | Condition | Niveau |
+|---|---|---|
+| Tier 1 | ≤ 90 jours **ou** ≤ 1 500 km | À planifier |
+| Tier 2 | ≤ 30 jours **ou** ≤ 500 km | À prévoir |
+| Tier 3 | Échéance dépassée | En retard |
+
+Webhooks supportés : **Discord** (embed riche).
+
+---
+
+## Intégration Home Assistant
+
+<p align="left">
+  <img src="docs/screenshots/homeassistant.png" alt="Intégration Home Assistant" width="400"/>
+</p>
+
+### Installation
+
+1. Créer le compte HA : **Paramètres → Home Assistant → Créer le compte**
+2. Copier le custom component :
+   ```bash
+   cp -r ha-integration/custom_components/ridelog/ \
+     ~/.homeassistant/custom_components/ridelog/
+   ```
+3. Redémarrer Home Assistant
+4. Ajouter l'intégration : **Paramètres → Appareils et services → + → "RideLog"**
+5. Saisir l'URL de l'API (ex: `http://192.168.1.x:8000`)
+
+### Capteurs créés (par véhicule)
+
+| Capteur | Contenu |
+|---|---|
+| `sensor.ridelog_{nom}_summary` | Kilométrage, marque, modèle, année |
+| `sensor.ridelog_{nom}_upcoming` | Nombre et détail des maintenances à venir |
+| `sensor.ridelog_{nom}_overdue` | Nombre et détail des maintenances en retard |
+
+### Cartes Lovelace
+
+Des cartes Mushroom prêtes à l'emploi sont générables depuis **Paramètres → Home Assistant → Carte Lovelace**.
+
+Prérequis HACS : [Mushroom Cards](https://github.com/piitaya/lovelace-mushroom), [card_mod](https://github.com/thomasloven/lovelace-card-mod).
+
+---
+
+## Mise à jour
+
+```bash
+cd RideLog
+git pull origin main
+docker compose pull
+docker compose up -d
+```
+
+Les migrations de base de données sont appliquées automatiquement au redémarrage
+du backend, après une sauvegarde déposée dans `./data/backups/`.
+
+> ⚠️ **Première mise à jour depuis une version sans `.env`** : créez le fichier avant de lancer, sinon le backend refusera de démarrer.
+> ```bash
+> cp .env.example .env
+> # Remplir JWT_SECRET et HA_INIT_KEY dans .env
+> ```
+
+---
+
+## ⚠️ Migration depuis une version antérieure à la 2.0
+
+**À partir de la 2.0, RideLog ne se construit plus chez vous : il se
+télécharge.** Les images sont publiées sur GitHub Container Registry.
+
+### Pourquoi ce changement
+
+`python:3.11-slim` et `node:18-alpine` sont des **tags mobiles** : ils sont
+reconstruits régulièrement en amont. Deux personnes installant « la même
+version » de RideLog à quinze jours d'intervalle n'obtenaient donc pas la même
+image. Un bug n'apparaissant que chez l'une devenait impossible à diagnostiquer
+— on ne savait pas si la différence venait du code ou du socle.
+
+Une image publiée une fois fixe le contenu : tout le monde exécute exactement
+les mêmes octets.
+
+### La migration, en pratique
+
+```bash
+cd RideLog
+git pull origin main
+```
+
+> ⚠️ **`git pull` refuse avec « vos modifications locales... seraient écrasées »** :
+> fréquent si vous aviez modifié `docker-compose.yml` à la main sous l'ancien
+> mode « build local » (port codé en dur, `container_name`, etc.). Vérifiez
+> d'abord ce qui a été changé — la plupart de ces réglages sont désormais pilotés
+> par `.env` (`BACKEND_PORT`, `FRONTEND_PORT`, `RIDELOG_TAG`) et n'ont plus besoin
+> d'être édités dans le compose :
+> ```bash
+> git diff docker-compose.yml
+> ```
+> Si le diff ne contient que ce type de réglage, l'ancien fichier peut être
+> abandonné sans perte (aucune donnée n'y vit) :
+> ```bash
+> git checkout -- docker-compose.yml
+> git pull origin main
+> ```
+> Sinon, remisez-le pour ne rien perdre et fusionnez à la main :
+> ```bash
+> git stash push -- docker-compose.yml
+> git pull origin main
+> git stash pop
+> ```
+
+```bash
+# 1. Renseigner le canal souhaité (stable est le défaut)
+grep -q '^RIDELOG_TAG=' .env || echo 'RIDELOG_TAG=stable' >> .env
+
+# 2. Télécharger les images
+docker compose pull
+
+# 3. Redémarrer
+docker compose up -d
+
+# 4. (facultatif) récupérer l'espace des anciennes images construites localement
+docker image prune
+```
+
+Vos données ne sont pas touchées : elles vivent dans `./data/`, en dehors des
+images. Le backend applique ses migrations au démarrage, après sauvegarde.
+
+### Ce qui change pour vous
+
+| | Avant | Après |
+|---|---|---|
+| Mise à jour | `docker compose up -d --build` | `docker compose pull && docker compose up -d` |
+| Durée | plusieurs minutes | quelques dizaines de secondes |
+| Reproductibilité | dépend de la date du build | identique pour tout le monde |
+| Modifications locales du code | prises en compte | **ignorées** — voir ci-dessous |
+
+### Si vous modifiez le code
+
+Un fichier modifié localement n'a plus aucun effet : vous exécutez une image
+téléchargée. Pour retrouver l'ancien comportement :
+
+```bash
+docker compose -f docker-compose.yml -f docker-compose.dev.yml up -d --build
+```
+
+### Construire depuis les sources
+
+Ce même fichier de surcharge sert à toute architecture non couverte par les
+images publiées (`linux/amd64` et `linux/arm64`) — par exemple un Raspberry Pi
+en système 32 bits :
+
+```bash
+docker compose -f docker-compose.yml -f docker-compose.dev.yml up -d --build
+```
+
+### Revenir en arrière
+
+Pour retrouver une version antérieure, **deux choses doivent revenir ensemble** :
+
+```bash
+# 1. l'image
+RIDELOG_TAG=1.9.0   # dans .env
+docker compose pull && docker compose up -d
+```
+
+```bash
+# 2. la base de données, SI la version récente avait migré le schéma
+docker compose stop backend
+cp ./data/backups/ridelog-<horodatage>.db ./data/ridelog.db
+docker compose start backend
+```
+
+> Si vous ne restaurez que l'image, **le backend refusera de démarrer**. Ce
+> n'est pas une panne : c'est une protection. Une base migrée par une version
+> récente contient un schéma que l'ancienne ne sait pas lire, et la laisser
+> écrire dedans corromprait vos données. Le message de log indique la version
+> de schéma attendue.
+
+---
+
+## Sauvegarde et restauration
+
+**Sauvegardes automatiques** : le backend dépose une copie de la base dans
+`./data/backups/` avant toute migration de schéma, et conserve les 5 plus
+récentes (`DB_BACKUP_KEEP`). C'est cette copie qu'il faut restaurer pour revenir
+à une version antérieure.
+
+```bash
+# Sauvegarde manuelle — arrêter le backend d'abord, une copie à chaud peut
+# capturer un fichier au milieu d'une écriture
+docker compose stop backend
+cp ./data/ridelog.db ./backup_ridelog_$(date +%Y%m%d).db
+docker compose start backend
+
+# Restauration
+docker compose stop backend
+cp ./backup_ridelog.db ./data/ridelog.db
+docker compose start backend
+```
+
+Les données sont stockées dans `./data/` : base de données SQLite, sauvegardes,
+photos et factures. Rien n'est dans les images.
+
+---
+
+## API
+
+La documentation complète de l'API est accessible depuis l'interface : **Paramètres → Documentation API**.
+
+### Principaux endpoints
+
+| Méthode | Route | Description |
+|---|---|---|
+| `POST` | `/api/auth/login` | Connexion → JWT |
+| `POST` | `/api/auth/register` | Inscription |
+| `GET/POST` | `/api/vehicles` | Liste / Créer véhicule |
+| `GET/PUT/DELETE` | `/api/vehicles/{id}` | Détail / Modifier / Supprimer |
+| `GET/POST` | `/api/vehicles/{id}/maintenances` | Historique entretien |
+| `GET` | `/api/vehicles/{id}/upcoming` | Maintenances à venir |
+| `GET/POST` | `/api/vehicles/{id}/fuel-logs` | Pleins carburant |
+| `GET` | `/api/vehicles/{id}/fuel-stats` | Statistiques conso |
+| `GET` | `/api/fuel-stations/search` | Recherche stations |
+| `GET/POST/DELETE` | `/api/settings/webhooks` | Gestion webhooks |
+| `GET` | `/api/vehicles/planning` | Planning global |
+| `GET` | `/api/dashboard/stats` | Stats dashboard |
+
+---
+
+## Structure du projet
+
+```
+RideLog/
+├── docker-compose.yml          # Orchestration des services
+├── .env.example                # Template de configuration (à copier en .env)
+├── CLAUDE.md                   # Documentation technique détaillée
+├── backend/
+│   ├── main.py                 # Point d'entrée FastAPI
+│   ├── models.py               # Modèles SQLAlchemy + migrations
+│   ├── maintenance_calculator.py  # Logique métier entretien
+│   ├── reminder_scheduler.py   # Scheduler rappels automatiques
+│   ├── security.py             # JWT, bcrypt, rate limiting
+│   ├── routes/                 # Endpoints API
+│   └── data/                   # JSON config, communes CSV
+├── frontend/
+│   ├── src/
+│   │   ├── App.jsx             # Navigation state-based
+│   │   ├── pages/              # Pages principales
+│   │   ├── components/         # Composants UI
+│   │   └── lib/api.js          # Client Axios (~70 méthodes)
+│   └── nginx.conf              # Proxy + SPA fallback
+└── ha-integration/
+    ├── custom_components/ridelog/  # Custom component HA
+    └── templates/                  # Templates cartes Lovelace
+```
+
+Pour la documentation technique complète (comment modifier chaque comportement), voir [CLAUDE.md](CLAUDE.md).
+
+---
+
+## Contribuer
+
+Les contributions sont les bienvenues ! Consulte [CONTRIBUTING.md](CONTRIBUTING.md) pour le guide complet.
+
+```bash
+# Fork → Clone → Branch → PR
+git clone https://github.com/The-ReNaGe/RideLog.git
+cd RideLog
+git checkout -b feat/ma-feature
+cp .env.example .env  # configurer avant de lancer
+docker compose -f docker-compose.yml -f docker-compose.dev.yml up -d --build
+# ... code, test, commit, push, ouvre une PR
+```
+
+---
+
+## Licence
+
+Ce projet est sous licence [AGPL-3.0](LICENSE).
+
+---
+
+<p align="right">RideLog v2.3.0</p> <!-- x-release-please-version -->

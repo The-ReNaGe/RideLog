@@ -20,6 +20,10 @@
           "path": "README.md"
         },
         {
+          "type": "generic",
+          "path": "README.fr.md"
+        },
+        {
           "type": "json",
           "path": "frontend/package.json",
           "jsonpath": "$.version"
