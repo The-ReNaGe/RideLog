@@ -409,7 +409,10 @@ export default function VehicleForm({ onSubmit, onCancel }) {
 
       {/* VIN decode section */}
       {creationMode === 'vin' && (
-        <div className="p-4 bg-gradient-to-r from-purple-50 to-blue-50 border border-purple-200 rounded-lg">
+        /* Les jetons, pas des classes Tailwind de couleur : le dégradé
+           `from-purple-50 to-blue-50` posé ici était illisible en thème
+           sombre (§23.1). Même habillage que le bloc plaque juste dessous. */
+        <div className="p-4" style={{ background: 'var(--accent-light)', border: '1px solid var(--border)', borderRadius: 'var(--radius)' }}>
           <h4 className="font-semibold text-sm mb-1 flex items-center gap-2" style={{ color: 'var(--text-1)' }}>
             <Icon name="search" size={15} />
             Décodage VIN — gratuit
