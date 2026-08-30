@@ -1899,6 +1899,15 @@ Il distingue trois choses, et la distinction compte :
 | **orphelines** | traduites, mais la phrase française a été renommée → **traduction silencieusement perdue** |
 | **candidates** (`--todo`) | pas encore enveloppées → le vrai reste à faire |
 
+> ⚠️ **L'extraction rend le texte tel que `t()` le recevra à l'exécution**,
+> pas tel qu'il est écrit dans le fichier. Une clé contenant `\n` s'écrit avec
+> une barre oblique inverse dans la source et arrive au moteur comme un vrai
+> saut de ligne : sans cette conversion, une chaîne multi-lignes était
+> signalée **à la fois manquante et orpheline** — deux signaux faux pour une
+> traduction parfaitement correcte, et de quoi faire douter de tout le
+> rapport. Trouvé en traduisant les fenêtres de confirmation de la console
+> d'administration, qui sont toutes multi-lignes.
+
 > ⚠️ Une clé passée dynamiquement — `t(item.label)` — est invisible à
 > l'extraction. Elle se déclare par un commentaire à côté de la table :
 > `// i18n: 'Véhicules', 'Planning'`. Déclaration explicite plutôt qu'une
@@ -1912,7 +1921,7 @@ Il distingue trois choses, et la distinction compte :
 | 1 | Coquille de l'application, onglets des paramètres, sélecteur de langue | ✅ |
 | 2 | `AuthPage`, liste et carte véhicule, tableau de bord, planning, formulaire et historique d'entretien | ✅ |
 | 3 | « À venir », carburant, fiche véhicule, formulaire véhicule | à faire |
-| 4 | Réglages, administration, intégrations, documentation d'API | à faire |
+| 4 | **Administration** ✅ · réglages, intégrations, documentation d'API | en cours |
 | 5 | Les 82 messages d'erreur backend | à faire — **décision préalable** : l'API renvoie-t-elle des codes (`INVITATION_EXPIRED`) que le front traduit, ou du texte ? |
 | 6 | Le catalogue d'entretien : `INTERVENTION_TRANSLATIONS` devient le catalogue `fr`, l'API renvoie la clé | à faire |
 
@@ -1988,7 +1997,9 @@ deviendraient tous deux « 5 ».
 > facile et le résultat resterait plausible à l'œil.
 
 **Le format des nombres suit la LANGUE, pas les unités** : un francophone qui
-compte en miles attend « 62 137 », pas « 62,137 ».
+compte en miles attend « 62 137 », pas « 62,137 ». **Les dates aussi** —
+`toLocaleDateString(fmt.locale)`, jamais `'fr-FR'` en dur, qui affichait
+« 30/08/2026 » au milieu d'une interface anglaise.
 
 #### `useFormat()` — le hook à utiliser, toujours
 
@@ -2121,11 +2132,21 @@ encore marqué, avant de basculer (`stamp_unmarked_amounts`). Sans ce geste,
 l'historique antérieur au marquage suivrait le nouveau symbole. Après une
 première bascule, plus aucune ligne n'est ambiguë.
 
-##### La conversion est une commande à part
+##### La conversion est une commande à part, et **sans écran**
 
 `POST /api/admin/currency/convert` — `{code, rate, dry_run}`. Aperçu par
 défaut, puis sauvegarde de la base (le `backup_database` des migrations, §13),
 puis recalcul, ré-estampillage, et **enfin** le réglage d'instance.
+
+> ⚠️ **Pas de panneau dans les Préférences, et c'est délibéré.** Repartir dans
+> une autre monnaie arrive une fois, ou jamais. Un panneau permanent posait un
+> bouton irréversible à côté d'un réglage d'affichage anodin, pour un besoin
+> que le marquage des montants couvre déjà au quotidien : l'historique reste
+> juste sans qu'on convertisse quoi que ce soit.
+>
+> La route et `api.convertCurrency()` restent en place — le jour où le besoin
+> se présente, l'écran se pose en quelques lignes. Ce qui manquait n'était pas
+> l'interface, c'était la garantie que les montants ne mentent pas.
 
 > ⚠️ **Ne jamais fondre la conversion dans le changement de devise.** Ce sont
 > deux intentions différentes :
@@ -2444,6 +2465,18 @@ sur quelques jetons qui n'existaient pas.
 | `.input-field` | Classe **jamais définie** non plus : posée sur 27 champs, elle ne faisait rien | Supprimée — les champs sont stylés par élément (`input`, `select`, `textarea`) |
 | Classes Tailwind de couleur (`bg-white`, `border-gray-300`, `text-blue-900`…) | Illisibles en thème sombre | Jetons CSS |
 
+> **Une seule avait survécu à la passe**, et pendant des mois : le dégradé
+> `bg-gradient-to-r from-purple-50 to-blue-50` du bloc de décodage VIN
+> (`VehicleForm`). En thème sombre, un pavé violet pâle au milieu de la page.
+> Le contrôle qui la trouve :
+>
+> ```bash
+> grep -rn "bg-gradient\|bg-white\|bg-gray-\|border-gray-\|text-blue-" frontend/src --include="*.jsx"
+> ```
+>
+> Il doit rester **vide**. Une couleur Tailwind ne se voit pas tant qu'on
+> travaille dans le thème où elle passe.
+
 > **Le raccourci `background:` efface `background-image`.** L'override sombre
 > `[data-theme="dark"] select { background: … }` supprimait le chevron du
 > `<select>` défini plus haut dans la feuille. Viser `background-color`.
@@ -2545,6 +2578,18 @@ initiale et décompte, corps sur fond creusé) répond à cette seule question.
 
 À réutiliser pour tout regroupement qui pose la même question, pas comme
 conteneur générique : une carte isolée reste une `card`.
+
+#### Ce que le titre d'un garage doit dire
+
+**Son propre garage s'intitule « Mes véhicules », pas « Garage de <soi> ».**
+Se voir annoncer son propre nom n'apprend rien ; le nom du propriétaire ne
+répond à une vraie question que sur les garages **des autres**, où il reste.
+
+Et la page porte **le nom du foyer** quand il y en a un (`GET /api/family`).
+C'est la seule chose que la personne a elle-même nommée sur cet écran, et il
+ne s'affichait jusqu'ici que dans les paramètres — l'utilisateur qui avait
+baptisé son groupe le retrouvait partout sauf là où il regarde ses véhicules.
+Sans groupe, « Mon garage ».
 
 ### 23.7 Composants partagés
 
