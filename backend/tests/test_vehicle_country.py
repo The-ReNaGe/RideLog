@@ -86,3 +86,46 @@ def test_the_inspection_date_is_computed_with_the_vehicle_country(client, open_r
     # image redescendue qui ne connaît plus un pays doit continuer de calculer.
     unknown = calculator.calculate_inspection_technical_date("motorcycle", registration, None, "ZZ")
     assert unknown == fr
+
+
+# ── Un code inconnu est refusé, jamais absorbé ─────────────────────────────
+
+def test_an_unknown_country_is_refused_rather_than_silently_ignored(client, open_registration):
+    """`get_region()` retombe sur la France pour un code inconnu, et c'est le
+    bon comportement au démarrage — l'alternative serait un backend mort. Mais
+    accepté ici, le véhicule se verrait appliquer le calendrier de contrôle
+    technique français sans que rien ne l'indique. Même raisonnement que pour
+    `PUT /admin/region` (§20.3) : le pays décide d'une échéance réglementaire.
+    """
+    headers = headers_of(client)
+    vehicle_id = make_vehicle(client, headers)["id"]
+
+    res = client.put(f"/api/vehicles/{vehicle_id}", json={"country": "ZZ"}, headers=headers)
+
+    assert res.status_code == 400, res.text
+    # Le message nomme les pays connus : un refus muet laisserait chercher.
+    assert "FR" in res.json()["detail"]
+    assert client.get(f"/api/vehicles/{vehicle_id}", headers=headers).json()["country"] is None
+
+
+def test_an_unknown_country_is_refused_at_creation_too(client, open_registration):
+    headers = headers_of(client)
+
+    res = client.post(
+        "/api/vehicles",
+        json={
+            "name": "Ailleurs",
+            "vehicle_type": "motorcycle",
+            "brand": "Yamaha",
+            "model": "MT-07",
+            "year": 2022,
+            "motorization": "essence",
+            "displacement": 689,
+            "current_mileage": 10000,
+            "country": "ZZ",
+        },
+        headers=headers,
+    )
+
+    assert res.status_code == 400, res.text
+    assert "FR" in res.json()["detail"]

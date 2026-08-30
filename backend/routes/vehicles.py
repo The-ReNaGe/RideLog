@@ -23,8 +23,34 @@ from routes.access import (
 from schemas import VehicleCreate, VehicleUpdate
 from maintenance_calculator import MaintenanceCalculator, build_last_maintenances_dict
 from routes.vehicle_status import alert_counts_for
-from regions import format_model_text
+from regions import format_model_text, is_known_region, list_regions
 from settings_store import get_active_currency, get_active_region, get_active_region_code
+
+def _validated_country(value: str | None) -> str | None:
+    """Le pays d'immatriculation d'un véhicule, ou None pour « suit l'instance ».
+
+    Un code absent du registre est **refusé**, jamais absorbé. `get_region()`
+    retomberait silencieusement sur la France, et le véhicule se verrait
+    appliquer le calendrier de contrôle technique français sans que rien ne
+    l'indique — c'est exactement le raisonnement qui a donné `is_known_region()`
+    à `PUT /admin/region` (§20.3), et il vaut ici pour la même raison : le pays
+    décide d'une échéance réglementaire, pas d'un libellé.
+
+    Le sélecteur du formulaire ne propose que les pays du registre, donc ce
+    contrôle ne se déclenche que sur un appel d'API direct. C'est bien là qu'il
+    doit être : l'interface n'est pas une validation.
+    """
+    code = (value or "").strip().upper()
+    if not code:
+        return None
+    if not is_known_region(code):
+        known = ", ".join(r["code"] for r in list_regions())
+        raise HTTPException(
+            status_code=400,
+            detail=f"Pays inconnu : {code}. Pays disponibles : {known}",
+        )
+    return code
+
 
 PHOTO_STORAGE_DIR = Path(os.getenv("PHOTO_STORAGE_DIR", "/data/photos"))
 ALLOWED_PHOTO_MIME = {"image/jpeg", "image/png", "image/webp"}
@@ -183,7 +209,7 @@ def create_vehicle(
         notes=data.notes,
         is_private=data.is_private,
         # Vide ou absent → NULL, c'est-à-dire « suit le pays de l'instance ».
-        country=(data.country or "").strip().upper() or None,
+        country=_validated_country(data.country),
         user_id=current_user.id
     )
     db.add(vehicle)
@@ -466,7 +492,7 @@ def update_vehicle(
     # pays de l'instance. Sans ce second cas, un véhicule déclaré à l'étranger
     # ne pourrait plus jamais revenir au défaut.
     if data.country is not None:
-        vehicle.country = data.country.strip().upper() or None
+        vehicle.country = _validated_country(data.country)
     if data.current_mileage is not None and data.current_mileage != vehicle.current_mileage:
         if data.current_mileage < vehicle.current_mileage:
             max_maintenance_km = db.query(
