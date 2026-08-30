@@ -10,7 +10,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from sqlalchemy import text
 from models import init_db, SessionLocal
-from routes import vehicles, maintenances, exports, webhooks, fuels, fuel_stations, auth, dashboard, families
+from routes import vehicles, maintenances, exports, webhooks, fuels, fuel_stations, auth, dashboard, families, regions
 from reminder_scheduler import scheduler_loop
 from security import validate_jwt_secret
 
@@ -144,6 +144,7 @@ app.include_router(exports.router, prefix="/api")
 app.include_router(webhooks.router, prefix="/api")
 app.include_router(fuels.router, prefix="/api")
 app.include_router(fuel_stations.router, prefix="/api")
+app.include_router(regions.router, prefix="/api")
 
 
 @app.get("/api")

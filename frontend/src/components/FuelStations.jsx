@@ -1,8 +1,12 @@
 import React, { useState, useCallback, useEffect, useRef } from 'react';
 import { api } from '../lib/api';
+import CountryBadge from './CountryBadge';
+import { useFormat, usePreferences } from '../lib/preferencesContext';
 import Icon from './Icon';
 
 export default function FuelStations() {
+	const { currencySymbol } = usePreferences();
+	const fmt = useFormat();
 	const [city, setCity] = useState('');
 	const [fuelType, setFuelType] = useState('');
 	const [maxDistance, setMaxDistance] = useState(20);
@@ -139,7 +143,10 @@ export default function FuelStations() {
 
 			{/* Search Form */}
 			<div className="card p-6">
-				<h3 className="section-title mb-4">Rechercher des stations</h3>
+				<h3 className="section-title mb-4 flex items-center gap-2">
+					Rechercher des stations
+					<CountryBadge reason="La base de communes et la source des prix de carburant sont propres au pays de l'instance." />
+				</h3>
 				<form onSubmit={handleSearch} className="flex flex-wrap items-end gap-3">
 					<div className="relative" style={{ flex: '2 1 220px' }}>
 						<label className="field-label">Ville ou commune</label>
@@ -286,7 +293,7 @@ export default function FuelStations() {
 												<>
 													<div className="text-xs font-medium" style={{ color: 'var(--text-2)' }}>Prix min</div>
 													<div className="text-2xl font-bold" style={{ color: 'var(--success)' }}>
-														{getMinPrice(station).toFixed(3)}€
+														{getMinPrice(station).toFixed(3)}{currencySymbol}
 													</div>
 													<div className="text-xs" style={{ color: 'var(--text-2)' }}>
 														{station.distance_km} km
@@ -310,7 +317,7 @@ export default function FuelStations() {
 												const label = type.charAt(0).toUpperCase() + type.slice(1).toLowerCase();
 												const price = fuel_info.price;
 												const available = fuel_info.available;
-												const updated = fuel_info.updated ? new Date(fuel_info.updated).toLocaleDateString('fr-FR', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' }) : null;
+												const updated = fuel_info.updated ? fmt.date(fuel_info.updated, { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' }) : null;
 												
 												return (
 													<div 
@@ -326,7 +333,7 @@ export default function FuelStations() {
 														</div>
 														{price !== null && price !== undefined ? (
 															<div className="text-lg font-bold mt-1" style={{ color: available ? 'var(--success)' : 'var(--text-2)' }}>
-																{price.toFixed(3)}€
+																{price.toFixed(3)}{currencySymbol}
 															</div>
 														) : (
 															<div className="text-sm mt-2" style={{ color: 'var(--text-2)' }}>

@@ -13,6 +13,7 @@ from sqlalchemy.orm import Session
 
 from maintenance_calculator import MaintenanceCalculator, get_intervention_key, build_last_maintenances_dict
 from models import User, Vehicle, Maintenance, MaintenanceInvoice, VehicleMaintenanceOverride, get_db
+from settings_store import get_active_currency, get_active_region_code
 from schemas import IntervalOverrideUpdate, CustomMaintenanceCreate
 from security import get_current_user
 from routes import secure_delete
@@ -320,6 +321,10 @@ async def create_maintenance(
         execution_date=execution_date,
         mileage_at_intervention=mileage,
         cost_paid=data.get("cost_paid"),
+        # La devise est lue MAINTENANT et gardée. Relue à l'affichage, elle
+        # ferait dire à cette ligne « 200 $ » le jour où l'instance passe au
+        # dollar, alors que 200 € ont été payés.
+        currency=get_active_currency(db),
         notes=data.get("notes"),
         maintenance_category=data.get("maintenance_category", "scheduled"),
         other_description=data.get("other_description"),
@@ -415,6 +420,12 @@ async def update_maintenance(
     if "cost_paid" in data:
         cost = data.get("cost_paid")
         maintenance.cost_paid = float(cost) if cost else None
+        # Ré-estampillage seulement si la ligne n'était pas encore marquée
+        # (elle est antérieure à la migration 014). Une ligne déjà marquée
+        # garde sa devise : corriger une faute de frappe sur un prix en
+        # dollars ne doit pas le convertir en euros d'un coup d'éditeur.
+        if maintenance.currency is None and maintenance.cost_paid is not None:
+            maintenance.currency = get_active_currency(db)
 
     if "notes" in data:
         maintenance.notes = data.get("notes")
@@ -608,6 +619,7 @@ def _compute_upcoming(vehicle: Vehicle, db: Session) -> dict:
         brand=vehicle.brand, service_interval_km=vehicle.service_interval_km,
         service_interval_months=vehicle.service_interval_months,
         motorization=vehicle.motorization, overrides=overrides,
+        region_code=vehicle.country or get_active_region_code(db),
     )
     maintenance_category = calculator.get_maintenance_category(vehicle.vehicle_type, vehicle.brand, vehicle.year)
     for item in upcoming:

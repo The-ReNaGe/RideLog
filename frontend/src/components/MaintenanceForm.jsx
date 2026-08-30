@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { api } from '../lib/api';
 import RevisionChecklistModal from './RevisionChecklistModal';
 import Icon from './Icon';
+import { useFormat, useT } from '../lib/preferencesContext';
 import {
   REVISION_TRIGGERS,
   SUBITEM_TRIGGERS,
@@ -62,6 +63,8 @@ export default function MaintenanceForm({
   onSubmit,
   onCancel,
 }) {
+  const fmt = useFormat();
+  const t = useT();
   const [formData, setFormData] = useState({
     intervention_type: '',
     execution_date: new Date().toISOString().split('T')[0],
@@ -155,7 +158,8 @@ export default function MaintenanceForm({
       payload.append('intervention_type', formData.intervention_type);
       payload.append('execution_date', new Date(formData.execution_date).toISOString());
       if (formData.mileage_at_intervention) {
-        payload.append('mileage_at_intervention', String(parseInt(formData.mileage_at_intervention)));
+        // Saisi dans l'unité de l'utilisateur, stocké en kilomètres.
+        payload.append('mileage_at_intervention', String(fmt.toStorage(parseInt(formData.mileage_at_intervention))));
       }
       payload.append('maintenance_category', formData.maintenance_category);
       if (formData.other_title && formData.intervention_type === 'Autre') {
@@ -172,7 +176,7 @@ export default function MaintenanceForm({
       await api.createMaintenance(vehicleId, payload);
       onSubmit();
     } catch (err) {
-      setError(err.response?.data?.detail || 'Impossible de créer l\'enregistrement d\'entretien');
+      setError(err.response?.data?.detail || t("Impossible de créer l'enregistrement d'entretien"));
       console.error(err);
     } finally {
       setLoading(false);
@@ -184,7 +188,7 @@ export default function MaintenanceForm({
   return (
     <>
       <form onSubmit={handleSubmit} className="space-y-4">
-        <h3 className="text-lg font-bold mb-4">Enregistrer une intervention</h3>
+        <h3 className="text-lg font-bold mb-4">{t('Enregistrer une intervention')}</h3>
 
         {error && (
           <div className="text-sm" style={{ background: 'var(--danger-light)', border: '1px solid var(--danger)', color: 'var(--danger)', borderRadius: 'var(--radius-sm)', padding: 12 }}>
@@ -194,7 +198,7 @@ export default function MaintenanceForm({
 
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           <div className="md:col-span-2">
-            <label className="block text-sm font-medium mb-1">Type d'intervention*</label>
+            <label className="block text-sm font-medium mb-1">{t("Type d'intervention")}*</label>
             <select
               name="intervention_type"
               value={formData.intervention_type}
@@ -202,24 +206,26 @@ export default function MaintenanceForm({
               required
               className="w-full"
             >
-              <option value="">Sélectionnez une intervention...</option>
+              <option value="">{t('Sélectionnez une intervention…')}</option>
               {availableInterventions.map((intervention) => {
                 const displayName = typeof intervention === 'string' ? intervention : intervention.name;
                 return (
-                  <option key={displayName} value={displayName}>{displayName}</option>
+                  // La valeur reste le libellé français : c'est lui que l'API résout
+                  // en clé technique. Seul l'affichage est traduit.
+                  <option key={displayName} value={displayName}>{t(displayName)}</option>
                 );
               })}
             </select>
 
             {formData.intervention_type === 'Autre' && (
               <div className="mt-3">
-                <label className="block text-sm font-medium mb-1">Titre d'intervention*</label>
+                <label className="block text-sm font-medium mb-1">{t("Titre d'intervention")}*</label>
                 <input
                   type="text"
                   name="other_title"
                   value={formData.other_title}
                   onChange={handleChange}
-                  placeholder="Ex: Remplacement silencieux, Réparation moteur..."
+                  placeholder={t('Ex. : remplacement silencieux, réparation moteur…')}
                   required
                   className="w-full"
                 />
@@ -231,8 +237,8 @@ export default function MaintenanceForm({
                 <span style={{ color: 'var(--text-3)' }}>
                   <Icon name="clipboard" size={15} />
                   {pendingSubInterventions && pendingSubInterventions.length > 0
-                    ? `${pendingSubInterventions.length} élément(s) sélectionné(s)`
-                    : 'Aucun détail sélectionné'}
+                    ? t('{count} élément(s) sélectionné(s)', { count: pendingSubInterventions.length })
+                    : t('Aucun détail sélectionné')}
                 </span>
                 <button
                   type="button"
@@ -247,7 +253,7 @@ export default function MaintenanceForm({
 
             {estimatedPrice && (
               <p className="mt-2 text-sm p-2 rounded" style={{ background: 'var(--accent-light)', border: '1px solid var(--accent)', color: 'var(--text-1)' }}>
-                <strong>Prix estimé :</strong> €{estimatedPrice.min}–€{estimatedPrice.max}
+                <strong>{t('Prix estimé :')}</strong> {estimatedPrice.min}–{estimatedPrice.max} {fmt.currencySymbol}
                 <span className="text-xs ml-1" style={{ color: 'var(--text-3)' }}>
                   (catégorie {rangeCategory || 'generalist'})
                 </span>
@@ -256,7 +262,7 @@ export default function MaintenanceForm({
           </div>
 
           <div>
-            <label className="block text-sm font-medium mb-1">Date*</label>
+            <label className="block text-sm font-medium mb-1">{t('Date')}*</label>
             <input
               type="date"
               name="execution_date"
@@ -269,62 +275,62 @@ export default function MaintenanceForm({
 
           <div>
             <label className="block text-sm font-medium mb-1">
-              Kilométrage (km)
-              <span className="ml-1 font-normal text-xs" style={{ color: 'var(--text-3)' }}>(optionnel — estimé si absent)</span>
+              {t('Distance')} ({fmt.distUnit})
+              <span className="ml-1 font-normal text-xs" style={{ color: 'var(--text-3)' }}>{t('(optionnel — estimé si absent)')}</span>
             </label>
             <input
               type="number"
               name="mileage_at_intervention"
               value={formData.mileage_at_intervention}
               onChange={handleChange}
-              placeholder="Laisser vide pour estimation auto"
+              placeholder={t('Laisser vide pour une estimation automatique')}
               className="w-full"
             />
           </div>
 
           <div>
-            <label className="block text-sm font-medium mb-1">Coût payé (€)</label>
+            <label className="block text-sm font-medium mb-1">{t('Coût payé')} ({fmt.currencySymbol})</label>
             <input
               type="number"
               name="cost_paid"
               value={formData.cost_paid}
               onChange={handleChange}
-              placeholder="Optionnel"
+              placeholder={t('Optionnel')}
               step="0.01"
               className="w-full"
             />
           </div>
 
           <div className="md:col-span-2">
-            <label className="block text-sm font-medium mb-1">Catégorie d'intervention*</label>
+            <label className="block text-sm font-medium mb-1">{t("Catégorie d'intervention")}*</label>
             <select
               name="maintenance_category"
               value={formData.maintenance_category}
               onChange={handleChange}
               className="w-full mb-3"
             >
-              <option value="scheduled">Entretien</option>
-              <option value="repair">Réparation / panne</option>
-              <option value="modification">Modification du véhicule</option>
+              <option value="scheduled">{t('Entretien')}</option>
+              <option value="repair">{t('Réparation / panne')}</option>
+              <option value="modification">{t('Modification du véhicule')}</option>
             </select>
           </div>
         </div>
 
         <div>
-          <label className="block text-sm font-medium mb-1">Remarques</label>
+          <label className="block text-sm font-medium mb-1">{t('Remarques')}</label>
           <textarea
             name="notes"
             value={formData.notes}
             onChange={handleChange}
-            placeholder="Notes additionnelles..."
+            placeholder={t('Notes additionnelles…')}
             rows="2"
             className="w-full"
           />
         </div>
 
         <div>
-          <label className="block text-sm font-medium mb-2">Factures (PDF / Images)</label>
-          <p className="text-xs mb-2" style={{ color: 'var(--text-3)' }}>Jusqu'à 10 fichiers, max 10 Mo chacun</p>
+          <label className="block text-sm font-medium mb-2">{t('Factures (PDF / images)')}</label>
+          <p className="text-xs mb-2" style={{ color: 'var(--text-3)' }}>{t("Jusqu'à 10 fichiers, 10 Mo maximum chacun")}</p>
           <input
             type="file"
             multiple

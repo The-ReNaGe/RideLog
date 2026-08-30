@@ -1,37 +1,14 @@
 import React, { useEffect, useState, useMemo } from 'react';
 import { api } from '../lib/api';
+import { getShortInterventionName } from '../lib/interventionTranslations';
+import { useFormat, useT, usePreferences } from '../lib/preferencesContext';
 import Icon from '../components/Icon';
 import PageHeader from '../components/PageHeader';
 
-const interventionTranslations = {
-  'Oil change': 'Vidange',
-  'Air filter replacement': 'Filtre à air',
-  'Cabin filter replacement': 'Filtre habitacle',
-  'Cabin air filter replacement': 'Filtre habitacle',
-  'Brake fluid flush': 'Purge freins',
-  'Timing belt replacement': 'Courroie distrib.',
-  'Coolant replacement': 'Liquide refroid.',
-  'Coolant fluid renewal': 'Liquide refroid.',
-  'Transmission fluid renewal': 'Liquide transm.',
-  'Transmission fluid replacement': 'Liquide transm.',
-  'Brake pads replacement': 'Plaquettes frein',
-  'Battery replacement': 'Batterie',
-  'MOT inspection': 'Contrôle technique',
-  'Technical inspection': 'Contrôle technique',
-  'Spark plug replacement': 'Bougies',
-  'Chain lubrication': 'Graissage chaîne',
-  'Tire replacement': 'Pneus',
-  'Tire inspection': 'Inspection pneus',
-  'Chain replacement': 'Chaîne',
-  'Other': 'Autre',
-  'Fork service (oil change + seals)': 'Fourche',
-  'Valve clearance check': 'Jeu soupapes',
-};
-
-function t(name) {
-  return interventionTranslations[name] || name;
-}
-
+// Passés à t() au rendu — déclarés ici pour l'audit des traductions.
+// i18n: 'Janvier', 'Février', 'Mars', 'Avril', 'Mai', 'Juin', 'Juillet', 'Août', 'Septembre', 'Octobre', 'Novembre', 'Décembre'
+// i18n: 'Lun', 'Mar', 'Mer', 'Jeu', 'Ven', 'Sam', 'Dim'
+// i18n: 'En retard', 'Urgent', 'À surveiller', 'Planifié'
 const MONTH_NAMES = [
   'Janvier', 'Février', 'Mars', 'Avril', 'Mai', 'Juin',
   'Juillet', 'Août', 'Septembre', 'Octobre', 'Novembre', 'Décembre'
@@ -90,9 +67,9 @@ function CalendarDay({ day, isCurrentMonth, isToday, items, onDayClick }) {
               key={i}
               className="calendar-item-dot"
               style={{ background: getStatusColor(item.status), color: '#fff', fontSize: '10px', padding: '1px 4px', borderRadius: 3, marginTop: 1, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', lineHeight: '14px' }}
-              title={`${item.vehicle_name} - ${t(item.intervention_type)}`}
+              title={`${item.vehicle_name} - ${getShortInterventionName(item.intervention_type)}`}
             >
-              {t(item.intervention_type)}
+              {getShortInterventionName(item.intervention_type)}
             </div>
           ))}
           {items.length > 3 && (
@@ -107,6 +84,9 @@ function CalendarDay({ day, isCurrentMonth, isToday, items, onDayClick }) {
 }
 
 function DayDetailModal({ date, items, onClose }) {
+  const fmt = useFormat();
+  const t = useT();
+  const { currencySymbol } = usePreferences();
   if (!date || !items) return null;
 
   return (
@@ -118,7 +98,7 @@ function DayDetailModal({ date, items, onClose }) {
           <h3 className="flex items-center gap-2" style={{ margin: 0, fontSize: '1.05rem' }}>
             <Icon name="calendar" size={17} style={{ color: 'var(--text-3)' }} />
             <span style={{ textTransform: 'capitalize' }}>
-              {date.toLocaleDateString('fr-FR', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })}
+              {fmt.date(date, { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })}
             </span>
           </h3>
           <button onClick={onClose} className="btn-icon" aria-label="Fermer">
@@ -135,21 +115,21 @@ function DayDetailModal({ date, items, onClose }) {
                 </span>
                 <span className="inline-flex items-center gap-1.5" style={{ fontSize: 12, color: getStatusColor(item.status), fontWeight: 700 }}>
                   <StatusDot status={item.status} size={7} />
-                  {statusOf(item.status).label}
+                  {t(statusOf(item.status).label)}
                 </span>
               </div>
-              <div style={{ fontWeight: 600, color: 'var(--text-1)', fontSize: 14 }}>{t(item.intervention_type)}</div>
+              <div style={{ fontWeight: 600, color: 'var(--text-1)', fontSize: 14 }}>{getShortInterventionName(item.intervention_type)}</div>
               <div style={{ fontSize: 12, color: 'var(--text-3)', marginTop: 4 }}>
                 {item.km_remaining != null && item.km_remaining !== 999999 && (
                   <span style={item.km_remaining < 0 ? { color: 'var(--danger)', fontWeight: 600 } : undefined}>
                     {item.km_remaining < 0
-                      ? `${Math.abs(item.km_remaining).toLocaleString('fr-FR')} km de retard`
-                      : `Dans ${item.km_remaining.toLocaleString('fr-FR')} km`}
+                      ? `${fmt.dist(Math.abs(item.km_remaining))} de retard`
+                      : `Dans ${fmt.dist(item.km_remaining)}`}
                   </span>
                 )}
                 {item.estimated_cost_max && (
                   <span className="tabular" style={{ marginLeft: 12, color: 'var(--success)', fontWeight: 600 }}>
-                    {item.estimated_cost_min} – {item.estimated_cost_max} €
+                    {item.estimated_cost_min} – {item.estimated_cost_max} {currencySymbol}
                   </span>
                 )}
               </div>
@@ -162,6 +142,7 @@ function DayDetailModal({ date, items, onClose }) {
 }
 
 export default function Planning() {
+  const t = useT();
   const [items, setItems] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
@@ -184,7 +165,7 @@ export default function Planning() {
       setItems(res.data.items || []);
     } catch (err) {
       console.error('Failed to load planning', err);
-      setError(err.response?.data?.detail || 'Erreur de chargement');
+      setError(err.response?.data?.detail || t('Erreur de chargement'));
     } finally {
       setLoading(false);
     }
@@ -258,7 +239,7 @@ export default function Planning() {
   };
 
   if (loading) {
-    return <div className="text-center py-12" style={{ color: 'var(--text-2)' }}>Chargement du planning...</div>;
+    return <div className="text-center py-12" style={{ color: 'var(--text-2)' }}>{t('Chargement du planning…')}</div>;
   }
 
   if (error) {
@@ -279,8 +260,8 @@ export default function Planning() {
   return (
     <div className="space-y-4">
       <PageHeader
-        title="Planning"
-        subtitle="Toutes les échéances de votre parc, mois par mois."
+        title={t('Planning')}
+        subtitle={t('Toutes les échéances de votre parc, mois par mois.')}
       />
 
       {/* Résumé */}
@@ -301,12 +282,12 @@ export default function Planning() {
       {/* Calendar header with navigation */}
       <div className="card" style={{ overflow: 'hidden' }}>
         <div className="flex items-center justify-between px-4 py-3" style={{ borderBottom: '1px solid var(--border)' }}>
-          <button onClick={prevMonth} className="btn-icon" aria-label="Mois précédent" title="Mois précédent">
+          <button onClick={prevMonth} className="btn-icon" aria-label={t('Mois précédent')} title={t('Mois précédent')}>
             <Icon name="chevronLeft" size={17} strokeWidth={2} />
           </button>
           <div className="flex items-center gap-3">
             <h2 style={{ margin: 0, fontSize: '1.15rem' }}>
-              {MONTH_NAMES[currentMonth.getMonth()]} {currentMonth.getFullYear()}
+              {t(MONTH_NAMES[currentMonth.getMonth()])} {currentMonth.getFullYear()}
             </h2>
             {(currentMonth.getMonth() !== today.getMonth() || currentMonth.getFullYear() !== today.getFullYear()) && (
               <button onClick={goToToday} className="btn btn-secondary btn-sm">
@@ -314,7 +295,7 @@ export default function Planning() {
               </button>
             )}
           </div>
-          <button onClick={nextMonth} className="btn-icon" aria-label="Mois suivant" title="Mois suivant">
+          <button onClick={nextMonth} className="btn-icon" aria-label={t('Mois suivant')} title={t('Mois suivant')}>
             <Icon name="chevronRight" size={17} strokeWidth={2} />
           </button>
         </div>
@@ -323,7 +304,7 @@ export default function Planning() {
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)', borderBottom: '1px solid var(--border)' }}>
           {DAY_NAMES.map(d => (
             <div key={d} style={{ textAlign: 'center', padding: '8px 0', fontSize: 12, fontWeight: 600, color: 'var(--text-3)', textTransform: 'uppercase' }}>
-              {d}
+              {t(d)}
             </div>
           ))}
         </div>
@@ -356,7 +337,7 @@ export default function Planning() {
         {STATUSES.map(st => (
           <span key={st.key} className="inline-flex items-center gap-1.5">
             <StatusDot status={st.key} />
-            {st.label}
+            {t(st.label)}
           </span>
         ))}
       </div>

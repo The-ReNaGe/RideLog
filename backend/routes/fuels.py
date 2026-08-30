@@ -12,6 +12,8 @@ from routes.access import (
 )
 from schemas import FuelLogCreate, FuelLogUpdate
 from security import get_current_user
+from currency import totals_by_currency
+from settings_store import get_active_currency
 
 logger = logging.getLogger("ridelog.fuels")
 router = APIRouter(prefix="/vehicles", tags=["fuels"])
@@ -188,6 +190,7 @@ def create_fuel_log(
         liters=liters,
         total_cost=total_cost,
         price_per_liter=price_per_liter,
+        currency=get_active_currency(db),
         station=data.station,
         notes=data.notes,
     )
@@ -232,6 +235,9 @@ def update_fuel_log(
 
     if "total_cost" in update_data:
         fuel_log.total_cost = update_data["total_cost"]
+        # Voir update_maintenance : on ne marque que ce qui ne l'était pas.
+        if fuel_log.currency is None:
+            fuel_log.currency = get_active_currency(db)
 
     if "price_per_liter" in update_data:
         fuel_log.price_per_liter = update_data["price_per_liter"]
@@ -288,6 +294,11 @@ def get_fuel_stats(
 
     logs = db.query(FuelLog).filter(FuelLog.vehicle_id == vehicle_id).order_by(FuelLog.fill_date.asc()).all()
     stats = _compute_stats(logs)
+    # Voir currency.totals_by_currency : plusieurs devises dans l'historique et les
+    # totaux ne peuvent plus porter un symbole unique sans mentir.
+    stats["cost_by_currency"] = totals_by_currency(
+        logs, "total_cost", get_active_currency(db)
+    )
     return {
         "vehicle_id": vehicle_id,
         "stats": stats,

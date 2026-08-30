@@ -1,9 +1,22 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { api } from '../lib/api';
+import { useFormat, usePreferences, useT } from '../lib/preferencesContext';
+import CountryBadge from './CountryBadge';
 import Icon from './Icon';
 import Notice from './Notice';
+import PrivateVehicleField from './PrivateVehicleField';
 
 export default function VehicleForm({ onSubmit, onCancel }) {
+  const fmt = useFormat();
+  const t = useT();
+  const { plateExample, region } = usePreferences();
+  const [countries, setCountries] = useState([]);
+
+  useEffect(() => {
+    api.getRegions()
+      .then((res) => setCountries(res.data.regions))
+      .catch(() => { /* le champ pays reste masqué, le reste du formulaire marche */ });
+  }, []);
   const [creationMode, setCreationMode] = useState('manual');
   const [plateApiAvailable, setPlateApiAvailable] = useState(false);
   const [vehicleModels, setVehicleModels] = useState({ car: {}, motorcycle: {} });
@@ -23,6 +36,9 @@ export default function VehicleForm({ onSubmit, onCancel }) {
     service_interval_km: '',
     service_interval_months: '',
     is_private: false,
+    // '' = suit le pays de l'instance. C'est le défaut, et il convient à un
+    // parc entièrement immatriculé dans le pays de l'instance.
+    country: '',
   });
   const [vin, setVin] = useState('');
   const [licensePlate, setLicensePlate] = useState('');
@@ -134,14 +150,18 @@ export default function VehicleForm({ onSubmit, onCancel }) {
         // Auto-fill if empty
         setFormData((prev) => ({
           ...prev,
-          service_interval_km: prev.service_interval_km || defaults.km,
+          // `defaults.km` vient du backend en kilomètres ; le champ, lui, est
+          // dans l'unité de l'utilisateur.
+          service_interval_km: prev.service_interval_km || fmt.distValue(defaults.km),
         }));
       } catch (err) {
         console.error('Failed to fetch brand service defaults', err);
       }
     };
     fetchDefaults();
-  }, [formData.brand, formData.displacement, formData.vehicle_type]);
+    // `fmt` en dépendance : l'intervalle par défaut est converti à l'écriture,
+    // il doit l'être avec l'unité courante et non celle du premier rendu.
+  }, [formData.brand, formData.displacement, formData.vehicle_type, fmt]);
 
   const handleChange = (e) => {
     const { name, value } = e.target;
@@ -233,7 +253,7 @@ export default function VehicleForm({ onSubmit, onCancel }) {
   };
 
   const decodePlate = async () => {
-    if (!licensePlate.trim()) { setPlateError('Veuillez entrer une plaque valide (AB-123-CD)'); return; }
+    if (!licensePlate.trim()) { setPlateError(`Veuillez entrer une plaque valide${plateExample ? ` (${plateExample})` : ''}`); return; }
     setPlateLoading(true);
     setPlateError(null);
     setPlateDecodedData(null);
@@ -315,7 +335,11 @@ export default function VehicleForm({ onSubmit, onCancel }) {
         registration_date: formData.registration_date ? new Date(formData.registration_date).toISOString() : null,
         displacement: formData.displacement ? parseInt(formData.displacement) : null,
         purchase_price: formData.purchase_price ? parseFloat(formData.purchase_price) : null,
-        service_interval_km: formData.service_interval_km ? parseInt(formData.service_interval_km) : null,
+        // Distances saisies dans l'unité de l'utilisateur, stockées en kilomètres.
+        current_mileage: fmt.toStorage(formData.current_mileage) || 0,
+        // '' signifie « suit l'instance » : on envoie null, pas une chaîne vide.
+        country: formData.country || null,
+        service_interval_km: formData.service_interval_km ? fmt.toStorage(parseInt(formData.service_interval_km)) : null,
         service_interval_months: formData.service_interval_months ? parseInt(formData.service_interval_months) : null,
       };
       
@@ -386,7 +410,10 @@ export default function VehicleForm({ onSubmit, onCancel }) {
 
       {/* VIN decode section */}
       {creationMode === 'vin' && (
-        <div className="p-4 bg-gradient-to-r from-purple-50 to-blue-50 border border-purple-200 rounded-lg">
+        /* Les jetons, pas des classes Tailwind de couleur : le dégradé
+           `from-purple-50 to-blue-50` posé ici était illisible en thème
+           sombre (§23.1). Même habillage que le bloc plaque juste dessous. */
+        <div className="p-4" style={{ background: 'var(--accent-light)', border: '1px solid var(--border)', borderRadius: 'var(--radius)' }}>
           <h4 className="font-semibold text-sm mb-1 flex items-center gap-2" style={{ color: 'var(--text-1)' }}>
             <Icon name="search" size={15} />
             Décodage VIN — gratuit
@@ -454,17 +481,18 @@ export default function VehicleForm({ onSubmit, onCancel }) {
 
       {/* Plate decode section (only when API configured) */}
       {creationMode === 'plate' && (
-        <div className="p-4 bg-gradient-to-r from-blue-50 to-cyan-50 border border-blue-200 rounded-lg">
+        <div className="p-4" style={{ background: 'var(--accent-light)', border: '1px solid var(--border)', borderRadius: 'var(--radius)' }}>
           <h4 className="font-semibold text-sm mb-3 flex items-center gap-2" style={{ color: 'var(--text-1)' }}>
             <Icon name="search" size={15} />
             Décodage par plaque d'immatriculation
+            <CountryBadge reason="Le format de plaque et le service de décodage dépendent du pays de l'instance." />
           </h4>
           <div className="flex gap-2 mb-3">
             <input
               type="text"
               value={licensePlate}
               onChange={handlePlateChange}
-              placeholder="Exemple: AB-123-CD"
+              placeholder={plateExample ? `Exemple : ${plateExample}` : 'Plaque'}
               maxLength="10"
               className="flex-1 uppercase font-mono tracking-wider"
             />
@@ -691,13 +719,13 @@ export default function VehicleForm({ onSubmit, onCancel }) {
         {formData.vehicle_type === 'motorcycle' && (
           <>
             <div>
-              <label className="block text-sm font-medium mb-1">Intervalle révision (km)</label>
+              <label className="block text-sm font-medium mb-1">Intervalle révision ({fmt.distUnit})</label>
               <input
                 type="number"
                 name="service_interval_km"
                 value={formData.service_interval_km}
                 onChange={handleChange}
-                placeholder={brandDefaults ? `Défaut: ${brandDefaults.km} km` : 'ex: 10000'}
+                placeholder={brandDefaults ? `Défaut : ${fmt.dist(brandDefaults.km)}` : `ex : ${fmt.distValue(10000)}`}
                 min="1000"
                 max="100000"
                 step="500"
@@ -706,8 +734,8 @@ export default function VehicleForm({ onSubmit, onCancel }) {
               {brandDefaults && formData.service_interval_km && formData.service_interval_km !== brandDefaults.km && (
                 <div style={{ background: 'var(--warning-light)', border: '1px solid var(--warning)', borderRadius: '4px', color: 'var(--warning)' }} className="p-2 mt-1 text-xs flex items-center gap-1">
                   <Icon name="info" size={13} />
-                  Défaut {formData.brand} : {brandDefaults.km} km
-                  <button type="button" className="ml-auto underline text-xs" onClick={() => setFormData((prev) => ({ ...prev, service_interval_km: brandDefaults.km }))}>
+                  Défaut {formData.brand} : {fmt.dist(brandDefaults.km)}
+                  <button type="button" className="ml-auto underline text-xs" onClick={() => setFormData((prev) => ({ ...prev, service_interval_km: fmt.distValue(brandDefaults.km) }))}>
                     Restaurer
                   </button>
                 </div>
@@ -720,9 +748,9 @@ export default function VehicleForm({ onSubmit, onCancel }) {
                   <Icon name="info" size={14} />Entretiens prévisionnels
                 </div>
                 <ul className="space-y-0.5" style={{ color: 'var(--text-2)' }}>
-                  <li><strong>Révision (km)</strong> : tous les {formData.service_interval_km || brandDefaults?.km || '?'} km — vidange, filtres, contrôles</li>
+                  <li><strong>Révision</strong> : tous les {formData.service_interval_km ? fmt.dist(fmt.toStorage(formData.service_interval_km)) : (brandDefaults?.km ? fmt.dist(brandDefaults.km) : '?')} — vidange, filtres, contrôles</li>
                   <li><strong>Entretien annuel</strong> : tous les 12 mois — contrôle simplifié si le kilométrage n'est pas atteint</li>
-                  <li><strong>Soupapes</strong> : tous les {((formData.service_interval_km || brandDefaults?.km || 0) * 2) || '?'} km — vérification jeu aux soupapes (toutes les 2 révisions)</li>
+                  <li><strong>Soupapes</strong> : tous les {formData.service_interval_km ? fmt.dist(fmt.toStorage(formData.service_interval_km) * 2) : (brandDefaults?.km ? fmt.dist(brandDefaults.km * 2) : '?')} — vérification jeu aux soupapes (toutes les 2 révisions)</li>
                   <li><strong>Purge frein</strong> : tous les 2 ans · <strong>Liquide refroidissement</strong> : tous les 3 ans · <strong>Fourche</strong> : tous les 3 ans</li>
                 </ul>
               </div>
@@ -749,15 +777,15 @@ export default function VehicleForm({ onSubmit, onCancel }) {
                   <Icon name="info" size={14} />Entretiens prévisionnels
                 </div>
                 <ul className="space-y-0.5" style={{ color: 'var(--text-2)' }}>
-                  <li><strong>Vidange + filtre</strong> : ~10 000 km / 1 an</li>
-                  <li><strong>Filtre à air</strong> : ~20 000 km / 1 an</li>
-                  <li><strong>Filtre habitacle</strong> : ~15 000 km / 1 an</li>
-                  <li><strong>Filtre gasoil</strong> : ~20 000 km / 2 ans (diesel) · <strong>Filtre essence</strong> : ~50 000 km / 4 ans</li>
-                  <li><strong>Bougies</strong> : ~30 000 km (essence/hybride)</li>
+                  <li><strong>Vidange + filtre</strong> : ~{fmt.dist(10000)} / 1 an</li>
+                  <li><strong>Filtre à air</strong> : ~{fmt.dist(20000)} / 1 an</li>
+                  <li><strong>Filtre habitacle</strong> : ~{fmt.dist(15000)} / 1 an</li>
+                  <li><strong>Filtre gasoil</strong> : ~{fmt.dist(20000)} / 2 ans (diesel) · <strong>Filtre essence</strong> : ~{fmt.dist(50000)} / 4 ans</li>
+                  <li><strong>Bougies</strong> : ~{fmt.dist(30000)} (essence/hybride)</li>
                   <li><strong>Purge frein</strong> : tous les 2 ans</li>
-                  <li><strong>Courroie distribution</strong> : ~80 000 km / 6 ans</li>
-                  <li><strong>Liquide refroidissement</strong> : ~60 000 km / 4 ans</li>
-                  <li><strong>Liquide transmission</strong> : ~80 000 km / 4 ans</li>
+                  <li><strong>Courroie distribution</strong> : ~{fmt.dist(80000)} / 6 ans</li>
+                  <li><strong>Liquide refroidissement</strong> : ~{fmt.dist(60000)} / 4 ans</li>
+                  <li><strong>Liquide transmission</strong> : ~{fmt.dist(80000)} / 4 ans</li>
                 </ul>
               </div>
             </div>
@@ -805,7 +833,7 @@ export default function VehicleForm({ onSubmit, onCancel }) {
         </div>
 
         <div>
-          <label className="block text-sm font-medium mb-1">Kilométrage actuel (km)</label>
+          <label className="block text-sm font-medium mb-1">Distance au compteur ({fmt.distUnit})</label>
           <input
             type="number"
             name="current_mileage"
@@ -816,46 +844,54 @@ export default function VehicleForm({ onSubmit, onCancel }) {
         </div>
 
         <div>
-          <label className="block text-sm font-medium mb-1">Prix d'achat (€)</label>
+          <label className="block text-sm font-medium mb-1">{t("Prix d'achat")} ({fmt.currencySymbol})</label>
           <input
             type="number"
             name="purchase_price"
             value={formData.purchase_price}
             onChange={handleChange}
-            placeholder="Optionnel"
+            placeholder={t('Optionnel')}
             
           />
         </div>
+
+        {/* Pays d'immatriculation — porté par le VÉHICULE, parce que le
+            calendrier du contrôle technique s'en déduit. Un membre du groupe
+            famille doit voir la même échéance que le propriétaire, sur la
+            même machine. */}
+        {countries.length > 0 && (
+          <div>
+            <label className="block text-sm font-medium mb-1 flex items-center gap-2">
+              {t("Pays d'immatriculation")}
+              <CountryBadge reason={t('Décide du calendrier de contrôle technique de ce véhicule.')} />
+            </label>
+            <select
+              name="country"
+              value={formData.country}
+              onChange={handleChange}
+            >
+              <option value="">
+                {t('Pays de l\'instance ({code})', { code: region || '—' })}
+              </option>
+              {countries.map((c) => (
+                <option key={c.code} value={c.code}>{c.name}</option>
+              ))}
+            </select>
+            <p className="text-xs mt-1" style={{ color: 'var(--text-3)' }}>
+              {t('À renseigner seulement si ce véhicule est immatriculé ailleurs.')}
+            </p>
+          </div>
+        )}
       </div>
 
       {/* Encadré plutôt qu'une case nue : au milieu de champs de saisie, une
           case à cocher isolée se lit mal et passe pour un reste de formulaire.
           handleChange lit e.target.value, inadapté ici — gestionnaire dédié. */}
-      {/* Largeur ajustée au contenu : étirée sur toute la ligne pour trois mots,
-          la boîte paraissait vide et cassait l'alignement des champs au-dessus. */}
       <div className="mt-4">
-        <label
-          className="inline-flex items-center gap-2.5 px-3 py-2 rounded-lg cursor-pointer transition-colors"
-          style={{
-            background: formData.is_private ? 'var(--accent-light)' : 'var(--bg-surface)',
-            border: `1px solid ${formData.is_private ? 'var(--accent)' : 'var(--border)'}`,
-          }}
-          title="Un véhicule privé reste invisible aux autres membres de votre groupe famille"
-        >
-          <input
-            type="checkbox"
-            checked={formData.is_private}
-            onChange={(e) => setFormData((prev) => ({ ...prev, is_private: e.target.checked }))}
-            style={{ width: 15, height: 15, flexShrink: 0 }}
-          />
-          <span className="text-sm font-medium" style={{ color: 'var(--text-1)' }}>
-            <Icon name="lock" size={14} />
-            Véhicule privé
-          </span>
-          <span className="text-xs" style={{ color: 'var(--text-3)' }}>
-            non partagé avec la famille
-          </span>
-        </label>
+        <PrivateVehicleField
+          checked={formData.is_private}
+          onChange={(value) => setFormData((prev) => ({ ...prev, is_private: value }))}
+        />
       </div>
 
       <div className="mt-4">

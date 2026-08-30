@@ -1,10 +1,14 @@
 import React, { useEffect, useState } from 'react';
 import { api } from '../lib/api';
+import { useFormat, useT } from '../lib/preferencesContext';
 import Icon from '../components/Icon';
 import PageHeader from '../components/PageHeader';
 import VehiclePhoto from '../components/VehiclePhoto';
+import Notice from '../components/Notice';
 
 export default function Dashboard({ onSelectVehicle, currentUser }) {
+  const fmt = useFormat();
+  const t = useT();
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
@@ -20,7 +24,7 @@ export default function Dashboard({ onSelectVehicle, currentUser }) {
       setData(res.data);
       setError(null);
     } catch (err) {
-      setError('Impossible de charger le dashboard');
+      setError(t('Impossible de charger le tableau de bord'));
       console.error(err);
     } finally {
       setLoading(false);
@@ -31,7 +35,7 @@ export default function Dashboard({ onSelectVehicle, currentUser }) {
     return (
       <div className="text-center py-16">
         <div className="spinner mx-auto mb-3"></div>
-        <p style={{ color: 'var(--text-2)' }} className="text-sm">Chargement du dashboard…</p>
+        <p style={{ color: 'var(--text-2)' }} className="text-sm">{t('Chargement du tableau de bord…')}</p>
       </div>
     );
   }
@@ -53,25 +57,36 @@ export default function Dashboard({ onSelectVehicle, currentUser }) {
 
   if (!data) return null;
 
-  const fmt = (n) => new Intl.NumberFormat('fr-FR').format(n);
-  const fmtEuro = (n) => new Intl.NumberFormat('fr-FR', { style: 'currency', currency: 'EUR', maximumFractionDigits: 0 }).format(n);
+  // Pas d'alias local autour du formateur de montants : `fmtEuro` en était
+  // un, et il faisait passer ce fichier au travers du grep de contrôle des
+  // devises documenté au §20.6, qui cherche le nom de la fonction elle-même.
+  const mixed = fmt.isMixed(data.cost_by_currency);
 
   return (
     <div>
       <PageHeader
-        title="Tableau de bord"
-        subtitle={`Vue d'ensemble du garage${currentUser?.display_name ? ` de ${currentUser.display_name}` : ''}`}
+        title={t('Tableau de bord')}
+        subtitle={currentUser?.display_name
+          ? t("Vue d'ensemble du garage de {name}", { name: currentUser.display_name })
+          : t("Vue d'ensemble du garage")}
       />
 
       {/* KPI Cards Row */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-5">
         {[
-          { icon: 'car',   label: 'Véhicules',     value: fmt(data.total_vehicles) },
-          { icon: 'euro',  label: 'Coût total',    value: fmtEuro(data.total_cost),
-            sub: `Entretien ${fmtEuro(data.total_maintenance_cost)} · Carburant ${fmtEuro(data.total_fuel_cost)}` },
-          { icon: 'gauge', label: 'Km totaux',     value: `${fmt(data.total_mileage)} km` },
-          { icon: 'package', label: "Valeur d'achat", value: data.fleet_purchase_price ? fmtEuro(data.fleet_purchase_price) : '—',
-            sub: "Prix d'achat cumulé du parc" },
+          { icon: 'car',   label: t('Véhicules'),     value: fmt.num(data.total_vehicles) },
+          // Ventilé, jamais additionné à travers deux devises : « 400 » pour
+          // 200 € et 200 $ est un chiffre faux qu'on ne recompte jamais.
+          { icon: 'euro',  label: t('Coût total'),    value: fmt.totals(data.cost_by_currency),
+            sub: `${t('Entretien')} ${fmt.money(data.total_maintenance_cost)} · ${t('Carburant')} ${fmt.money(data.total_fuel_cost)}` },
+          { icon: 'gauge', label: t('Distance totale'), value: fmt.dist(data.total_mileage) },
+          // « — » et non « 0 € » quand aucun véhicule n'a de prix d'achat :
+          // un parc sans prix saisi n'a pas une valeur de zéro, il n'en a pas.
+          { icon: 'package', label: t("Valeur d'achat"),
+            value: fmt.isMixed(data.fleet_purchase_by_currency) || data.fleet_purchase_price
+              ? fmt.totals(data.fleet_purchase_by_currency)
+              : '—',
+            sub: t("Prix d'achat cumulé du parc") },
         ].map(kpi => (
           <div key={kpi.label} className="card" style={{ padding: 16 }}>
             <div className="flex items-center gap-2" style={{ marginBottom: 8 }}>
@@ -89,15 +104,15 @@ export default function Dashboard({ onSelectVehicle, currentUser }) {
         <div className="card mb-5">
           <h3 className="section-title flex items-center gap-2" style={{ marginBottom: 10 }}>
             <Icon name="bell" size={16} style={{ color: 'var(--text-3)' }} />
-            Alertes
+            {t('Alertes')}
           </h3>
           <div className="space-y-2">
             {data.alert_details.map((alert, i) => {
               const cfg = alert.type === 'overdue'
-                ? { icon: 'alertCircle', label: 'en retard', color: 'var(--danger)' }
+                ? { icon: 'alertCircle', label: t('en retard'), color: 'var(--danger)' }
                 : alert.type === 'urgent'
-                ? { icon: 'alert', label: 'urgent', color: 'var(--warning)' }
-                : { icon: 'clock', label: 'à prévoir', color: 'var(--accent)' };
+                ? { icon: 'alert', label: t('urgent'), color: 'var(--warning)' }
+                : { icon: 'clock', label: t('à prévoir'), color: 'var(--accent)' };
               return (
                 <button
                   key={i}
@@ -125,12 +140,12 @@ export default function Dashboard({ onSelectVehicle, currentUser }) {
           // L'état colore une réglette à gauche, pas tout le contour : quatre
           // cartes cerclées de rouge et de vert font un damier, pas une liste.
           const state = v.overdue_count > 0
-            ? { color: 'var(--danger)',  tone: 'danger',  icon: 'alertCircle', label: `${v.overdue_count} retard${v.overdue_count > 1 ? 's' : ''}` }
+            ? { color: 'var(--danger)',  tone: 'danger',  icon: 'alertCircle', label: t('{count} en retard', { count: v.overdue_count }) }
             : v.urgent_count > 0
-            ? { color: 'var(--warning)', tone: 'warning', icon: 'alert',       label: `${v.urgent_count} urgent${v.urgent_count > 1 ? 's' : ''}` }
+            ? { color: 'var(--warning)', tone: 'warning', icon: 'alert',       label: t('{count} urgent(s)', { count: v.urgent_count }) }
             : v.warning_count > 0
-            ? { color: 'var(--warning)', tone: 'warning', icon: 'clock',       label: `${v.warning_count} à prévoir` }
-            : { color: 'var(--success)', tone: 'success', icon: 'checkCircle', label: 'À jour' };
+            ? { color: 'var(--warning)', tone: 'warning', icon: 'clock',       label: t('{count} à prévoir', { count: v.warning_count }) }
+            : { color: 'var(--success)', tone: 'success', icon: 'checkCircle', label: t('À jour') };
 
           return (
             <article
@@ -155,7 +170,7 @@ export default function Dashboard({ onSelectVehicle, currentUser }) {
                 <div className="flex-1 min-w-0">
                   <div className="font-bold text-ellipsis" style={{ color: 'var(--text-1)', fontSize: 15 }}>{v.name}</div>
                   <div className="text-ellipsis" style={{ color: 'var(--text-3)', fontSize: 13 }}>{v.brand} {v.model} · {v.year}</div>
-                  <div className="tabular" style={{ color: 'var(--text-2)', fontSize: 13, fontWeight: 600 }}>{fmt(v.current_mileage)} km</div>
+                  <div className="tabular" style={{ color: 'var(--text-2)', fontSize: 13, fontWeight: 600 }}>{fmt.dist(v.current_mileage)}</div>
                 </div>
                 <span className={`icon-box sm ${state.tone}`} title={state.label}>
                   <Icon name={state.icon} size={15} />
@@ -163,9 +178,9 @@ export default function Dashboard({ onSelectVehicle, currentUser }) {
               </div>
               <div className="grid grid-cols-3 gap-2 text-center">
                 {[
-                  { label: 'Dépenses',     value: fmtEuro(v.total_cost),  color: 'var(--text-1)' },
-                  { label: "Prix d'achat", value: v.purchase_price ? fmtEuro(v.purchase_price) : '—', color: 'var(--text-1)' },
-                  { label: 'État',         value: state.label,            color: state.color },
+                  { label: t('Dépenses'),     value: fmt.totals(v.cost_by_currency), color: 'var(--text-1)' },
+                  { label: t("Prix d'achat"), value: fmt.money(v.purchase_price, v.purchase_price_currency), color: 'var(--text-1)' },
+                  { label: t('État'),         value: state.label,            color: state.color },
                 ].map(cell => (
                   <div key={cell.label} className="inset" style={{ padding: '9px 6px' }}>
                     <div className="tabular text-sm font-bold text-ellipsis" style={{ color: cell.color }}>{cell.value}</div>
@@ -185,10 +200,10 @@ export default function Dashboard({ onSelectVehicle, currentUser }) {
         <div className="card p-4">
           <h3 className="section-title flex items-center gap-2" style={{ marginBottom: 10 }}>
             <Icon name="clock" size={16} style={{ color: 'var(--text-3)' }} />
-            Activité récente
+            {t('Activité récente')}
           </h3>
           {data.recent_activity.length === 0 ? (
-            <p className="text-sm" style={{ color: 'var(--text-3)' }}>Aucune activité</p>
+            <p className="text-sm" style={{ color: 'var(--text-3)' }}>{t('Aucune activité')}</p>
           ) : (
             <div className="space-y-2">
               {data.recent_activity.map((a) => (
@@ -204,10 +219,10 @@ export default function Dashboard({ onSelectVehicle, currentUser }) {
                   </div>
                   <div className="flex items-center gap-3">
                     {a.cost_paid != null && (
-                      <span className="text-xs font-semibold" style={{ color: 'var(--text-2)' }}>{fmtEuro(a.cost_paid)}</span>
+                      <span className="text-xs font-semibold" style={{ color: 'var(--text-2)' }}>{fmt.money(a.cost_paid, a.currency)}</span>
                     )}
                     <span className="text-xs" style={{ color: 'var(--text-3)' }}>
-                      {new Date(a.execution_date).toLocaleDateString('fr-FR')}
+                      {fmt.date(a.execution_date)}
                     </span>
                   </div>
                 </button>
@@ -218,7 +233,7 @@ export default function Dashboard({ onSelectVehicle, currentUser }) {
 
         
         <div className="card p-4 flex flex-col gap-5">
-          <CostCharts monthlyCosts={data.monthly_costs} />
+          <CostCharts monthlyCosts={data.monthly_costs} mixed={mixed} />
         </div>
 
       </div>
@@ -232,8 +247,9 @@ export default function Dashboard({ onSelectVehicle, currentUser }) {
 
 const MONTH_LABELS = ['Jan', 'Fév', 'Mar', 'Avr', 'Mai', 'Jun', 'Jul', 'Aoû', 'Sep', 'Oct', 'Nov', 'Déc'];
 
-function CostCharts({ monthlyCosts }) {
-  const fmtEuro = (n) => new Intl.NumberFormat('fr-FR', { style: 'currency', currency: 'EUR', maximumFractionDigits: 0 }).format(n);
+function CostCharts({ monthlyCosts, mixed }) {
+  const t = useT();
+  const fmt = useFormat();
 
   // Construire les données par année et par mois depuis monthlyCosts
   // monthlyCosts = [{ month: "2024-03", cost: 150 }, ...]
@@ -271,12 +287,22 @@ function CostCharts({ monthlyCosts }) {
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', flex: 1, gap: '1.25rem' }}>
+      {/* Une barre est une somme, et une somme ne traverse pas deux devises.
+          Les ventiler ferait deux barres par mois et casserait la lecture ;
+          on additionne donc, et on le dit — même arbitrage que pour les
+          répartitions par catégorie de la fiche véhicule. */}
+      {mixed && (
+        <Notice tone="warning" title={t('Plusieurs devises dans cet historique')}>
+          {t('Les graphiques additionnent des montants saisis dans des devises différentes. Les totaux ci-dessus, eux, restent ventilés.')}
+        </Notice>
+      )}
+
       {/* Graphique mensuel */}
       <div>
         <div className="flex items-center justify-between mb-3">
           <h3 className="section-title flex items-center gap-2">
             <Icon name="calendar" size={16} style={{ color: 'var(--text-3)' }} />
-            Dépenses mensuelles
+            {t('Dépenses mensuelles')}
           </h3>
           {sortedYears.length > 1 && (
             <div className="flex gap-1">
@@ -293,7 +319,7 @@ function CostCharts({ monthlyCosts }) {
             </div>
           )}
         </div>
-        <BarChart data={monthlyData} max={maxMonthly} fmtEuro={fmtEuro} height={160} />
+        <BarChart data={monthlyData} max={maxMonthly} money={fmt.money} height={160} />
       </div>
 
       {/* Séparateur */}
@@ -303,13 +329,13 @@ function CostCharts({ monthlyCosts }) {
       <div style={{ flex: 1, display: 'flex', flexDirection: 'column' }}>
         <h3 className="section-title flex items-center gap-2" style={{ marginBottom: 10 }}>
           <Icon name="trendUp" size={16} style={{ color: 'var(--text-3)' }} />
-          Dépenses annuelles
+          {t('Dépenses annuelles')}
         </h3>
         <div style={{ flex: 1, display: 'flex', flexDirection: 'column', justifyContent: 'flex-end' }}>
           {annualData.length === 0 ? (
-            <p className="text-sm" style={{ color: 'var(--text-3)' }}>Aucune donnée</p>
+            <p className="text-sm" style={{ color: 'var(--text-3)' }}>{t('Aucune donnée')}</p>
           ) : (
-            <BarChart data={annualData} max={maxAnnual} fmtEuro={fmtEuro} height={120} accentOpacity={0.75} minBarWidth={36} />
+            <BarChart data={annualData} max={maxAnnual} money={fmt.money} height={120} accentOpacity={0.75} minBarWidth={36} />
           )}
         </div>
       </div>
@@ -319,7 +345,7 @@ function CostCharts({ monthlyCosts }) {
 
 // Graphique à barres générique
 // minBarWidth : si défini, active le scroll horizontal avec une largeur fixe par barre
-function BarChart({ data, max, fmtEuro, height = 160, accentOpacity = 0.6, minBarWidth = null }) {
+function BarChart({ data, max, money, height = 160, accentOpacity = 0.6, minBarWidth = null }) {
   const [hovered, setHovered] = useState(null);
 
   // Largeur totale minimale si scroll activé
@@ -354,7 +380,7 @@ function BarChart({ data, max, fmtEuro, height = 160, accentOpacity = 0.6, minBa
             boxShadow: 'var(--shadow-md)',
           }}
         >
-          <div style={{ fontSize: '0.75rem', fontWeight: 700, color: 'var(--text-1)' }}>{fmtEuro(data[hovered].cost)}</div>
+          <div style={{ fontSize: '0.75rem', fontWeight: 700, color: 'var(--text-1)' }}>{money(data[hovered].cost)}</div>
           <div style={{ fontSize: '0.65rem', color: 'var(--text-3)' }}>{data[hovered].label}</div>
         </div>
       )}

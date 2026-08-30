@@ -2,6 +2,8 @@ import React, { useState, useCallback } from 'react';
 import { api } from '../lib/api';
 import { getInterventionDisplayName } from '../lib/interventionTranslations';
 import Icon from './Icon';
+import { useFormat } from '../lib/preferencesContext';
+import CountryBadge from './CountryBadge';
 
 const STATUS = {
   overdue: { label: 'En retard',    badge: 'badge-danger',  color: 'var(--danger)' },
@@ -28,17 +30,22 @@ function StatusBadge({ status }) {
 
 const OVERDUE = Symbol('overdue');
 
-function formatDueDate(value) {
+// `fmt` est passé plutôt que capturé : c'est une fonction pure, hors
+// composant, donc hors de portée des hooks — même convention que
+// `formatDistance` juste en dessous.
+function formatDueDate(value, fmt) {
   if (!value) return 'sans échéance';
   const date = new Date(value);
   if (Number.isNaN(date.getTime())) return 'sans échéance';
-  return date.toLocaleDateString('fr-FR');
+  return fmt.date(date);
 }
 
-function formatDistance(km) {
+// `fmt` vient de useFormat() : les sentinelles et le cas « en retard » sont
+// traités AVANT toute conversion, sinon 999999 deviendrait « 621 371 mi ».
+function formatDistance(km, fmt) {
   if (km === 999999 || km === Infinity) return '—';
   if (km < 0) return OVERDUE;
-  return `${km.toLocaleString('fr-FR')} km`;
+  return fmt.dist(km);
 }
 
 function formatDays(days) {
@@ -169,6 +176,7 @@ const MONTHS_INPUT = { min: '1', max: '240', step: '1', placeholder: 'ex : 12' }
 const isInspection = (key) => (key || '').startsWith('inspection_technical');
 
 function IntervalEditModal({ vehicleId, item, onClose, onSaved }) {
+  const fmt = useFormat();
   const isCustom = Boolean(item.is_custom);
   const inspection = isInspection(item.intervention_key);
   const displayName = isCustom
@@ -176,7 +184,12 @@ function IntervalEditModal({ vehicleId, item, onClose, onSaved }) {
     : getInterventionDisplayName(item.intervention_type);
 
   const [name, setName] = useState(item.intervention_type || '');
-  const [kmValue, setKmValue] = useState(item.km_interval != null ? String(item.km_interval) : '');
+  // L'intervalle est une DISTANCE : affiché dans l'unité choisie, et reconverti
+  // en kilomètres à l'enregistrement. Sans cela, « tous les 5 000 » saisi par
+  // un utilisateur en miles serait stocké comme 5 000 km — soit le double.
+  const [kmValue, setKmValue] = useState(
+    item.km_interval != null ? String(fmt.distValue(item.km_interval)) : ''
+  );
   const [monthsValue, setMonthsValue] = useState(item.months_interval != null ? String(item.months_interval) : '');
   const [kmDisabled, setKmDisabled] = useState(item.km_interval == null && item.has_override);
   const [monthsDisabled, setMonthsDisabled] = useState(item.months_interval == null && item.has_override);
@@ -190,7 +203,7 @@ function IntervalEditModal({ vehicleId, item, onClose, onSaved }) {
   const bothOff = !inspection && kmDisabled && monthsDisabled;
 
   const body = () => ({
-    km_interval: (inspection || kmDisabled) ? null : (kmValue !== '' ? parseInt(kmValue, 10) : null),
+    km_interval: (inspection || kmDisabled) ? null : (kmValue !== '' ? fmt.toStorage(parseInt(kmValue, 10)) : null),
     months_interval: monthsDisabled ? null : (monthsValue !== '' ? parseInt(monthsValue, 10) : null),
     is_km_disabled: inspection || kmDisabled,
     is_months_disabled: monthsDisabled,
@@ -314,7 +327,7 @@ function IntervalEditModal({ vehicleId, item, onClose, onSaved }) {
           en années, pas en kilomètres. */}
       {!inspection && (
         <Criterion
-          label="Intervalle kilométrique" unit="km"
+          label={`Intervalle en ${fmt.distUnit}`} unit={fmt.distUnit}
           value={kmValue} setValue={setKmValue}
           disabled={kmDisabled} setDisabled={setKmDisabled}
           inputProps={KM_INPUT}
@@ -374,6 +387,7 @@ function IntervalEditModal({ vehicleId, item, onClose, onSaved }) {
 
 /** Création d'un entretien absent du catalogue. */
 function CustomMaintenanceModal({ vehicleId, onClose, onSaved }) {
+  const fmt = useFormat();
   const [name, setName] = useState('');
   const [kmValue, setKmValue] = useState('');
   const [monthsValue, setMonthsValue] = useState('');
@@ -382,7 +396,8 @@ function CustomMaintenanceModal({ vehicleId, onClose, onSaved }) {
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState(null);
 
-  const km = kmDisabled || kmValue === '' ? null : parseInt(kmValue, 10);
+  // Distance saisie dans l'unité choisie → kilomètres en base.
+  const km = kmDisabled || kmValue === '' ? null : fmt.toStorage(parseInt(kmValue, 10));
   const months = monthsDisabled || monthsValue === '' ? null : parseInt(monthsValue, 10);
 
   // Chaque critère demande un choix explicite : une valeur, ou la case
@@ -452,7 +467,7 @@ function CustomMaintenanceModal({ vehicleId, onClose, onSaved }) {
       </div>
 
       <Criterion
-        label="Intervalle kilométrique" unit="km"
+        label={`Intervalle en ${fmt.distUnit}`} unit={fmt.distUnit}
         value={kmValue} setValue={setKmValue}
         disabled={kmDisabled} setDisabled={setKmDisabled}
         inputProps={{ ...KM_INPUT, placeholder: 'ex : 500' }}
@@ -475,7 +490,7 @@ function CustomMaintenanceModal({ vehicleId, onClose, onSaved }) {
         <p className="flex items-start gap-2" style={{ fontSize: 12, color: 'var(--text-3)', lineHeight: 1.45 }}>
           <Icon name="info" size={14} style={{ marginTop: 1 }} />
           <span>
-            Un contrôle tous les 500 km sans échéance de temps, par exemple :
+            Un contrôle tous les {fmt.dist(500)} sans échéance de temps, par exemple :
             renseignez le kilométrage et cochez « Désactivé » sur le temporel.
             L'entretien rejoint alors les échéances et les rappels, et pourra
             être enregistré comme les autres.
@@ -544,6 +559,7 @@ function DisabledSection({ vehicleId, items, canEdit, onRefresh }) {
 // ─────────────────────────────────────────────────────────────────────────────
 
 export default React.memo(function UpcomingMaintenance({ data, vehicleId, onRefresh, canEdit = true }) {
+  const fmt = useFormat();
   const { upcoming } = data;
   const disabled = data.disabled || [];
   const [editingItem, setEditingItem] = useState(null);
@@ -619,14 +635,19 @@ export default React.memo(function UpcomingMaintenance({ data, vehicleId, onRefr
           const hasKm = item.km_interval !== null && item.km_interval !== undefined;
           const hasMonths = item.months_interval !== null && item.months_interval !== undefined;
           const intervalLabel = [
-            hasKm ? `${item.km_interval.toLocaleString('fr-FR')} km` : null,
+            hasKm ? fmt.dist(item.km_interval) : null,
             hasMonths ? `${item.months_interval} mois` : null,
           ].filter(Boolean).join(' ou ');
 
           const costMin = item.estimated_cost_min;
           const costMax = item.estimated_cost_max;
+          // ⚠️ Ces fourchettes viennent du catalogue (maintenance_intervals.json),
+          // qui porte des tarifs FRANÇAIS. Elles sont écrites avec le symbole de
+          // l'instance sans conversion — c'est un ordre de grandeur, pas un devis,
+          // et c'est la raison du CountryBadge posé à côté. Un second pays
+          // apportera ses propres tarifs plutôt qu'un taux de change.
           const costLabel = costMin && costMax
-            ? (costMin === costMax ? `${costMin} €` : `${costMin} – ${costMax} €`)
+            ? (costMin === costMax ? fmt.money(costMin) : `${fmt.money(costMin)} – ${fmt.money(costMax)}`)
             : '—';
 
           // Le contrôle technique est éditable lui aussi : sa périodicité peut
@@ -651,6 +672,9 @@ export default React.memo(function UpcomingMaintenance({ data, vehicleId, onRefr
                 <div className="min-w-0" style={{ flex: '1 1 300px' }}>
                   <div className="flex items-center gap-2 flex-wrap">
                     <h4 style={{ color: 'var(--text-1)' }}>{title}</h4>
+                    {isInspection(item.intervention_key) && (
+                      <CountryBadge reason="Le calendrier du contrôle technique est fixé par la réglementation du pays de l'instance." />
+                    )}
                     <StatusBadge status={item.status} />
                     {item.is_custom ? (
                       <span className="badge badge-info" title="Entretien ajouté pour ce véhicule">
@@ -685,7 +709,7 @@ export default React.memo(function UpcomingMaintenance({ data, vehicleId, onRefr
                   <div className="inset flex items-center self-start" style={{ padding: '8px 0' }}>
                     {!item.condition_based && (
                       <>
-                        <Stat label="Distance" value={formatDistance(item.km_remaining)} />
+                        <Stat label="Distance" value={formatDistance(item.km_remaining, fmt)} />
                         <span style={{ width: 1, alignSelf: 'stretch', background: 'var(--border)' }} />
                         <Stat label="Temps" value={formatDays(item.days_remaining)} />
                         <span style={{ width: 1, alignSelf: 'stretch', background: 'var(--border)' }} />
@@ -715,10 +739,10 @@ export default React.memo(function UpcomingMaintenance({ data, vehicleId, onRefr
                   <p className="flex items-center gap-1.5" style={{ fontSize: 12.5, color: 'var(--text-3)' }}>
                     <Icon name="calendar" size={13} />
                     Prochaine échéance :{' '}
-                    {item.next_due_mileage ? `${item.next_due_mileage.toLocaleString('fr-FR')} km` : ''}
+                    {item.next_due_mileage ? fmt.dist(item.next_due_mileage) : ''}
                     {item.next_due_mileage && item.next_due_date ? ' · ' : ''}
                     {item.next_due_date
-                      ? formatDueDate(item.next_due_date)
+                      ? formatDueDate(item.next_due_date, fmt)
                       : (item.next_due_mileage ? '' : 'sans échéance')}
                   </p>
                 </div>

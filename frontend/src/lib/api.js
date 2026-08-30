@@ -126,11 +126,48 @@ export const api = {
   joinFamily: (token) =>
     client.post('/family/join', { token }),
   
+  // Langue et unités du compte connecté. Réglages par utilisateur : dans un
+  // groupe famille, chacun choisit les siens.
+  //
+  // Les champs sont facultatifs — on n'envoie que ce qui change. Passer la
+  // chaîne "auto" remet un réglage sous le défaut du pays ; un champ absent le
+  // laisse tel quel. Sans ce mot, rien ne distinguerait les deux intentions.
+  setPreferences: (prefs) =>
+    client.put('/auth/me/preferences', prefs),
+
   getRegistrationMode: () =>
     client.get('/admin/registration-mode'),
   
   setRegistrationMode: (mode) =>
     client.put('/admin/registration-mode', { mode }),
+
+  // Pays de l'instance — format de plaque et service de décodage (§20.1).
+  // La lecture est ouverte à tout utilisateur connecté (le formulaire véhicule
+  // en affiche l'exemple de plaque) ; seule l'écriture est réservée à un admin.
+  getRegions: () =>
+    client.get('/regions'),
+
+  setRegion: (code) =>
+    client.put('/admin/region', { code }),
+
+  // Devise d'affichage de l'instance. ⚠️ Un SYMBOLE, pas une conversion :
+  // les montants déjà enregistrés ne bougent pas. Ceux qui ne portaient pas
+  // encore de devise sont figés sur la devise sortante, pour qu'ils ne se
+  // mettent pas à mentir (voir routes/regions.py).
+  setCurrency: (code) =>
+    client.put('/admin/currency', { code }),
+
+  // La conversion est une commande à part : elle recalcule tous les montants au
+  // taux fourni. `dryRun` annonce ce qui serait touché sans rien toucher.
+  //
+  // ⚠️ **Volontairement sans écran.** Elle ne sert qu'à repartir dans une autre
+  // monnaie — un événement qui arrive une fois, ou jamais. Lui donner un
+  // panneau permanent dans les Préférences mettait un bouton irréversible à
+  // côté d'un réglage d'affichage anodin, pour un besoin que le marquage des
+  // montants (§20.7) couvre déjà au quotidien. La méthode reste ici : le jour
+  // où le besoin se présente, l'écran se pose en quelques lignes.
+  convertCurrency: (code, rate, dryRun = true) =>
+    client.post('/admin/currency/convert', { code, rate, dry_run: dryRun }),
   
   checkInvite: (token) =>
     client.get(`/auth/check-invite/${token}`),

@@ -159,12 +159,63 @@ def parse_plate_response(payload: dict, vehicle_type_hint: str = None) -> dict:
     }
 
 
+def next_inspection_date(vehicle_type, registration_date, last_inspection_date):
+    """Prochaine échéance de contrôle technique, règle française.
+
+    Déplacée depuis `maintenance_calculator` : elle y était appliquée à tous
+    les véhicules sans condition, alors qu'elle n'a de sens qu'en France. Un
+    véhicule immatriculé ailleurs suivra celle de son propre pays.
+
+    Moto :
+      - immatriculée en 2020-2021 → 5ᵉ anniversaire + 4 mois, plafonné au
+        31/12/2026 (calendrier de rattrapage de l'entrée en vigueur) ;
+      - 2022 et après → 5ᵉ anniversaire, puis tous les 3 ans ;
+      - avant 2020 → aucune obligation calculable ici.
+    Voiture : 4ᵉ anniversaire + 6 mois, puis tous les 2 ans.
+    """
+    from datetime import datetime
+
+    from dateutil.relativedelta import relativedelta
+
+    if not registration_date:
+        return None
+
+    reg_year = registration_date.year
+
+    if vehicle_type == "motorcycle":
+        if last_inspection_date is None:
+            if reg_year in (2020, 2021):
+                fifth = registration_date + relativedelta(years=5)
+                return min(fifth + relativedelta(months=4), datetime(2026, 12, 31))
+            if reg_year >= 2022:
+                return registration_date + relativedelta(years=5)
+            return None
+        return last_inspection_date + relativedelta(years=3)
+
+    if vehicle_type == "car":
+        if last_inspection_date is None:
+            return registration_date + relativedelta(years=4) + relativedelta(months=6)
+        return last_inspection_date + relativedelta(years=2)
+
+    return None
+
+
 class _France:
     code = "FR"
     name = "France"
     plate_example = "AB-123-CD"
 
+    # Ce que le pays propose par DÉFAUT, et rien de plus : l'utilisateur peut
+    # ensuite choisir autre chose. Une instance française dont le propriétaire
+    # préfère l'anglais est un cas parfaitement ordinaire — le pays décide du
+    # format de plaque et du calendrier réglementaire, pas de la langue qu'on
+    # parle chez soi.
+    default_language = "fr"
+    default_units = "metric"
+    default_currency = "EUR"
+
     normalize_plate = staticmethod(normalize_plate)
+    next_inspection_date = staticmethod(next_inspection_date)
     parse_plate_response = staticmethod(parse_plate_response)
 
 

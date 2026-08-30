@@ -3,6 +3,7 @@ import { api } from '../lib/api';
 import Icon from '../components/Icon';
 import Notice from '../components/Notice';
 import PageHeader from '../components/PageHeader';
+import { useFormat, useT } from '../lib/preferencesContext';
 
 function ToggleSwitch({ checked, onChange, disabled, title }) {
   return (
@@ -42,6 +43,10 @@ function ToggleSwitch({ checked, onChange, disabled, title }) {
 }
 
 export default function Admin({ currentUser }) {
+  const t = useT();
+  // Le format d'une date suit la LANGUE, comme les séparateurs de milliers
+  // (§20.6) — d'où fmt.date() plutôt qu'une locale en dur.
+  const fmt = useFormat();
   const [users, setUsers] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
@@ -82,7 +87,7 @@ export default function Admin({ currentUser }) {
       const response = await api.getAllUsers();
       setUsers(response.data);
     } catch (err) {
-      setError(err.response?.data?.detail || 'Erreur lors du chargement des utilisateurs');
+      setError(err.response?.data?.detail || t('Erreur lors du chargement des utilisateurs'));
       console.error(err);
     } finally {
       setLoading(false);
@@ -110,8 +115,8 @@ export default function Admin({ currentUser }) {
   const handleTogglePasswordReset = async () => {
     const next = !passwordResetEnabled;
     const msg = next
-      ? 'Réactiver la réinitialisation de mot de passe par les admins ?'
-      : 'Désactiver la réinitialisation de mot de passe ?\n\nAucun admin (y compris vous) ne pourra plus réinitialiser un mot de passe tant que ce n\'est pas réactivé ici.';
+      ? t('Réactiver la réinitialisation de mot de passe par les admins ?')
+      : t('Désactiver la réinitialisation de mot de passe ?\n\nAucun admin (y compris vous) ne pourra plus réinitialiser un mot de passe tant que ce n\'est pas réactivé ici.');
     if (!window.confirm(msg)) return;
 
     setTogglingReset(true);
@@ -119,7 +124,7 @@ export default function Admin({ currentUser }) {
       const res = await api.setPasswordResetStatus(next);
       setPasswordResetEnabled(res.data.enabled);
     } catch (err) {
-      setResetError(err.response?.data?.detail || 'Erreur lors du changement de statut');
+      setResetError(err.response?.data?.detail || t('Erreur lors du changement de statut'));
       console.error(err);
     } finally {
       setTogglingReset(false);
@@ -127,7 +132,7 @@ export default function Admin({ currentUser }) {
   };
 
   const handleDeleteUser = async (userId, username) => {
-    if (!window.confirm(`Êtes-vous sûr de vouloir supprimer l'utilisateur "${username}" ?\n\nSes véhicules et données seront supprimés.`)) {
+    if (!window.confirm(t('Êtes-vous sûr de vouloir supprimer l\'utilisateur « {name} » ?\n\nSes véhicules et données seront supprimés.', { name: username }))) {
       return;
     }
 
@@ -136,7 +141,7 @@ export default function Admin({ currentUser }) {
       await api.deleteUser(userId);
       setUsers(users.filter(u => u.id !== userId));
     } catch (err) {
-      setError(err.response?.data?.detail || 'Erreur lors de la suppression');
+      setError(err.response?.data?.detail || t('Erreur lors de la suppression'));
       console.error(err);
     } finally {
       setDeleting(null);
@@ -144,8 +149,13 @@ export default function Admin({ currentUser }) {
   };
 
   const handlePromoteUser = async (userId, username, isCurrentlyAdmin) => {
-    const action = isCurrentlyAdmin ? 'rétrograder en utilisateur' : 'promouvoir administrateur';
-    if (!window.confirm(`Êtes-vous sûr de vouloir ${action} "${username}" ?`)) {
+    // Deux phrases entières plutôt qu'un verbe injecté dans une trame : la
+    // place du complément change d'une langue à l'autre, et « voulez-vous
+    // {verbe} X » ne se traduit pas.
+    const question = isCurrentlyAdmin
+      ? t('Rétrograder « {name} » en simple utilisateur ?', { name: username })
+      : t('Promouvoir « {name} » administrateur ?', { name: username });
+    if (!window.confirm(question)) {
       return;
     }
 
@@ -155,7 +165,7 @@ export default function Admin({ currentUser }) {
       // Recharge la liste
       loadUsers();
     } catch (err) {
-      setError(err.response?.data?.detail || `Erreur lors de la ${action}`);
+      setError(err.response?.data?.detail || t('Le changement de rôle a échoué.'));
       console.error(err);
     } finally {
       setDeleting(null);
@@ -164,7 +174,7 @@ export default function Admin({ currentUser }) {
 
   const handleResetPassword = async (userId, username) => {
     if (!window.confirm(
-      `Réinitialiser le mot de passe de "${username}" ?\n\nUn nouveau mot de passe aléatoire sera généré et affiché une seule fois. Toutes ses sessions en cours seront invalidées — l'utilisateur devra se reconnecter avec le nouveau mot de passe.`
+      t('Réinitialiser le mot de passe de « {name} » ?\n\nUn nouveau mot de passe aléatoire sera généré et affiché une seule fois. Toutes ses sessions en cours seront invalidées — l\'utilisateur devra se reconnecter avec le nouveau mot de passe.', { name: username })
     )) {
       return;
     }
@@ -180,7 +190,7 @@ export default function Admin({ currentUser }) {
       });
       loadUsers(); // rafraîchit le badge "demande de reset" / statut mdp temporaire
     } catch (err) {
-      setResetError(err.response?.data?.detail || 'Erreur lors de la réinitialisation du mot de passe');
+      setResetError(err.response?.data?.detail || t('Erreur lors de la réinitialisation du mot de passe'));
       console.error(err);
     } finally {
       setResetting(null);
@@ -211,7 +221,7 @@ export default function Admin({ currentUser }) {
       setCreateForm({ username: '', display_name: '', password: '', is_admin: false });
       loadUsers();
     } catch (err) {
-      setCreateError(err.response?.data?.detail || 'Erreur lors de la création du compte');
+      setCreateError(err.response?.data?.detail || t('Erreur lors de la création du compte'));
       console.error(err);
     } finally {
       setCreating(false);
@@ -224,8 +234,8 @@ export default function Admin({ currentUser }) {
         <div className="icon-box lg danger mx-auto" style={{ marginBottom: 12 }}>
           <Icon name="lock" size={20} />
         </div>
-        <h2 style={{ fontSize: '1.15rem' }}>Accès refusé</h2>
-        <p className="text-secondary text-sm mt-1">Cette console est réservée aux administrateurs.</p>
+        <h2 style={{ fontSize: '1.15rem' }}>{t('Accès refusé')}</h2>
+        <p className="text-secondary text-sm mt-1">{t('Cette console est réservée aux administrateurs.')}</p>
       </div>
     );
   }
@@ -237,8 +247,8 @@ export default function Admin({ currentUser }) {
   return (
     <div>
       <PageHeader
-        title="Administration"
-        subtitle="Comptes, rôles et mots de passe de cette instance."
+        title={t('Administration')}
+        subtitle={t('Comptes, rôles et mots de passe de cette instance.')}
       />
 
       {error && <Notice tone="danger" className="mb-4">{error}</Notice>}
@@ -247,22 +257,21 @@ export default function Admin({ currentUser }) {
       {registrationMode !== null && (
         <div className="card mb-5">
           <div className="flex items-center justify-between gap-3 flex-wrap">
-            <h3 className="section-title">Créer un compte</h3>
+            <h3 className="section-title">{t('Créer un compte')}</h3>
             {canCreateManually && (
               <button
                 onClick={() => { setShowCreateForm(!showCreateForm); setCreatedResult(null); setCreateError(null); }}
                 className={`btn btn-sm ${showCreateForm ? 'btn-secondary' : 'btn-primary'}`}
               >
                 <Icon name={showCreateForm ? 'close' : 'plus'} size={15} strokeWidth={2} />
-                {showCreateForm ? 'Fermer' : 'Nouveau compte'}
+                {showCreateForm ? t('Fermer') : t('Nouveau compte')}
               </button>
             )}
           </div>
 
           {!canCreateManually && (
             <Notice tone="neutral" icon="lock" className="mt-3">
-              Le mode d'inscription est <strong>« Sur invitation »</strong>. Pour faire entrer quelqu'un,
-              générez un lien depuis Paramètres → Inscription, ou changez le mode d'inscription.
+              {t("Le mode d'inscription est « Sur invitation ». Pour faire entrer quelqu'un, générez un lien depuis Paramètres → Inscription, ou changez le mode d'inscription.")}
             </Notice>
           )}
 
@@ -272,7 +281,7 @@ export default function Admin({ currentUser }) {
 
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <div>
-                  <label className="field-label">Identifiant*</label>
+                  <label className="field-label">{t('Identifiant*')}</label>
                   <input
                     type="text"
                     required
@@ -286,7 +295,7 @@ export default function Admin({ currentUser }) {
                   />
                 </div>
                 <div>
-                  <label className="field-label">Nom affiché*</label>
+                  <label className="field-label">{t('Nom affiché*')}</label>
                   <input
                     type="text"
                     required
@@ -299,9 +308,9 @@ export default function Admin({ currentUser }) {
                 </div>
                 <div className="sm:col-span-2">
                   <label className="field-label">
-                    Mot de passe
+                    {t('Mot de passe')}
                     <span className="ml-1 font-normal" style={{ color: 'var(--text-3)' }}>
-                      (optionnel — généré automatiquement si laissé vide, affiché une seule fois pour que vous le transmettiez)
+                      {t('(optionnel — généré automatiquement si laissé vide, affiché une seule fois pour que vous le transmettiez)')}
                     </span>
                   </label>
                   <input
@@ -310,7 +319,7 @@ export default function Admin({ currentUser }) {
                     value={createForm.password}
                     onChange={e => setCreateForm({ ...createForm, password: e.target.value })}
                     className="w-full"
-                    placeholder="Laisser vide pour génération automatique"
+                    placeholder={t('Laisser vide pour génération automatique')}
                     autoComplete="new-password"
                   />
                 </div>
@@ -323,13 +332,13 @@ export default function Admin({ currentUser }) {
                     className="w-4 h-4"
                   />
                   <label htmlFor="create-is-admin" className="text-xs" style={{ color: 'var(--text-2)' }}>
-                    Créer en tant qu'administrateur
+                    {t("Créer en tant qu'administrateur")}
                   </label>
                 </div>
               </div>
 
               <button type="submit" disabled={creating} className="btn btn-primary text-sm">
-                {creating ? 'Création...' : 'Créer le compte'}
+                {creating ? t('Création…') : t('Créer le compte')}
               </button>
             </form>
           )}
@@ -337,12 +346,12 @@ export default function Admin({ currentUser }) {
           {createdResult && (
             <Notice tone="success" className="mt-4">
               <p style={{ color: 'var(--text-1)' }}>
-                Compte <strong>@{createdResult.username}</strong> créé.
+                {t('Compte @{name} créé.', { name: createdResult.username })}
               </p>
               {createdResult.generated_password && (
                 <div className="mt-2">
                   <p className="text-xs" style={{ color: 'var(--text-2)' }}>
-                    Mot de passe généré — copiez-le maintenant et transmettez-le à l'utilisateur par un canal sécurisé (il ne sera plus jamais affiché) :
+                    {t("Mot de passe généré — copiez-le maintenant et transmettez-le à l'utilisateur par un canal sécurisé (il ne sera plus jamais affiché) :")}
                   </p>
                   <code
                     className="block mt-1 px-2 py-1.5 rounded text-sm select-all"
@@ -362,12 +371,12 @@ export default function Admin({ currentUser }) {
           <div className="icon-box"><Icon name="key" size={17} /></div>
           <div>
           <h3 className="section-title" style={{ fontSize: '0.95rem' }}>
-            Réinitialisation de mot de passe
+            {t('Réinitialisation de mot de passe')}
           </h3>
           <p className="text-xs mt-1" style={{ color: 'var(--text-3)' }}>
             {passwordResetEnabled
-              ? 'Les admins peuvent réinitialiser le mot de passe d\'un utilisateur (pas de SMTP/lien par email disponible).'
-              : 'Désactivée : aucun admin ne peut réinitialiser un mot de passe actuellement.'}
+              ? t("Les admins peuvent réinitialiser le mot de passe d'un utilisateur (pas de SMTP/lien par email disponible).")
+              : t('Désactivée : aucun admin ne peut réinitialiser un mot de passe actuellement.')}
           </p>
           </div>
         </div>
@@ -376,13 +385,13 @@ export default function Admin({ currentUser }) {
             className="text-xs font-semibold whitespace-nowrap"
             style={{ color: passwordResetEnabled ? 'var(--success)' : 'var(--danger)' }}
           >
-            {togglingReset ? 'Patientez…' : passwordResetEnabled ? 'Activé' : 'Désactivé'}
+            {togglingReset ? t('Patientez…') : passwordResetEnabled ? t('Activé') : t('Désactivé')}
           </span>
           <ToggleSwitch
             checked={passwordResetEnabled}
             onChange={handleTogglePasswordReset}
             disabled={togglingReset}
-            title={passwordResetEnabled ? 'Cliquer pour désactiver' : 'Cliquer pour activer'}
+            title={passwordResetEnabled ? t('Cliquer pour désactiver') : t('Cliquer pour activer')}
           />
         </div>
       </div>
@@ -392,10 +401,10 @@ export default function Admin({ currentUser }) {
       {resetResult && (
         <Notice tone="success" className="mb-5">
           <p style={{ color: 'var(--text-1)' }}>
-            Mot de passe de <strong>@{resetResult.username}</strong> réinitialisé.
+            {t('Mot de passe de @{name} réinitialisé.', { name: resetResult.username })}
           </p>
           <p className="text-xs mt-2" style={{ color: 'var(--text-2)' }}>
-            Copiez-le maintenant et transmettez-le à l'utilisateur par un canal sécurisé (il ne sera plus jamais affiché) :
+            {t("Copiez-le maintenant et transmettez-le à l'utilisateur par un canal sécurisé (il ne sera plus jamais affiché) :")}
           </p>
           <code
             className="block mt-1 px-2 py-1.5 rounded text-sm select-all"
@@ -407,25 +416,25 @@ export default function Admin({ currentUser }) {
       )}
 
       <div className="card">
-        <h3 className="section-title mb-3">Gestion des utilisateurs</h3>
+        <h3 className="section-title mb-3">{t('Gestion des utilisateurs')}</h3>
 
         {loading ? (
           <div className="text-center py-6">
             <div className="spinner mx-auto mb-2"></div>
-            <p className="text-sm" style={{ color: 'var(--text-3)' }}>Chargement…</p>
+            <p className="text-sm" style={{ color: 'var(--text-3)' }}>{t('Chargement…')}</p>
           </div>
         ) : users.length === 0 ? (
-          <p style={{ color: 'var(--text-3)' }}>Aucun utilisateur.</p>
+          <p style={{ color: 'var(--text-3)' }}>{t('Aucun utilisateur.')}</p>
         ) : (
           <div className="overflow-x-auto">
             <table className="w-full text-sm">
               <thead>
                 <tr style={{ borderBottom: '1px solid var(--border)' }}>
-                  <th className="text-left py-3 px-3" style={{ color: 'var(--text-2)' }}>Utilisateur</th>
-                  <th className="text-left py-3 px-3" style={{ color: 'var(--text-2)' }}>Nom affiché</th>
-                  <th className="text-left py-3 px-3" style={{ color: 'var(--text-2)' }}>Rôle</th>
-                  <th className="text-left py-3 px-3" style={{ color: 'var(--text-2)' }}>Créé le</th>
-                  <th className="text-left py-3 px-3" style={{ color: 'var(--text-2)' }}>Actions</th>
+                  <th className="text-left py-3 px-3" style={{ color: 'var(--text-2)' }}>{t('Utilisateur')}</th>
+                  <th className="text-left py-3 px-3" style={{ color: 'var(--text-2)' }}>{t('Nom affiché')}</th>
+                  <th className="text-left py-3 px-3" style={{ color: 'var(--text-2)' }}>{t('Rôle')}</th>
+                  <th className="text-left py-3 px-3" style={{ color: 'var(--text-2)' }}>{t('Créé le')}</th>
+                  <th className="text-left py-3 px-3" style={{ color: 'var(--text-2)' }}>{t('Actions')}</th>
                 </tr>
               </thead>
               <tbody>
@@ -437,21 +446,21 @@ export default function Admin({ currentUser }) {
                       <div className="flex items-center gap-2 flex-wrap">
                         <span style={{ color: 'var(--text-1)', fontWeight: 600 }}>@{user.username}</span>
                         {user.id === currentUser.id && (
-                          <span className="text-xs" style={{ color: 'var(--text-3)' }}>(vous)</span>
+                          <span className="text-xs" style={{ color: 'var(--text-3)' }}>{t('(vous)')}</span>
                         )}
                         {user.password_reset_requested_at && (
                           <span
                             className="badge badge-warning"
-                            title={`Demande de réinitialisation le ${new Date(user.password_reset_requested_at).toLocaleString('fr-FR')}`}
+                            title={t('Demande de réinitialisation le {date}', { date: fmt.date(user.password_reset_requested_at, { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' }) })}
                           >
                             <Icon name="bell" size={11} strokeWidth={2.2} />
-                            Reset demandé
+                            {t('Reset demandé')}
                           </span>
                         )}
                         {user.must_change_password && (
-                          <span className="badge badge-neutral" title="Doit encore choisir son propre mot de passe">
+                          <span className="badge badge-neutral" title={t('Doit encore choisir son propre mot de passe')}>
                             <Icon name="clock" size={11} strokeWidth={2.2} />
-                            Mot de passe temporaire
+                            {t('Mot de passe temporaire')}
                           </span>
                         )}
                       </div>
@@ -463,19 +472,19 @@ export default function Admin({ currentUser }) {
                       {isServiceAccount ? (
                         <span className="badge" style={{ background: 'var(--purple-light)', color: 'var(--purple)' }}>
                           <Icon name="cpu" size={11} strokeWidth={2.2} />
-                          Service
+                          {t('Service')}
                         </span>
                       ) : user.is_admin ? (
                         <span className="badge badge-success">
                           <Icon name="shield" size={11} strokeWidth={2.2} />
-                          Admin
+                          {t('Admin')}
                         </span>
                       ) : (
-                        <span className="text-xs" style={{ color: 'var(--text-3)' }}>Utilisateur</span>
+                        <span className="text-xs" style={{ color: 'var(--text-3)' }}>{t('Utilisateur')}</span>
                       )}
                     </td>
                     <td className="text-xs" style={{ color: 'var(--text-3)' }}>
-                      {new Date(user.created_at).toLocaleDateString('fr-FR')}
+                      {fmt.date(user.created_at)}
                     </td>
                     <td>
                       <div className="flex gap-1.5 items-center flex-wrap">
@@ -484,16 +493,16 @@ export default function Admin({ currentUser }) {
                             onClick={() => handlePromoteUser(user.id, user.username, user.is_admin)}
                             disabled={deleting === user.id}
                             className="btn btn-secondary btn-sm"
-                            title={user.is_admin ? 'Rétrograder en utilisateur' : 'Promouvoir administrateur'}
+                            title={user.is_admin ? t('Rétrograder en utilisateur') : t('Promouvoir administrateur')}
                           >
                             <Icon name={user.is_admin ? 'user' : 'shield'} size={14} />
-                            {user.is_admin ? 'Rétrograder' : 'Promouvoir'}
+                            {user.is_admin ? t('Rétrograder') : t('Promouvoir')}
                           </button>
                         )}
                         {isServiceAccount && (
                           <span className="text-xs inline-flex items-center gap-1.5" style={{ color: 'var(--text-3)' }}>
                             <Icon name="lock" size={13} />
-                            Compte protégé
+                            {t('Compte protégé')}
                           </span>
                         )}
                         {!isServiceAccount && passwordResetEnabled && user.id !== currentUser.id && (
@@ -501,18 +510,20 @@ export default function Admin({ currentUser }) {
                             onClick={() => handleResetPassword(user.id, user.username)}
                             disabled={resetting === user.id}
                             className={`btn btn-sm ${user.password_reset_requested_at ? 'btn-primary' : 'btn-secondary'}`}
-                            title="Réinitialiser le mot de passe (utile en l'absence d'email)"
+                            title={t("Réinitialiser le mot de passe (utile en l'absence d'email)")}
                           >
                             <Icon name="key" size={14} />
-                            {resetting === user.id ? 'Patientez…' : 'Réinitialiser'}
+                            {resetting === user.id ? t('Patientez…') : t('Réinitialiser')}
                           </button>
                         )}
                         <button
                           onClick={() => handleDeleteUser(user.id, user.username)}
                           disabled={user.id === currentUser.id || deleting === user.id || user.is_admin || isServiceAccount}
                           className="btn-icon danger"
-                          aria-label={`Supprimer @${user.username}`}
-                          title={isServiceAccount ? 'Impossible : compte de service protégé' : (user.is_admin ? "Impossible : rétrogradez-le d'abord" : 'Supprimer cet utilisateur')}
+                          aria-label={t('Supprimer @{name}', { name: user.username })}
+                          title={isServiceAccount
+                            ? t('Impossible : compte de service protégé')
+                            : (user.is_admin ? t("Impossible : rétrogradez-le d'abord") : t('Supprimer cet utilisateur'))}
                         >
                           <Icon name="trash" size={15} />
                         </button>
@@ -527,16 +538,20 @@ export default function Admin({ currentUser }) {
         )}
       </div>
 
-      <Notice tone="neutral" title="Ce que cette console permet, et ce qu'elle interdit" className="mt-5">
+      {/* Une phrase par puce, et la phrase ENTIÈRE dans la clé : couper au
+          milieu pour garder un <strong> laissait des moitiés de phrase dans le
+          catalogue, intraduisibles hors contexte. L'emphase se perd, le sens
+          se garde. */}
+      <Notice tone="neutral" title={t("Ce que cette console permet, et ce qu'elle interdit")} className="mt-5">
         <ul className="space-y-1 mt-1 list-disc list-inside">
-          <li>Le premier compte créé sur l'instance est automatiquement administrateur.</li>
-          <li>Un administrateur peut promouvoir ou rétrograder les autres, mais pas lui-même.</li>
-          <li>En mode « Privé » ou « Ouvert », un administrateur crée un compte directement ; en mode « Sur invitation », il passe par un lien (Paramètres → Inscription).</li>
-          <li>Un mot de passe créé ou réinitialisé par un administrateur est <strong>temporaire</strong> : la personne devra en choisir un à sa prochaine connexion, et ses sessions en cours sont déconnectées.</li>
-          <li>Depuis l'écran de connexion, un utilisateur peut signaler un mot de passe oublié : un badge apparaît ici. Il n'y a pas d'envoi d'email en self-hosted.</li>
-          <li>Un administrateur ne peut pas réinitialiser <strong>son propre</strong> mot de passe ici — il risquerait de se déconnecter sans pouvoir revenir. Passez par Paramètres → Compte.</li>
-          <li>Les administrateurs ne peuvent pas être supprimés : rétrogradez-les d'abord.</li>
-          <li>Supprimer un utilisateur supprime aussi tous ses véhicules.</li>
+          <li>{t("Le premier compte créé sur l'instance est automatiquement administrateur.")}</li>
+          <li>{t('Un administrateur peut promouvoir ou rétrograder les autres, mais pas lui-même.')}</li>
+          <li>{t('En mode « Privé » ou « Ouvert », un administrateur crée un compte directement ; en mode « Sur invitation », il passe par un lien (Paramètres → Inscription).')}</li>
+          <li>{t("Un mot de passe créé ou réinitialisé par un administrateur est temporaire : la personne devra en choisir un à sa prochaine connexion, et ses sessions en cours sont déconnectées.")}</li>
+          <li>{t("Depuis l'écran de connexion, un utilisateur peut signaler un mot de passe oublié : un badge apparaît ici. Il n'y a pas d'envoi d'email en self-hosted.")}</li>
+          <li>{t("Un administrateur ne peut pas réinitialiser son propre mot de passe ici — il risquerait de se déconnecter sans pouvoir revenir. Passez par Paramètres → Compte.")}</li>
+          <li>{t("Les administrateurs ne peuvent pas être supprimés : rétrogradez-les d'abord.")}</li>
+          <li>{t('Supprimer un utilisateur supprime aussi tous ses véhicules.')}</li>
         </ul>
       </Notice>
     </div>

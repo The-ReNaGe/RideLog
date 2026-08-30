@@ -5,6 +5,7 @@ import { formatDistanceToNow } from 'date-fns';
 import { fr } from 'date-fns/locale';
 import RevisionChecklistModal from './RevisionChecklistModal';
 import Icon from './Icon';
+import { useFormat, useT } from '../lib/preferencesContext';
 import CategoryTag from './CategoryTag';
 import {
   REVISION_TRIGGERS,
@@ -14,6 +15,8 @@ import {
 } from '../lib/revisionChecklist';
 
 export default function MaintenanceHistory({ vehicleId, vehicleType, motorization, onDataChanged, canEdit = true }) {
+  const fmt = useFormat();
+  const t = useT();
   const [maintenances, setMaintenances] = useState([]);
   const [loading, setLoading] = useState(true);
   const [editingId, setEditingId] = useState(null);
@@ -37,13 +40,13 @@ export default function MaintenanceHistory({ vehicleId, vehicleType, motorizatio
   };
 
   const handleDelete = async (maintenanceId) => {
-    if (!window.confirm('Supprimer cette intervention ?')) return;
+    if (!window.confirm(t('Supprimer cette intervention ?'))) return;
     try {
       await api.deleteMaintenance(vehicleId, maintenanceId);
       fetchMaintenances();
       onDataChanged?.();
     } catch {
-      alert('Impossible de supprimer cette intervention');
+      alert(t('Impossible de supprimer cette intervention'));
     }
   };
 
@@ -51,7 +54,8 @@ export default function MaintenanceHistory({ vehicleId, vehicleType, motorizatio
     setEditingId(maintenance.id);
     setEditForm({
       execution_date: maintenance.execution_date.split('T')[0],
-      mileage_at_intervention: maintenance.mileage_at_intervention,
+      // Affiché dans l'unité choisie, reconverti en km à l'enregistrement.
+      mileage_at_intervention: fmt.distValue(maintenance.mileage_at_intervention),
       cost_paid: maintenance.cost_paid || '',
       notes: maintenance.notes || '',
     });
@@ -69,7 +73,7 @@ export default function MaintenanceHistory({ vehicleId, vehicleType, motorizatio
       if (newInvoiceFiles.length > 0) {
         const fd = new FormData();
         fd.append('execution_date', editForm.execution_date);
-        fd.append('mileage_at_intervention', String(parseInt(editForm.mileage_at_intervention)));
+        fd.append('mileage_at_intervention', String(fmt.toStorage(parseInt(editForm.mileage_at_intervention))));
         fd.append('cost_paid', editForm.cost_paid ? String(parseFloat(editForm.cost_paid)) : '');
         fd.append('notes', editForm.notes);
         newInvoiceFiles.forEach(f => fd.append('invoice_files', f));
@@ -80,7 +84,7 @@ export default function MaintenanceHistory({ vehicleId, vehicleType, motorizatio
       } else {
         const payload = {
           execution_date: editForm.execution_date,
-          mileage_at_intervention: parseInt(editForm.mileage_at_intervention),
+          mileage_at_intervention: fmt.toStorage(parseInt(editForm.mileage_at_intervention)),
           cost_paid: editForm.cost_paid ? parseFloat(editForm.cost_paid) : null,
           notes: editForm.notes,
         };
@@ -96,7 +100,7 @@ export default function MaintenanceHistory({ vehicleId, vehicleType, motorizatio
       fetchMaintenances();
       onDataChanged?.();
     } catch {
-      alert('Impossible de modifier cette intervention');
+      alert(t('Impossible de modifier cette intervention'));
     }
   };
 
@@ -110,7 +114,7 @@ export default function MaintenanceHistory({ vehicleId, vehicleType, motorizatio
     return (
       <div className="text-center py-12">
         <div className="spinner mx-auto mb-3"></div>
-        <p className="text-sm" style={{ color: 'var(--text-3)' }}>Chargement de l'historique…</p>
+        <p className="text-sm" style={{ color: 'var(--text-3)' }}>{t("Chargement de l'historique…")}</p>
       </div>
     );
   }
@@ -121,7 +125,7 @@ export default function MaintenanceHistory({ vehicleId, vehicleType, motorizatio
         <div className="icon-box lg neutral mx-auto" style={{ marginBottom: 12 }}>
           <Icon name="note" size={20} />
         </div>
-        <p style={{ color: 'var(--text-2)' }}>Aucune intervention enregistrée pour le moment.</p>
+        <p style={{ color: 'var(--text-2)' }}>{t('Aucune intervention enregistrée pour le moment.')}</p>
       </div>
     );
   }
@@ -150,7 +154,7 @@ export default function MaintenanceHistory({ vehicleId, vehicleType, motorizatio
                     />
                   </div>
                   <div>
-                    <label className="field-label">Kilométrage*</label>
+                    <label className="field-label">{t('Distance')} ({fmt.distUnit})*</label>
                     <input
                       type="number"
                       value={editForm.mileage_at_intervention}
@@ -159,7 +163,7 @@ export default function MaintenanceHistory({ vehicleId, vehicleType, motorizatio
                     />
                   </div>
                   <div>
-                    <label className="field-label">Coût (€)</label>
+                    <label className="field-label">{t('Coût')} ({fmt.currencySymbol})</label>
                     <input
                       type="number"
                       step="0.01"
@@ -190,7 +194,7 @@ export default function MaintenanceHistory({ vehicleId, vehicleType, motorizatio
                         <p className="text-xs mt-0.5" style={{ color: 'var(--text-3)' }}>
                           {editSubInterventions.length > 0
                             ? `${editSubInterventions.length} élément(s) sélectionné(s)`
-                            : 'Aucun élément sélectionné'}
+                            : t('Aucun élément sélectionné')}
                         </p>
                       </div>
                       <button
@@ -218,7 +222,7 @@ export default function MaintenanceHistory({ vehicleId, vehicleType, motorizatio
                 )}
 
                 <div style={{ borderTop: '1px solid var(--border)', paddingTop: '0.75rem' }}>
-                  <label className="field-label">Ajouter des factures</label>
+                  <label className="field-label">{t('Ajouter des factures')}</label>
                   <input
                     type="file"
                     multiple
@@ -269,7 +273,7 @@ export default function MaintenanceHistory({ vehicleId, vehicleType, motorizatio
                     </div>
                     <div className="flex flex-wrap gap-x-2 gap-y-0.5 text-xs" style={{ color: 'var(--text-3)' }}>
                       <span>
-                        {new Date(maintenance.execution_date).toLocaleDateString('fr-FR', {
+                        {fmt.date(maintenance.execution_date, {
                           day: 'numeric', month: 'short', year: 'numeric',
                         })}
                       </span>
@@ -282,10 +286,10 @@ export default function MaintenanceHistory({ vehicleId, vehicleType, motorizatio
 
                   {canEdit && (
                     <div className="flex items-center gap-1 flex-shrink-0">
-                      <button onClick={() => handleEdit(maintenance)} className="btn-icon" title="Modifier cette intervention" aria-label="Modifier cette intervention">
+                      <button onClick={() => handleEdit(maintenance)} className="btn-icon" title={t('Modifier cette intervention')} aria-label={t('Modifier cette intervention')}>
                         <Icon name="pencil" size={15} />
                       </button>
-                      <button onClick={() => handleDelete(maintenance.id)} className="btn-icon danger" title="Supprimer cette intervention" aria-label="Supprimer cette intervention">
+                      <button onClick={() => handleDelete(maintenance.id)} className="btn-icon danger" title={t('Supprimer cette intervention')} aria-label={t('Supprimer cette intervention')}>
                         <Icon name="trash" size={15} />
                       </button>
                     </div>
@@ -294,15 +298,15 @@ export default function MaintenanceHistory({ vehicleId, vehicleType, motorizatio
 
                 <div className="flex gap-4 text-sm">
                   <div>
-                    <span className="text-xs" style={{ color: 'var(--text-3)' }}>Kilométrage </span>
+                    <span className="text-xs" style={{ color: 'var(--text-3)' }}>{t('Distance')} </span>
                     <span className="font-semibold" style={{ color: 'var(--text-1)' }}>
-                      {maintenance.mileage_at_intervention.toLocaleString('fr-FR')} km
+                      {fmt.dist(maintenance.mileage_at_intervention)}
                     </span>
                   </div>
                   <div>
-                    <span className="text-xs" style={{ color: 'var(--text-3)' }}>Coût </span>
+                    <span className="text-xs" style={{ color: 'var(--text-3)' }}>{t('Coût')} </span>
                     <span className="font-semibold" style={{ color: 'var(--success)' }}>
-                      {maintenance.cost_paid ? `${maintenance.cost_paid.toFixed(2)} €` : '—'}
+                      {fmt.money(maintenance.cost_paid, maintenance.currency, 2)}
                     </span>
                   </div>
                 </div>

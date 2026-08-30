@@ -1,9 +1,11 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { api } from '../lib/api';
+import { useT } from '../lib/preferencesContext';
 import Icon from '../components/Icon';
 import Notice from '../components/Notice';
 
 export default function AuthPage({ onLoginSuccess, pendingFamilyToken = null }) {
+  const t = useT();
   const [isRegister, setIsRegister] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
@@ -120,7 +122,7 @@ export default function AuthPage({ onLoginSuccess, pendingFamilyToken = null }) 
         startLockoutTimer(retryAfter);
         setError(null);
       } else {
-        setError(err.response?.data?.detail || 'Erreur de connexion');
+        setError(err.response?.data?.detail || t('Erreur de connexion'));
       }
     } finally {
       setLoading(false);
@@ -159,7 +161,7 @@ export default function AuthPage({ onLoginSuccess, pendingFamilyToken = null }) 
         inviteToken
       );
 
-      setSuccess('Compte créé avec succès! Connectez-vous maintenant.');
+      setSuccess(t('Compte créé avec succès ! Connectez-vous maintenant.'));
       // Reset form
       setRegUsername('');
       setRegDisplayName('');
@@ -173,7 +175,7 @@ export default function AuthPage({ onLoginSuccess, pendingFamilyToken = null }) 
       // Auto-switch to login
       setTimeout(() => setIsRegister(false), 2000);
     } catch (err) {
-      setError(err.response?.data?.detail || 'Erreur lors de la création du compte');
+      setError(err.response?.data?.detail || t('Erreur lors de la création du compte'));
     } finally {
       setLoading(false);
     }
@@ -207,7 +209,7 @@ export default function AuthPage({ onLoginSuccess, pendingFamilyToken = null }) 
             />
           </div>
           <p className="text-base font-medium text-center" style={{ color: 'var(--text-2)' }}>
-            Suivi d'entretien véhicules
+            {t("Suivi d'entretien véhicules")}
           </p>
         </div>
 
@@ -216,15 +218,13 @@ export default function AuthPage({ onLoginSuccess, pendingFamilyToken = null }) 
           <Notice tone="info" icon="users" className="mb-4">
             {pendingFamily ? (
               <>
-                Connectez-vous pour rejoindre le groupe <strong>{pendingFamily.name}</strong> et
-                consulter les véhicules de ses membres.
+                {t('Connectez-vous pour rejoindre le groupe {name} et consulter les véhicules de ses membres.', { name: pendingFamily.name })}
               </>
             ) : (
-              <>Connectez-vous pour rejoindre le groupe famille auquel vous avez été invité.</>
+              <>{t('Connectez-vous pour rejoindre le groupe famille auquel vous avez été invité.')}</>
             )}
             <span className="block text-xs mt-2" style={{ color: 'var(--text-3)' }}>
-              Ce lien ne crée pas de compte. Si vous n'en avez pas encore, demandez-en un à
-              l'administrateur de cette instance.
+              {t("Ce lien ne crée pas de compte. Si vous n'en avez pas encore, demandez-en un à l'administrateur de cette instance.")}
             </span>
           </Notice>
         )}
@@ -244,7 +244,7 @@ export default function AuthPage({ onLoginSuccess, pendingFamilyToken = null }) 
                   !isRegister ? 'btn btn-primary' : 'btn btn-secondary'
                 }`}
               >
-                Connexion
+                {t('Connexion')}
               </button>
               <button
                 onClick={() => {
@@ -256,7 +256,7 @@ export default function AuthPage({ onLoginSuccess, pendingFamilyToken = null }) 
                   isRegister ? 'btn btn-primary' : 'btn btn-secondary'
                 }`}
               >
-                Créer un compte
+                {t('Créer un compte')}
               </button>
             </div>
           )}
@@ -280,12 +280,12 @@ export default function AuthPage({ onLoginSuccess, pendingFamilyToken = null }) 
                   }}
                 >
                   <div className="tabular" style={{ fontSize: 24, fontWeight: 800, color: 'var(--warning)' }}>{lockoutSeconds}s</div>
-                  <p className="text-sm" style={{ color: 'var(--text-2)' }}>Trop de tentatives. Veuillez patienter.</p>
+                  <p className="text-sm" style={{ color: 'var(--text-2)' }}>{t('Trop de tentatives. Veuillez patienter.')}</p>
                 </div>
               )}
               <div>
                 <label className="field-label">
-                  Identifiant
+                  {t('Identifiant')}
                 </label>
                 <input
                   type="text"
@@ -300,7 +300,7 @@ export default function AuthPage({ onLoginSuccess, pendingFamilyToken = null }) 
 
               <div>
                 <label className="field-label">
-                  Mot de passe
+                  {t('Mot de passe')}
                 </label>
                 <input
                   type="password"
@@ -319,7 +319,7 @@ export default function AuthPage({ onLoginSuccess, pendingFamilyToken = null }) 
                 disabled={loading || lockoutSeconds > 0}
                 style={{ opacity: lockoutSeconds > 0 ? 0.5 : 1 }}
               >
-                {lockoutSeconds > 0 ? `Bloqué (${lockoutSeconds}s)` : loading ? 'Chargement...' : 'Valider'}
+                {lockoutSeconds > 0 ? t('Bloqué ({seconds}s)', { seconds: lockoutSeconds }) : loading ? t('Chargement…') : t('Valider')}
               </button>
             </form>
           ) : null}
@@ -334,7 +334,7 @@ export default function AuthPage({ onLoginSuccess, pendingFamilyToken = null }) 
                 className="text-xs w-full text-center mt-2 underline"
                 style={{ color: 'var(--text-3)' }}
               >
-                Mot de passe oublié ?
+                {t('Mot de passe oublié ?')}
               </button>
 
               {showForgotPassword && (
@@ -347,20 +347,20 @@ export default function AuthPage({ onLoginSuccess, pendingFamilyToken = null }) 
                   ) : (
                     <>
                       <p className="text-xs mb-2" style={{ color: 'var(--text-3)' }}>
-                        Pas d'email de reset ici (application self-hosted) — votre identifiant sera signalé aux administrateurs, qui pourront réinitialiser votre mot de passe depuis la console admin.
+                        {t("Pas d'email de réinitialisation ici : l'application est auto-hébergée. Votre identifiant sera signalé aux administrateurs, qui pourront réinitialiser votre mot de passe depuis la console.")}
                       </p>
                       <form onSubmit={handleForgotPassword} className="flex gap-2">
                         <input
                           type="text"
                           value={forgotUsername}
                           onChange={(e) => setForgotUsername(e.target.value)}
-                          placeholder="Votre identifiant"
+                          placeholder={t('Votre identifiant')}
                           className="flex-1"
                           required
                           disabled={forgotSubmitting}
                         />
                         <button type="submit" className="btn btn-secondary btn-sm" disabled={forgotSubmitting}>
-                          {forgotSubmitting ? '...' : 'Envoyer'}
+                          {forgotSubmitting ? '…' : t('Envoyer')}
                         </button>
                       </form>
                     </>
@@ -380,7 +380,7 @@ export default function AuthPage({ onLoginSuccess, pendingFamilyToken = null }) 
             <form onSubmit={handleRegister} className="space-y-4">
               <div>
                 <label className="field-label">
-                  Identifiant <span style={{ color: 'var(--danger)' }}>*</span>
+                  {t('Identifiant')} <span style={{ color: 'var(--danger)' }}>*</span>
                 </label>
                 <input
                   type="text"
@@ -394,7 +394,7 @@ export default function AuthPage({ onLoginSuccess, pendingFamilyToken = null }) 
                   required
                 />
                 <p className="text-xs mt-1" style={{ color: 'var(--text-3)' }}>
-                  3-50 caractères, unique
+                  {t('3 à 50 caractères, unique')}
                 </p>
               </div>
 
@@ -406,7 +406,7 @@ export default function AuthPage({ onLoginSuccess, pendingFamilyToken = null }) 
                   type="text"
                   value={regDisplayName}
                   onChange={(e) => setRegDisplayName(e.target.value)}
-                  placeholder="Toto Dupont"
+                  placeholder={t('Toto Dupont')}
                   className="w-full"
                   disabled={loading}
                   required
@@ -431,7 +431,7 @@ export default function AuthPage({ onLoginSuccess, pendingFamilyToken = null }) 
                   required
                 />
                 <p className="text-xs mt-1" style={{ color: 'var(--text-3)' }}>
-                  Minimum 6 caractères
+                  {t('Minimum 6 caractères')}
                 </p>
               </div>
 
@@ -455,7 +455,7 @@ export default function AuthPage({ onLoginSuccess, pendingFamilyToken = null }) 
                 className="btn btn-primary w-full mt-6"
                 disabled={loading}
               >
-                {loading ? 'Création…' : 'Créer un compte'}
+                {loading ? t('Création…') : t('Créer un compte')}
               </button>
 
               <p className="text-xs flex items-center justify-center gap-1.5 mt-4" style={{ color: 'var(--text-3)' }}>
@@ -466,24 +466,24 @@ export default function AuthPage({ onLoginSuccess, pendingFamilyToken = null }) 
               {/* Les jetons --info / --info-light n'ont jamais existé : ce
                   bandeau s'affichait sans fond et avec une couleur héritée. */}
               {isFirstUser ? (
-                <Notice tone="success" icon="star" title="Le premier compte créé sera administrateur" className="mt-4">
-                  Il pourra ensuite promouvoir ou rétrograder les suivants.
+                <Notice tone="success" icon="star" title={t('Le premier compte créé sera administrateur')} className="mt-4">
+                  {t('Il pourra ensuite promouvoir ou rétrograder les suivants.')}
                 </Notice>
               ) : registrationMode === 'invite' && inviteToken && inviteValid ? (
                 <Notice tone="success" className="mt-4">
-                  <strong>Invitation valide</strong> — créez votre compte ci-dessus.
+                  {t('Invitation valide — créez votre compte ci-dessus.')}
                 </Notice>
               ) : registrationMode === 'invite' && inviteToken && inviteValid === false ? (
                 <Notice tone="danger" className="mt-4">
-                  <strong>Invitation invalide ou expirée.</strong>
+                  <strong>{t('Invitation invalide ou expirée.')}</strong>
                 </Notice>
               ) : registrationMode === 'open' ? (
                 <Notice tone="info" icon="globe" className="mt-4">
-                  <strong>Inscription ouverte</strong> — créez votre compte librement.
+                  {t('Inscription ouverte — créez votre compte librement.')}
                 </Notice>
               ) : (
-                <Notice tone="info" icon="lock" title="Inscription sur invitation uniquement" className="mt-4">
-                  Demandez un lien d'invitation à un administrateur.
+                <Notice tone="info" icon="lock" title={t('Inscription sur invitation uniquement')} className="mt-4">
+                  {t("Demandez un lien d'invitation à un administrateur.")}
                 </Notice>
               )}
             </form>
@@ -493,7 +493,7 @@ export default function AuthPage({ onLoginSuccess, pendingFamilyToken = null }) 
         {/* Info */}
         <p className="mt-6 text-center text-xs flex items-center justify-center gap-1.5" style={{ color: 'var(--text-3)' }}>
           <Icon name="shield" size={12} />
-          Instance auto-hébergée — aucune donnée n'est partagée à l'extérieur.
+          {t("Instance auto-hébergée — aucune donnée n'est partagée à l'extérieur.")}
         </p>
       </div>
     </div>

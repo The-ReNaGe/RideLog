@@ -149,6 +149,130 @@ Pour la documentation technique complète (logique de calcul, mapping des interv
 
 ---
 
+## Traduire l'interface, ou ajouter un pays
+
+Ce sont **deux contributions différentes**, et les confondre est le piège
+principal :
+
+| | Ce que c'est | Ce qu'il faut toucher |
+|---|---|---|
+| **Langue** | le texte affiché | un fichier de catalogue |
+| **Pays** | format de plaque, calendrier du contrôle technique, base de communes, source des prix de carburant | un module Python, et rien d'autre |
+
+Traduire l'interface en néerlandais ne rendra pas RideLog utilisable aux
+Pays-Bas : le contrôle technique y suit d'autres règles. Inversement, ajouter
+les Pays-Bas ne traduit rien.
+
+### Ajouter une langue
+
+1. Copier `frontend/src/lib/locales/en.js` vers `xx.js` (code ISO à deux
+   lettres), renommer l'export `EN` en `XX`.
+2. L'enregistrer dans `frontend/src/lib/i18n.js` : une entrée dans `LANGUAGES`
+   et une dans `CATALOGS`.
+3. Traduire. **Les clés sont les phrases françaises** — on ne les touche
+   jamais, on ne remplace que la valeur de droite.
+4. Vérifier :
+
+```bash
+cd frontend
+npm run i18n          # couverture par langue, clés manquantes et orphelines
+npm run i18n:check    # sort en erreur s'il manque quelque chose
+```
+
+**Une chaîne non traduite s'affiche en français plutôt que de casser la page.**
+C'est voulu — une traduction partielle reste utilisable — mais ça rend l'oubli
+invisible, d'où l'audit.
+
+> ⚠️ `{nom}` est une valeur insérée à l'exécution. La garder à l'identique des
+> deux côtés, sinon elle s'affiche telle quelle.
+
+> ⚠️ Les clés **orphelines** signalées par l'audit sont des traductions dont la
+> phrase française a été renommée sans que le catalogue suive. La traduction
+> est alors silencieusement perdue : à corriger, pas à ignorer.
+
+### Traduire une chaîne qui ne l'est pas encore
+
+Tout n'est pas encore passé par `t()`. Pour voir ce qui reste :
+
+```bash
+npm run i18n:todo              # décompte par fichier
+node scripts/i18n-audit.mjs --todo=VehicleForm   # le détail d'un fichier
+```
+
+Envelopper une chaîne : `<h3>Paramètres</h3>` devient
+`<h3>{t('Paramètres')}</h3>`, avec `const t = useT();` en tête du composant.
+
+> ⚠️ **Ne jamais traduire une valeur envoyée à l'API.** Dans le sélecteur
+> d'intervention de `MaintenanceForm`, le libellé français est à la fois
+> affiché **et** transmis au backend, qui le résout en clé technique. Seul
+> l'affichage se traduit : `<option value={nomFr}>{t(nomFr)}</option>`.
+
+> ⚠️ Une clé passée dynamiquement — `t(item.label)` — est invisible pour
+> l'audit. La déclarer par un commentaire à côté de la table :
+> `// i18n: 'Véhicules', 'Planning'`
+
+### Ajouter un pays
+
+1. Créer `backend/regions/xx.py` exposant :
+   - `code`, `name`, `plate_example` ;
+   - `default_language`, `default_units`, `default_currency` — ce que le pays
+     propose **par défaut**, l'utilisateur restant libre de choisir autre chose ;
+   - `normalize_plate()`, `parse_plate_response()` ;
+   - `next_inspection_date()` — le calendrier du contrôle technique de ce pays.
+2. L'inscrire dans `REGIONS` (`backend/regions/__init__.py`).
+
+Un véhicule peut nommer son propre pays (champ « Pays d'immatriculation ») :
+c'est lui qui décide de son calendrier de contrôle technique, pas le pays de
+l'instance ni celui de la personne qui regarde. Laissé vide, il suit
+l'instance.
+
+Il apparaît alors **seul dans le sélecteur** de Paramètres → Préférences, sans
+qu'aucune route ni aucun écran ne bouge. Les tests de `test_regions_fr.py` se
+transposent tels quels.
+
+**Pour savoir ce qu'un nouveau pays impacte à l'écran**, chercher le composant
+`CountryBadge` : il marque exactement les endroits dont le comportement dépend
+du pays.
+
+```bash
+grep -rn "CountryBadge" frontend/src
+```
+
+Trois blocs restent franco-spécifiques et devront remonter dans `regions/` au
+premier second pays réel — ils sont recensés dans le docstring de
+`backend/regions/__init__.py`. Les déplacer **avant** d'avoir ce second cas
+serait de l'abstraction que rien ne valide.
+
+Les **fourchettes de prix** de `maintenance_intervals.json` sont, elles aussi,
+des tarifs français. Un nouveau pays apporte ses propres tarifs — pas un taux
+de change.
+
+### Ajouter une devise
+
+1. Une entrée dans `CURRENCIES` (`backend/currency.py`).
+2. La même dans `CURRENCY_SYMBOLS` (`frontend/src/lib/currencies.js`).
+
+Les deux listes sont recopiées volontairement : `fmt.money()` est synchrone et
+tourne sur chaque montant affiché, aller chercher un symbole par requête serait
+absurde. Deux listes courtes, dont l'écart se verrait au premier montant.
+
+> ⚠️ **Ne pas brancher de service de taux de change.** Le bon taux serait celui
+> du jour de *chaque ligne* — le plein de mars et celui de novembre n'ont pas
+> été payés au même cours. Un taux automatique serait tout aussi approximatif
+> qu'un taux saisi à la main, mais prétendrait le contraire et ferait bouger
+> l'historique tout seul.
+>
+> La conversion existe (`POST /api/admin/currency/convert`, avec aperçu et
+> sauvegarde préalable) mais **n'a volontairement pas d'écran** : repartir dans
+> une autre monnaie arrive une fois, ou jamais, et un bouton irréversible posé
+> à côté d'un réglage d'affichage anodin est une mauvaise idée. Ne pas en
+> ajouter un sans lire le §20.7 de `CLAUDE.md` d'abord.
+>
+> Chaque montant porte déjà la devise de sa saisie : c'est ce qui rend
+> l'historique vrai, indépendamment du réglage d'affichage.
+
+---
+
 ## Guides par type de contribution
 
 ### Ajouter un type d'entretien

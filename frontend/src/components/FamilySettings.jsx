@@ -3,6 +3,7 @@ import { api } from '../lib/api';
 import { copyToClipboard } from '../lib/clipboard';
 import Icon from './Icon';
 import Notice from './Notice';
+import { useFormat } from '../lib/preferencesContext';
 
 /**
  * Gestion du groupe famille — création, membres, invitations.
@@ -12,6 +13,7 @@ import Notice from './Notice';
  * pour qu'on ne découvre pas la limite en butant dessus.
  */
 export default function FamilySettings({ currentUser }) {
+  const fmt = useFormat();
   const [family, setFamily] = useState(null);
   const [role, setRole] = useState(null);
   const [invitations, setInvitations] = useState([]);
@@ -340,7 +342,7 @@ export default function FamilySettings({ currentUser }) {
                     }}
                   >
                     <span className="text-sm" style={{ color: 'var(--text-2)' }}>
-                      Expire le {new Date(inv.expires_at).toLocaleDateString('fr-FR', {
+                      Expire le {fmt.date(inv.expires_at, {
                         day: '2-digit', month: '2-digit', year: 'numeric',
                         hour: '2-digit', minute: '2-digit',
                       })}

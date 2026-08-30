@@ -6,6 +6,8 @@ from sqlalchemy.orm import Session
 from sqlalchemy import func
 
 from models import Maintenance, FuelLog, User, VehicleMaintenanceOverride, get_db
+from currency import merge_totals, totals_by_currency
+from settings_store import get_active_currency, get_active_region_code
 from security import get_current_user
 from routes.access import list_owned_vehicles
 from maintenance_calculator import MaintenanceCalculator, get_intervention_key, build_last_maintenances_dict
@@ -60,6 +62,12 @@ def get_dashboard(
     alert_details = []
     vehicle_summaries = []
 
+    # Pays de l'instance, lu une fois : il sert de repli pour tout véhicule
+    # qui ne nomme pas le sien.
+    instance_region = get_active_region_code(db)
+    # Repli des lignes non marquées, lu une fois lui aussi.
+    instance_currency = get_active_currency(db)
+
     for v in vehicles:
         v_maintenances = [m for m in all_maintenances if m.vehicle_id == v.id]
         last_maintenances = build_last_maintenances_dict(v_maintenances)
@@ -75,6 +83,7 @@ def get_dashboard(
             service_interval_months=v.service_interval_months,
             motorization=v.motorization,
             overrides=vehicle_overrides,  # ← overrides appliqués
+            region_code=v.country or instance_region,
         )
 
         overdue = sum(1 for u in upcoming if u["status"] == "overdue")
@@ -118,9 +127,17 @@ def get_dashboard(
             "urgent_count": urgent,
             "warning_count": warn,
             "total_cost": round(v_maint_cost + v_fuel_cost, 2),
+            # Le total nu reste là pour ce qui trie et compare ; c'est la
+            # ventilation que l'interface affiche, sans quoi une dépense de
+            # 200 € et une de 200 $ ressortiraient en « 400 ».
+            "cost_by_currency": merge_totals(
+                totals_by_currency(v_maintenances, "cost_paid", instance_currency),
+                totals_by_currency(v_fuel_logs, "total_cost", instance_currency),
+            ),
             "maintenance_cost": round(v_maint_cost, 2),
             "fuel_cost": round(v_fuel_cost, 2),
             "purchase_price": v.purchase_price,
+            "purchase_price_currency": v.currency,
             "next_maintenance": upcoming[0]["intervention_type"] if upcoming else None,
             "next_maintenance_status": upcoming[0]["status"] if upcoming else "ok",
         })
@@ -137,6 +154,9 @@ def get_dashboard(
             "intervention_type": m.other_description if m.intervention_type == "Autre" and m.other_description else m.intervention_type,
             "execution_date": m.execution_date.isoformat(),
             "cost_paid": m.cost_paid,
+            # Sans elle, le front ne peut afficher que le symbole d'instance et
+            # une révision payée en dollars se met à mentir (§20.7).
+            "currency": m.currency,
         })
 
     # Monthly cost breakdown (last 12 months)
@@ -152,11 +172,21 @@ def get_dashboard(
     sorted_months = sorted(monthly_costs.items())[-12:]
 
     fleet_purchase_price = sum(vs["purchase_price"] or 0 for vs in vehicle_summaries)
+    fleet_purchase_by_currency = totals_by_currency(
+        [v for v in vehicles if v.purchase_price is not None],
+        "purchase_price", instance_currency,
+    )
 
     return {
         "total_vehicles": total_vehicles,
         "total_mileage": total_mileage,
         "total_cost": round(total_maintenance_cost + total_fuel_cost, 2),
+        # Voir currency.totals_by_currency : un total qui enjambe deux devises
+        # reste affiché, mais l'interface ne lui pose pas un symbole faux.
+        "cost_by_currency": merge_totals(
+            totals_by_currency(all_maintenances, "cost_paid", instance_currency),
+            totals_by_currency(all_fuel, "total_cost", instance_currency),
+        ),
         "total_maintenance_cost": round(total_maintenance_cost, 2),
         "total_fuel_cost": round(total_fuel_cost, 2),
         "total_maintenances": total_maintenances,
@@ -165,6 +195,7 @@ def get_dashboard(
         "urgent_count": urgent_total,
         "warning_count": warning_total,
         "fleet_purchase_price": fleet_purchase_price,
+        "fleet_purchase_by_currency": fleet_purchase_by_currency,
         "alert_details": alert_details,
         "vehicles": vehicle_summaries,
         "recent_activity": recent_activity,

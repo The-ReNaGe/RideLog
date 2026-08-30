@@ -32,6 +32,7 @@ from security import (
     login_limiter,
     account_limiter,
 )
+from settings_store import effective_preferences
 from config import HA_INIT_KEY
 import config as app_config
 
@@ -87,6 +88,13 @@ class UserResponse(BaseModel):
     created_at: str
     must_change_password: bool = False
     password_reset_requested_at: str | None = None
+    # None = aucune préférence exprimée, à ne pas confondre avec un choix
+    # explicite : le pays actif fournit alors le défaut (migrations 011 et 012).
+    language: str | None = None
+    units: str | None = None
+    # Ce que l'interface doit réellement appliquer, replis compris. Évite au
+    # frontend d'appeler /regions au démarrage juste pour connaître un défaut.
+    effective: dict | None = None
 
 
 class AdminCreateUserRequest(BaseModel):
@@ -280,8 +288,11 @@ async def request_password_reset(
 
 
 @router.get("/auth/me", response_model=UserResponse)
-async def get_current_user_info(current_user: User = Depends(get_current_user)):
-    return current_user.to_dict()
+async def get_current_user_info(
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    return {**current_user.to_dict(), "effective": effective_preferences(db, current_user)}
 
 
 @router.post("/auth/logout")
@@ -295,6 +306,57 @@ async def refresh_token(current_user: User = Depends(get_current_user)):
     new_token = create_access_token(current_user.id, current_user.username, password_changed_at=current_user.password_changed_at)
     logger.info("Token renouvelé pour: %s", current_user.username)
     return new_token
+
+
+class PreferencesRequest(BaseModel):
+    """Préférences personnelles. Chaque champ est facultatif — l'écran des
+    réglages n'envoie que ce qui vient de changer.
+
+    `None` signifie « ne touche pas à ce réglage », et non « efface-le ». Pour
+    revenir au défaut du pays il faut passer la chaîne "auto" : sans ce mot
+    explicite, aucun moyen de distinguer les deux intentions dans un corps JSON.
+    """
+
+    # Les langues réellement servies par le frontend. Le backend ne traduit
+    # rien lui-même : il retient le choix et le rend au prochain démarrage,
+    # pour qu'il suive l'utilisateur d'un navigateur à l'autre.
+    language: str | None = Field(None, pattern="^(fr|en|auto)$")
+    units: str | None = Field(None, pattern="^(metric|imperial|auto)$")
+
+
+@router.put("/auth/me/preferences", response_model=UserResponse)
+async def set_own_preferences(
+    data: PreferencesRequest,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """Langue et unités du compte connecté.
+
+    Réglages **par utilisateur**, contrairement au pays qui vaut pour l'instance
+    entière : dans un groupe famille, un membre peut vouloir l'anglais et les
+    miles quand un autre reste au français et aux kilomètres. Le pays décrit la
+    machine, la langue et les unités décrivent la personne.
+    """
+    # ⚠️ `current_user` provient de get_current_user, qui ouvre SA PROPRE session
+    # (security.py : `db = next(get_db_session())`). Le modifier puis committer
+    # `db` ne persiste rien — la modification vit dans l'autre session. D'où la
+    # re-requête, exactement comme le fait déjà change_own_password.
+    user = db.query(User).filter(User.id == current_user.id).first()
+    if not user:
+        raise HTTPException(status_code=404, detail="Utilisateur introuvable")
+
+    if data.language is not None:
+        user.language = None if data.language == "auto" else data.language
+    if data.units is not None:
+        user.units = None if data.units == "auto" else data.units
+
+    db.commit()
+    db.refresh(user)
+    logger.info(
+        "Préférences mises à jour pour %s (langue=%s, unités=%s)",
+        user.username, user.language, user.units,
+    )
+    return {**user.to_dict(), "effective": effective_preferences(db, user)}
 
 
 @router.put("/auth/me/password", response_model=TokenResponse)

@@ -1,7 +1,10 @@
 import React from 'react';
 import VehiclePhoto from './VehiclePhoto';
 import Icon from './Icon';
+import { useFormat, useT } from '../lib/preferencesContext';
 
+// Libellés traduits au rendu via t() — déclarés pour l'audit.
+// i18n: 'Essence', 'Diesel', 'Hybride', 'Électrique', 'Thermique', 'Accessible', 'Généraliste', 'Premium'
 const motorLabels = {
   essence: 'Essence',
   diesel: 'Diesel',
@@ -34,32 +37,34 @@ const ALERT_LEVELS = {
     fill: 'var(--danger-light)',
     outline: true,
     icon: 'alert',
-    label: (n) => `${n} entretien${n > 1 ? 's' : ''} en retard`,
+    label: (n, t) => t('{count} entretien(s) en retard', { count: n }),
   },
   urgent: {
     color: 'var(--warning)',
     fill: 'var(--warning-light)',
     outline: false,
     icon: 'alertCircle',
-    label: (n) => `${n} entretien${n > 1 ? 's' : ''} urgent${n > 1 ? 's' : ''}`,
+    label: (n, t) => t('{count} entretien(s) urgent(s)', { count: n }),
   },
   warning: {
     color: 'var(--warning)',
     fill: 'transparent',
     outline: false,
     icon: 'clock',
-    label: (n) => `${n} entretien${n > 1 ? 's' : ''} à surveiller`,
+    label: (n, t) => t('{count} entretien(s) à surveiller', { count: n }),
   },
   ok: {
     color: 'var(--text-3)',
     fill: 'transparent',
     outline: false,
     icon: 'check',
-    label: () => 'À jour',
+    label: (_n, t) => t('À jour'),
   },
 };
 
 export default React.memo(function VehicleCard({ vehicle, onSelect, currentUser }) {
+  const fmt = useFormat();
+  const t = useT();
   const age = new Date().getFullYear() - vehicle.year;
   const typeIcon = vehicle.vehicle_type === 'car' ? 'car' : 'motorcycle';
 
@@ -84,8 +89,8 @@ export default React.memo(function VehicleCard({ vehicle, onSelect, currentUser 
 
   const meta = [
     vehicle.year ? `${vehicle.year}${age > 0 ? ` · ${age} an${age > 1 ? 's' : ''}` : ''}` : null,
-    motorLabels[vehicle.motorization] || vehicle.motorization,
-    categoryLabels[vehicle.range_category] || vehicle.range_category,
+    t(motorLabels[vehicle.motorization] || vehicle.motorization),
+    t(categoryLabels[vehicle.range_category] || vehicle.range_category),
   ].filter(Boolean);
 
   const handleKeyDown = (e) => {
@@ -131,7 +136,7 @@ export default React.memo(function VehicleCard({ vehicle, onSelect, currentUser 
         {isMine && vehicle.is_private && (
           <span
             className="badge"
-            title="Exclu du partage avec votre groupe famille"
+            title={t('Exclu du partage avec votre groupe famille')}
             style={{
               position: 'absolute', top: 10, right: 10,
               background: 'var(--bg-surface)', color: 'var(--text-2)',
@@ -167,8 +172,8 @@ export default React.memo(function VehicleCard({ vehicle, onSelect, currentUser 
 
         <div style={{ marginTop: 'auto' }}>
           <div className="tabular" style={{ fontSize: 22, fontWeight: 800, letterSpacing: '-0.02em', color: 'var(--text-1)' }}>
-            {vehicle.current_mileage.toLocaleString('fr-FR')}
-            <span style={{ fontSize: 13, fontWeight: 600, color: 'var(--text-3)', marginLeft: 4 }}>km</span>
+            {fmt.dist(vehicle.current_mileage, { withUnit: false })}
+            <span style={{ fontSize: 13, fontWeight: 600, color: 'var(--text-3)', marginLeft: 4 }}>{fmt.distUnit}</span>
           </div>
           <div className="flex items-center flex-wrap" style={{ gap: 6, marginTop: 4 }}>
             {meta.map((m, i) => (
@@ -193,7 +198,7 @@ export default React.memo(function VehicleCard({ vehicle, onSelect, currentUser 
           }}
         >
           <Icon name={level.icon} size={14} strokeWidth={2} />
-          {level.label(alertCount)}
+          {level.label(alertCount, t)}
         </div>
       )}
     </article>

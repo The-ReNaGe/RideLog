@@ -9,6 +9,7 @@ import Planning from './pages/Planning';
 import Dashboard from './pages/Dashboard';
 import version from './version';
 import Icon from './components/Icon';
+import { PreferencesProvider, useT } from './lib/preferencesContext';
 import { api } from './lib/api';
 
 class ErrorBoundary extends React.Component {
@@ -40,6 +41,9 @@ class ErrorBoundary extends React.Component {
   }
 }
 
+// Libellés passés à t() dynamiquement (`t(item.label)`) : déclarés ici pour
+// que scripts/i18n-audit.mjs les voie.
+// i18n: 'Véhicules', 'Tableau de bord', 'Bilan', 'Stations', 'Planning', 'Paramètres', 'Réglages', 'Admin'
 const NAV_ITEMS = [
   { key: 'vehicles',      icon: 'car',      label: 'Véhicules',  matchKeys: ['vehicles', 'vehicle-detail'] },
   { key: 'dashboard',     icon: 'chart',    label: 'Tableau de bord', shortLabel: 'Bilan' },
@@ -49,6 +53,7 @@ const NAV_ITEMS = [
 ];
 
 function AppContent({ isAuthenticated, currentUser, onLogout }) {
+  const t = useT();
   const [currentPage, setCurrentPage] = useState('vehicles');
   const [selectedVehicleId, setSelectedVehicleId] = useState(null);
   const [theme, setTheme] = useState(() => localStorage.getItem('theme') || 'light');
@@ -151,7 +156,7 @@ function AppContent({ isAuthenticated, currentUser, onLogout }) {
                   aria-current={isActive(item) ? 'page' : undefined}
                 >
                   <Icon name={item.icon} size={15} />
-                  {item.label}
+                  {t(item.label)}
                 </button>
               ))}
             </div>
@@ -163,8 +168,8 @@ function AppContent({ isAuthenticated, currentUser, onLogout }) {
             <button
               onClick={toggleTheme}
               className="btn-icon"
-              title={theme === 'light' ? 'Passer en mode nuit' : 'Passer en mode jour'}
-              aria-label={theme === 'light' ? 'Passer en mode nuit' : 'Passer en mode jour'}
+              title={theme === 'light' ? t('Passer en mode nuit') : t('Passer en mode jour')}
+              aria-label={theme === 'light' ? t('Passer en mode nuit') : t('Passer en mode jour')}
             >
               <Icon name={theme === 'light' ? 'moon' : 'sun'} size={17} />
             </button>
@@ -175,7 +180,7 @@ function AppContent({ isAuthenticated, currentUser, onLogout }) {
                 <span
                   className="avatar"
                   style={{ width: 30, minWidth: 30, height: 30, fontSize: 13 }}
-                  title={`Connecté en tant que ${currentUser.display_name}`}
+                  title={t('Connecté en tant que {name}', { name: currentUser.display_name })}
                 >
                   {(currentUser.display_name || currentUser.username || '?').charAt(0)}
                 </span>
@@ -185,8 +190,8 @@ function AppContent({ isAuthenticated, currentUser, onLogout }) {
                 <button
                   onClick={onLogout}
                   className="btn-icon"
-                  title="Se déconnecter"
-                  aria-label="Se déconnecter"
+                  title={t('Se déconnecter')}
+                  aria-label={t('Se déconnecter')}
                 >
                   <Icon name="logout" size={17} />
                 </button>
@@ -210,8 +215,8 @@ function AppContent({ isAuthenticated, currentUser, onLogout }) {
       {/* Footer desktop */}
       <footer className="hidden sm:block" style={{ borderTop: '1px solid var(--border)' }}>
         <div className="py-4 text-center px-4" style={{ color: 'var(--text-3)', fontSize: 12 }}>
-          RideLog v{version} — suivi d'entretien open source
-          {currentUser?.display_name && <> · connecté en tant que {currentUser.display_name}</>}
+          RideLog v{version} — {t('suivi d\'entretien open source')}
+          {currentUser?.display_name && <> · {t('connecté en tant que {name}', { name: currentUser.display_name })}</>}
         </div>
       </footer>
 
@@ -232,7 +237,7 @@ function AppContent({ isAuthenticated, currentUser, onLogout }) {
               >
                 <Icon name={item.icon} size={20} />
                 <span className="nav-bottom-label">
-                  {item.shortLabel || item.label}
+                  {t(item.shortLabel || item.label)}
                 </span>
               </button>
             );
@@ -356,6 +361,19 @@ export default function App() {
     }
     setLoading(false);
 
+    // Le compte gardé en localStorage vient d'une session antérieure et peut
+    // ne pas porter `effective` (préférences résolues côté serveur). On le
+    // relit une fois au démarrage, sinon une session déjà ouverte resterait
+    // sur les valeurs en cache jusqu'à la prochaine reconnexion.
+    if (token && user) {
+      api.getCurrentUser()
+        .then((res) => {
+          setCurrentUser(res.data);
+          localStorage.setItem('user', JSON.stringify(res.data));
+        })
+        .catch(() => { /* hors ligne ou token expiré : le cache reste valable */ });
+    }
+
     const handleTokenExpired = () => {
       setIsAuthenticated(false);
       setCurrentUser(null);
@@ -414,6 +432,11 @@ export default function App() {
     return () => { cancelled = true; };
   }, [isAuthenticated, pendingFamilyToken]);
 
+  // Le provider de langue enveloppe les quatre états de l'application. Rendre
+  // le contenu par une fonction interne évite de répéter la balise à chaque
+  // sortie anticipée — et d'en oublier une, ce qui ferait retomber cet écran-là
+  // en français sans que rien ne le signale.
+  const renderContent = () => {
   if (loading) {
     return (
       <div className="min-h-screen flex items-center justify-center" style={{ background: 'var(--bg-base)' }}>
@@ -468,4 +491,7 @@ export default function App() {
       <AppContent isAuthenticated={isAuthenticated} currentUser={currentUser} onLogout={handleLogout} />
     </ErrorBoundary>
   );
+  };
+
+  return <PreferencesProvider user={currentUser}>{renderContent()}</PreferencesProvider>;
 }

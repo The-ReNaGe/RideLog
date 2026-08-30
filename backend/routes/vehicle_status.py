@@ -15,6 +15,7 @@ from typing import Dict, List
 from sqlalchemy.orm import Session
 
 from models import Maintenance, Vehicle, VehicleMaintenanceOverride
+from settings_store import get_active_region_code
 from maintenance_calculator import MaintenanceCalculator, build_last_maintenances_dict
 
 calculator = MaintenanceCalculator()
@@ -49,6 +50,10 @@ def alert_counts_for(vehicles: List[Vehicle], db: Session) -> Dict[int, dict]:
         overrides_by_vehicle.setdefault(o.vehicle_id, {})[o.intervention_key] = o
 
     result: Dict[int, dict] = {}
+    # Pays de l'instance, lu une fois : il sert de repli pour tout véhicule
+    # qui ne nomme pas le sien.
+    instance_region = get_active_region_code(db)
+
     for v in vehicles:
         upcoming = calculator.get_all_upcoming_maintenances(
             v.vehicle_type,
@@ -62,6 +67,7 @@ def alert_counts_for(vehicles: List[Vehicle], db: Session) -> Dict[int, dict]:
             service_interval_months=v.service_interval_months,
             motorization=v.motorization,
             overrides=overrides_by_vehicle.get(v.id, {}),
+            region_code=v.country or instance_region,
         )
 
         counts = {level: 0 for level in SEVERITY}

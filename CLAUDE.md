@@ -117,7 +117,7 @@ Les variables d'environnement sont gérées via un fichier `.env` à la racine d
 | `LOG_LEVEL` | `INFO` | Niveau de log |
 | `RAPIDAPI_KEY` | — | Clé API pour décodage plaque d'immatriculation |
 | `RIDELOG_TAG` | `stable` | Canal d'image : `stable` (validé à la main), `latest` (chaque merge, non validé), ou une version figée. Voir §21 |
-| `REGION` | `FR` | Pays actif — format de plaque et service de décodage (voir §20). Un code inconnu retombe sur `FR` |
+| `REGION` | `FR` | Pays **initial** — format de plaque et service de décodage (voir §20). Le choix fait dans Paramètres → **Préférences** est persisté en base et l'emporte. Un code inconnu retombe sur `FR` |
 | `REMINDER_INTERVAL` | `3600` | Intervalle de vérification des rappels (secondes) |
 | `REMINDER_ENABLED` | `true` | Active/désactive le scheduler de rappels |
 | `DB_BACKUP_DIR` | `/data/backups` | Répertoire des sauvegardes automatiques prises avant toute migration de schéma (voir §13) |
@@ -155,6 +155,8 @@ backend/
 ├── security.py                # JWT, bcrypt, rate limiting, middlewares auth
 ├── maintenance_calculator.py  # ★ LOGIQUE MÉTIER PRINCIPALE ★
 ├── reminder_scheduler.py      # Scheduler background (rappels webhook)
+├── settings_store.py          # Réglages d'instance persistés : pays et devise — §20.3, §20.7
+├── currency.py                # ★ Devises : catalogue, marquage, conversion explicite — §20.7 ★
 ├── regions/                   # ★ Ce qui dépend du PAYS, pas de la langue — voir §20 ★
 │   ├── __init__.py            # Registre, helpers partagés, variable REGION
 │   └── fr.py                  # France : plaque SIV, réponse carte grise
@@ -173,6 +175,8 @@ backend/
 │   ├── test_login_rate_limiter.py
 │   ├── test_migrations.py
 │   ├── test_regions_fr.py
+│   ├── test_regions_settings.py
+│   ├── test_user_preferences.py
 │   ├── test_maintenance_routes.py
 │   └── test_auth_integration.py
 └── routes/
@@ -187,6 +191,7 @@ backend/
     ├── exports.py         # Export ZIP, estimation valeur, carte HA YAML
     ├── fuels.py           # CRUD carburant, statistiques conso
     ├── fuel_stations.py   # Recherche stations par ville (OSM + prix-carburants)
+    ├── regions.py         # Pays de l'instance : lecture (JWT) et choix (admin) — voir §20.3
     └── webhooks.py        # CRUD webhooks, envoi notifications Discord
 ```
 
@@ -286,6 +291,7 @@ Schémas Pydantic pour les entrées/sorties :
 | GET | `/api/auth/me` | JWT | Infos utilisateur courant |
 | POST | `/api/auth/logout` | JWT | Déconnexion (advisory, JWT stateless) |
 | POST | `/api/auth/refresh` | JWT | Renouveler le token |
+| PUT | `/api/auth/me/preferences` | JWT | Langue et unités du compte (`fr`/`en`, `metric`/`imperial`, ou `auto`) — voir §20.5 |
 | POST | `/api/auth/refresh-token` | Bearer header | Renouveler (utilisé par HA) |
 | POST | `/api/auth/ha-init` | `init_key` param | Créer/renouveler le compte Home Assistant |
 | GET | `/api/admin/users` | Admin | Lister tous les utilisateurs |
@@ -902,6 +908,10 @@ frontend/src/
 ├── main.jsx                    # Point d'entrée React
 ├── lib/
 │   ├── api.js                       # Client Axios — toutes les méthodes API
+│   ├── i18n.js                      # ★ Moteur de traduction — catalogues, t() — voir §20.5 ★
+│   ├── preferencesContext.jsx       # Provider React — langue ET unités — hooks usePreferences / useT
+│   ├── units.js                     # ★ Conversions km↔mi, L↔gal, L/100km↔MPG — voir §20.6 ★
+│   ├── locales/en.js                # Catalogue anglais — les clés sont les phrases françaises
 │   ├── interventionTranslations.js  # Traductions noms d'interventions (anglais → français)
 │   └── revisionChecklist.js         # ★ Logique partagée checklist révision (items, sous-items, helpers) ★
 ├── pages/
@@ -914,6 +924,8 @@ frontend/src/
 │   └── Admin.jsx               # Administration (users, invitations)
 └── components/
     ├── Icon.jsx                     # ★ Jeu d'icônes SVG maison — aucun émoji dans l'interface, voir §23 ★
+    ├── Flag.jsx                     # Drapeaux de pays — seul composant coloré, voir §23.10
+    ├── CountryBadge.jsx             # ★ Marque ce qui dépend du PAYS — recensement, voir §23.10 bis ★
     ├── Notice.jsx                   # Encart d'explication/résultat (tons info, success, warning, danger, neutral)
     ├── PageHeader.jsx               # En-tête de page : titre, précision, actions
     ├── CategoryTag.jsx              # Catégorie d'intervention (entretien / réparation / modification)
@@ -1015,16 +1027,17 @@ api.getMaintenanceRecap(vehicleId),  // ← chargé d'emblée pour les KPI cards
 | Table | Clés | Description |
 |-------|------|-------------|
 | `users` | id, username (unique) | Comptes utilisateurs (is_admin, is_integration_account) |
-| `vehicles` | id, user_id (FK) | Véhicules du parc |
-| `maintenances` | id, vehicle_id (FK), intervention_key | Historique d'entretien. `intervention_key` fait foi pour les calculs ; `intervention_type` n'est qu'un libellé d'affichage (voir §20) |
+| `vehicles` | id, user_id (FK) | Véhicules du parc. `country` = pays d'immatriculation, NULL = suit l'instance (voir §20.7) |
+| `maintenances` | id, vehicle_id (FK), intervention_key | Historique d'entretien. `intervention_key` fait foi pour les calculs ; `intervention_type` n'est qu'un libellé d'affichage (voir §20). `currency` = devise de saisie, NULL = suit l'instance (§20.7) |
 | `maintenance_invoices` | id, maintenance_id (FK) | Factures jointes |
-| `fuel_logs` | id, vehicle_id (FK) | Pleins de carburant |
+| `fuel_logs` | id, vehicle_id (FK) | Pleins de carburant. `currency` comme ci-dessus |
 | `webhooks` | id, user_id (FK) | Webhooks Discord configurés |
 | `notification_logs` | id, vehicle_id (FK) | Log des notifications envoyées (anti-doublon) |
 | `invitations` | id, token (unique), family_id (FK, nullable) | Tokens d'invitation. `family_id` renseigné = invitation à rejoindre un groupe (voir §22) |
 | `families` | id, created_by (FK) | Groupes famille — partage en lecture (voir §22) |
 | `family_members` | id, family_id (FK), user_id (FK, **unique**) | Appartenance : un utilisateur, un seul groupe |
 | `vehicle_estimates` | id, brand, model | Estimations de valeur résiduelle |
+| `app_settings` | key (PK) | Réglages d'instance choisis dans l'interface et **persistés** — le pays (§20.3) et la devise (§20.7) |
 | `vehicle_maintenance_overrides` | id, vehicle_id (FK), intervention_key | Ce qu'un véhicule change au catalogue d'entretien : intervalles surchargés, interventions écartées, entretiens personnalisés (voir §16) |
 
 ### `vehicle_maintenance_overrides` — détail
@@ -1653,7 +1666,10 @@ python -m pytest tests/ -v
 | `test_client_ip.py` | `get_client_ip()`, les deux limiteurs et `validate_jwt_secret()` (`security.py`) — verrouille les deux contournements corrigés du rate limiter (`X-Forwarded-For` falsifié, et passerelle Docker prise pour un proxy de confiance sur le port 8000 — voir §4), le verrouillage par compte, et le refus de démarrer sur un `JWT_SECRET` public. |
 | `test_migrations.py` | `migrations.py` — parité de schéma entre base neuve et base migrée, survie des données, idempotence, adoption d'une base sans registre, migration à demi appliquée, rollback, garde anti-retour-arrière, sauvegardes. Tourne sur **deux schémas anciens réels** figés dans `tests/fixtures/*.sql` (le commit initial du dépôt et une instance antérieure au dépôt), jamais sur un schéma écrit de mémoire. |
 | `test_fuel_stations.py` | Routes `/fuel-stations/*` — authentification exigée sur les trois endpoints, bornes de `max_distance`/`limit`, cache (clé insensible aux accents, plafond, expiration). Les appels sortants sont monkeypatchés : aucun test ne sort sur le réseau. |
+| `test_user_preferences.py` | Langue et unités (`users.language`, `users.units`, `PUT /auth/me/preferences`) — un compte neuf porte `NULL` et non `"fr"`/`"metric"`, les préférences effectives retombent sur le pays, `auto` remet un réglage sous ce défaut, une valeur non servie est refusée, et surtout **l'isolation par utilisateur** : le choix d'un membre ne déborde pas sur les autres. |
 | `test_regions_fr.py` | `regions/fr.py` — normalisation de plaque, analyse de la réponse carte grise (détection moto par genre, replis de cylindrée, priorité du genre sur l'indication utilisateur), repli du registre sur `FR`. Aucun appel réseau : cette logique n'était auparavant atteignable que via un service tiers payant, donc jamais testée. |
+| `test_currency.py` | Devise d'un montant et conversion (`currency.py`, `routes/regions.py`) — un montant garde la devise de sa saisie même après un changement de réglage, une ligne non marquée est figée sur la devise sortante, un total à deux devises est ventilé et non additionné, l'aperçu ne touche rien, la conversion recalcule et ré-estampille, une troisième devise est laissée intacte, et seul un admin peut convertir. |
+| `test_regions_settings.py` | Choix du pays (`settings_store.py`, `routes/regions.py`) — France par défaut, refus d'un pays inconnu, écriture réservée à un admin, persistance **en base** et non en mémoire, et repli sur `FR` quand la base garde un pays que le code ne connaît plus (retour arrière, §21.5). |
 | `test_maintenance_routes.py` | Enregistrement d'un entretien via `TestClient` — la clé technique est stockée, deux libellés d'une même intervention partagent une clé, un libellé inconnu n'échoue pas, et l'entretien enregistré ressort bien rattaché à son échéance. |
 | `test_vehicle_status.py` | État d'entretien joint à `GET /vehicles` — présence des compteurs, accord avec `/upcoming`, et surtout : un véhicule **partagé par le groupe famille** porte le sien aussi (voir §23.9). |
 | `test_auth_integration.py` | Routes `/auth/*` et `/admin/users/*` via `TestClient` sur une DB SQLite temporaire — register/login, changement de mot de passe, reset admin, mot de passe temporaire (`must_change_password`), demande de reset anti-énumération, et non-énumération des identifiants à l'inscription (voir §4). |
@@ -1736,19 +1752,72 @@ clé dans `{key, name}` sans qu'on la lise.
 
 ### 20.3 Couture régionale (`backend/regions/`)
 
-Le pays actif se lit dans `REGION` (défaut `FR`). Un code inconnu retombe sur
-`FR` : une variable mal orthographiée ne doit pas rendre l'instance inutilisable.
+Le pays se choisit dans l'interface — Paramètres → **Préférences** (§23.11),
+réservé à un administrateur. Il n'y a qu'un pays au registre aujourd'hui : c'est la
+*couture* qui est posée, pas le second pays (§20.4 dit pourquoi).
+
+**Ordre de priorité**, du plus fort au plus faible :
+
+```
+1. le choix fait dans l'interface       → table app_settings, clé "region"
+2. la variable d'environnement REGION   → valeur initiale
+3. la France
+```
+
+Le niveau 2 est ce qui rend la reprise indolore : une instance qui tourne avec
+`REGION=FR` dans son `.env` ne change pas de comportement, et son `.env`
+continue de décider tant que personne n'a touché au réglage.
+
+> ⚠️ **Le réglage est persisté en base, pas gardé en mémoire.**
+> `REGISTRATION_MODE` et `_ha_integration_enabled` sont des variables
+> module-level qui **repassent à leur défaut à chaque démarrage** (§19 le
+> documente déjà comme un piège de test). Reproduire ce schéma ici aurait
+> replacé une instance étrangère sur la France au premier
+> `docker compose up -d`, sans un mot dans les logs. D'où `app_settings` —
+> table nouvelle, donc **aucune migration à écrire** (§13).
+
+**Trois portes d'entrée, trois comportements différents sur un code inconnu**,
+et c'est voulu :
+
+| Fonction | Code inconnu | Pourquoi |
+|---|---|---|
+| `get_region(code)` | repli silencieux sur `FR` | au démarrage, l'alternative est un backend mort |
+| `is_known_region(code)` | `False` | le formulaire doit pouvoir refuser |
+| `get_active_region_code(db)` | repli sur `FR` **+ log** | retour à une image plus ancienne (§21.5) : la base garde un pays que le code ne connaît plus, le décodage doit continuer |
+
+`PUT /admin/region` utilise le deuxième : un code refusé renvoie **400** en
+nommant les pays connus. Absorber le choix en repliant sur la France ferait
+croire à l'administrateur qu'il a changé de pays.
 
 ```python
-region = get_region()
+region = get_active_region(db)                      # ← dans une route
 normalized = region.normalize_plate(plate)          # "" si format invalide
 parsed = region.parse_plate_response(payload, hint) # → champs véhicule RideLog
 ```
 
+| Méthode | Route | Protection | Description |
+|---|---|---|---|
+| GET | `/api/regions` | JWT | Pays disponibles, pays actif, devises, devise active |
+| PUT | `/api/admin/region` | Admin | Choisir le pays de l'instance |
+| PUT | `/api/admin/currency` | Admin | Choisir la devise d'affichage (§20.7) |
+| POST | `/api/admin/currency/convert` | Admin | Convertir tous les montants au taux fourni (§20.7) |
+
+La lecture est ouverte à tout utilisateur connecté : l'exemple de plaque
+s'affiche dans le formulaire véhicule, que n'importe qui remplit. Seule
+l'écriture est réservée — le pays vaut pour l'instance entière, pas par
+utilisateur.
+
 **Ajouter un pays** = ajouter `regions/xx.py` exposant `code`, `name`,
 `plate_example`, `normalize_plate()` et `parse_plate_response()`, puis
-l'inscrire dans `REGIONS`. Les tests de `test_regions_fr.py` se transposent tels
-quels.
+l'inscrire dans `REGIONS`. Il apparaît alors **seul dans le sélecteur**, sans
+qu'aucune route ni aucun écran ne bouge. Les tests de `test_regions_fr.py` se
+transposent tels quels ; ceux de `test_regions_settings.py` verrouillent la
+persistance et les replis.
+
+**Fichiers concernés** : `regions/__init__.py` (registre, `list_regions()`,
+`is_known_region()`), `settings_store.py` (priorité et persistance),
+`routes/regions.py` (les 2 routes), `models.py` → `AppSetting`,
+`pages/Settings.jsx` → `CountrySettings`.
 
 ### 20.4 Ce qui reste franco-spécifique
 
@@ -1759,19 +1828,423 @@ déplacé** — abstraire sans second cas réel ne valide rien :
 - `routes/fuel_stations.py` — `communes.csv` et prix-carburants.gouv.fr
 - `data/maintenance_intervals.json` — libellés français (clés désormais découplées)
 
-### 20.5 Ce qu'il restera à faire pour traduire réellement
+### 20.5 Le moteur de traduction, et où en est le remplissage
 
-1. Un catalogue de libellés par langue, `INTERVENTION_TRANSLATIONS` devenant le
-   catalogue `fr` — la base n'en dépend plus.
-2. L'API renvoie la clé ; le front affiche le libellé de la langue choisie.
-3. Traduction des chaînes du front (`frontend/src/lib/interventionTranslations.js`
-   est le point de départ).
-4. Messages d'erreur backend, aujourd'hui en français en dur dans les routes.
+**Le mécanisme existe ; la traduction se fait par vagues.** Cette séparation
+est délibérée : traduire 562 chaînes d'un coup produirait un diff impossible à
+relire, où une régression d'affichage passerait inaperçue.
+
+#### Le moteur — `lib/i18n.js` et `lib/i18nContext.jsx`
+
+Écrit à la main, pas de bibliothèque. Le frontend n'a que cinq dépendances
+d'exécution et l'image est construite en CI depuis un lockfile figé, publiée en
+amd64 **et** arm64 (§21) ; i18next et ses greffons coûteraient plus en
+maintenance qu'ils ne rapportent pour une table de chaînes et une
+interpolation. Même raisonnement que pour le jeu d'icônes (§23.3).
+
+> ⚠️ **Les clés SONT les chaînes françaises.** `t('Véhicules')`, pas
+> `t('nav.vehicles')`. Deux conséquences voulues :
+>
+> - une chaîne pas encore traduite s'affiche **en français**, pas en
+>   `nav.vehicles`. Pendant une traduction progressive, c'est la différence
+>   entre une interface à moitié anglaise et une interface cassée ;
+> - aucune migration de contenu : on enveloppe une chaîne existante dans `t()`
+>   et elle s'affiche à l'identique tant que le catalogue anglais ne la porte
+>   pas.
+>
+> Le revers : **renommer un libellé français casse silencieusement sa
+> traduction**. Acceptable ici parce que le catalogue vit dans le dépôt et que
+> la clé orpheline se voit au diff. Ce serait inacceptable en base — et c'est
+> précisément pourquoi les entretiens enregistrés portent une clé technique et
+> non leur libellé (§20.2).
+
+#### La préférence est **par utilisateur**
+
+`users.language` (migration 011), `PUT /api/auth/me/language`, exposée dans
+Paramètres → Compte. C'est la différence avec le pays (§20.3), qui vaut pour
+l'instance : **le pays décrit la machine, la langue décrit la personne.** Dans
+un groupe famille, un membre peut vouloir l'anglais et un autre le français.
+
+`NULL` signifie « aucune préférence exprimée », **et non « veut du français »**.
+Écrire `'fr'` par défaut aurait rendu impossible de distinguer plus tard les
+deux cas — utile le jour où l'on voudra suivre la langue du navigateur.
+
+> ⚠️ **`current_user` ne vient pas de la session de la route.**
+> `get_current_user` ouvre la sienne (`security.py` : `db = next(get_db_session())`).
+> Modifier `current_user` puis committer `db` ne persiste **rien** : la
+> modification vit dans l'autre session. Toute route qui écrit sur le compte
+> connecté doit re-requêter l'utilisateur depuis son propre `db`, comme le font
+> `change_own_password` et `set_own_language`. Ce piège a été rencontré en
+> écrivant cette route — la réponse HTTP montrait bien la nouvelle valeur, et
+> le `GET` suivant rendait l'ancienne.
+
+#### L'outil qui pilote le chantier — `frontend/scripts/i18n-audit.mjs`
+
+Sans lui, personne ne sait où on en est : une chaîne non traduite s'affiche en
+français au lieu de casser, donc **l'oubli est invisible**.
+
+```bash
+cd frontend
+npm run i18n          # couverture par langue, clés manquantes ET orphelines
+npm run i18n:todo     # ce qui n'est pas encore passé par t(), par fichier
+npm run i18n:check    # sort en erreur — pour un futur garde de CI
+node scripts/i18n-audit.mjs --todo=VehicleForm   # le détail d'un fichier
+```
+
+Il distingue trois choses, et la distinction compte :
+
+| | Sens |
+|---|---|
+| **manquantes** | enveloppées dans `t()`, absentes du catalogue → à traduire |
+| **orphelines** | traduites, mais la phrase française a été renommée → **traduction silencieusement perdue** |
+| **candidates** (`--todo`) | pas encore enveloppées → le vrai reste à faire |
+
+> ⚠️ **L'extraction rend le texte tel que `t()` le recevra à l'exécution**,
+> pas tel qu'il est écrit dans le fichier. Une clé contenant `\n` s'écrit avec
+> une barre oblique inverse dans la source et arrive au moteur comme un vrai
+> saut de ligne : sans cette conversion, une chaîne multi-lignes était
+> signalée **à la fois manquante et orpheline** — deux signaux faux pour une
+> traduction parfaitement correcte, et de quoi faire douter de tout le
+> rapport. Trouvé en traduisant les fenêtres de confirmation de la console
+> d'administration, qui sont toutes multi-lignes.
+
+> ⚠️ Une clé passée dynamiquement — `t(item.label)` — est invisible à
+> l'extraction. Elle se déclare par un commentaire à côté de la table :
+> `// i18n: 'Véhicules', 'Planning'`. Déclaration explicite plutôt qu'une
+> heuristique du genre « toute valeur de `label:` est une clé », qui rendrait
+> le rapport faux dans les deux sens.
+
+#### Avancement
+
+| Vague | Contenu | État |
+|---|---|---|
+| 1 | Coquille de l'application, onglets des paramètres, sélecteur de langue | ✅ |
+| 2 | `AuthPage`, liste et carte véhicule, tableau de bord, planning, formulaire et historique d'entretien | ✅ |
+| 3 | « À venir », carburant, fiche véhicule, formulaire véhicule | à faire |
+| 4 | **Administration** ✅ · réglages, intégrations, documentation d'API | en cours |
+| 5 | Les 82 messages d'erreur backend | à faire — **décision préalable** : l'API renvoie-t-elle des codes (`INVITATION_EXPIRED`) que le front traduit, ou du texte ? |
+| 6 | Le catalogue d'entretien : `INTERVENTION_TRANSLATIONS` devient le catalogue `fr`, l'API renvoie la clé | à faire |
+
+> ⚠️ **Ne jamais traduire une valeur envoyée à l'API.** Dans le sélecteur
+> d'intervention de `MaintenanceForm`, le libellé français est à la fois
+> affiché **et** transmis au backend, qui le résout en clé technique (§20.2).
+> Seul l'affichage se traduit :
+> `<option value={nomFr}>{t(nomFr)}</option>`. Traduire la valeur enverrait
+> « Oil change » à une API qui ne connaît que « Vidange d'huile ».
+
+**Non traduites, et c'est structurel** : le message de chargement et le bandeau
+« vous avez rejoint le groupe » vivent dans `App()`, **au-dessus** du provider —
+`useT()` n'y est pas accessible. Les traduire suppose de hisser le provider
+dans `index.jsx`, ce qui l'oblige à lire le compte autrement que par une prop.
+
+> **Sur les avertissements `exhaustive-deps` qui apparaissent en enveloppant.**
+> Envelopper des chaînes dans `t()` fait entrer `t` dans les fonctions de
+> chargement, et ESLint réclame alors de les mettre en dépendance de leur
+> `useEffect`. **Ne pas le faire** : l'effet relancerait une requête réseau à
+> chaque changement de langue, alors que les données, elles, n'ont pas changé.
+> C'est le cas où l'avertissement est le bon comportement. À distinguer de
+> `fmt`, qui doit **toujours** être en dépendance (§20.6) : lui change la
+> valeur écrite en base, pas seulement l'affichage.
+
+**Le garde de CI reste à poser.** `npm run i18n:check` existe et sort en
+erreur, mais l'ajouter à un workflow demande le scope `workflow` sur le jeton
+GitHub. La règle ESLint `no-literal-string` serait le second filet ; l'activer
+aujourd'hui produirait des centaines d'erreurs, elle se pose fichier par
+fichier au fil des vagues.
+
+
+### 20.6 Unités d'affichage (`lib/units.js`)
+
+> ⚠️ **La base reste en kilomètres et en litres, quoi que choisisse
+> l'utilisateur.** La conversion se fait au dernier moment, à l'affichage.
+>
+> Stocker dans l'unité saisie rendrait tout l'historique ambigu — un relevé de
+> 30 000 saisi l'an dernier, faut-il le lire en km ou en miles ? Un changement
+> de préférence réécrirait le passé. Et deux membres d'un groupe famille, qui
+> partagent les mêmes véhicules avec des réglages différents, verraient deux
+> historiques incohérents.
+
+**Les distances sont des entiers des deux côtés** — `distanceToDisplay` comme
+`distanceToStorage` arrondissent. Un compteur affiche 62 137 miles, pas
+62 137,12. Conséquence assumée : la conversion n'est pas exactement
+réversible, l'écart valant au plus 1 mile.
+
+**La consommation fait exception** et garde une décimale : L/100 km et MPG
+sont **inverses** l'un de l'autre, et à l'entier 5,2 et 5,8 L/100 km
+deviendraient tous deux « 5 ».
+
+> ⚠️ **Le carburant reste en litres, même en miles.** Ce n'est pas un oubli.
+> Le Royaume-Uni — le seul pays à miles qu'on ajouterait de façon plausible
+> après la France — **vend son carburant au litre** tout en comptant ses
+> distances en miles et sa consommation en MPG. Convertir les volumes parce
+> que l'utilisateur a coché « miles » afficherait un prix au gallon que
+> personne ne voit à la pompe.
+>
+> Et le gallon américain (3,785 L) n'est pas l'impérial (4,546 L) : ce choix
+> relève de la **région**, pas d'une bascule à deux valeurs. Les fonctions de
+> conversion de volume existent dans `units.js` mais ne sont **pas branchées**
+> sur `useFormat` — délibérément, pour qu'on ne les câble pas par réflexe.
+
+> ⚠️ **La consommation ne se convertit pas comme le reste.** MPG n'est pas un
+> multiple de L/100 km, c'est son inverse : `mpg = (100/n) / 1,609344 × 4,54609`.
+> Traiter cette conversion comme les autres donnerait un résultat inversé —
+> 5 L/100 km, une excellente valeur, deviendrait une consommation énorme au
+> lieu de 56,5 MPG. Vérifié numériquement contre les équivalences connues.
+>
+> **Le coût aux 100 est un rapport, pas une grandeur** : un coût au kilomètre
+> devient un coût au mile en **augmentant** (le mile est plus long). D'où
+> `costPerDistanceToDisplay`, qui multiplie là où le reste divise. L'erreur est
+> facile et le résultat resterait plausible à l'œil.
+
+**Le format des nombres suit la LANGUE, pas les unités** : un francophone qui
+compte en miles attend « 62 137 », pas « 62,137 ». **Les dates aussi.**
+
+> ⚠️ **Aucun formatage localisé ne s'écrit hors de `preferencesContext.jsx`.**
+> La règle était déjà énoncée ici, et elle était violée sur **quinze sites** —
+> `toLocaleDateString('fr-FR')` un peu partout, plus un
+> `Intl.NumberFormat('fr-FR', { currency: 'EUR' })` dans la fiche véhicule qui
+> figeait carrément la devise. Le symptôme est discret : l'interface passe en
+> anglais, les libellés suivent, et les dates continuent de s'écrire
+> « 30/08/2026 » au milieu. Rien ne casse, personne ne le signale.
+>
+> Une règle qu'aucun grep ne vérifie n'est pas une règle. D'où `fmt.date()` et
+> `fmt.num()`, qui font de « passe par le hook » une propriété **vérifiable** :
+>
+> ```bash
+> grep -rn "toLocaleDateString\|toLocaleString\|Intl\.NumberFormat\|Intl\.DateTimeFormat" \
+>   frontend/src --include="*.jsx" --include="*.js" \
+>   | grep -v "lib/preferencesContext.jsx\|lib/units.js"
+> ```
+>
+> Il doit rester **vide**. Un site d'appel qui a besoin d'options les passe à
+> `fmt.date(valeur, options)` — ce sont celles de `toLocaleDateString`, il n'y
+> a rien de nouveau à apprendre.
+
+#### `useFormat()` — le hook à utiliser, toujours
+
+```jsx
+const fmt = useFormat();
+fmt.dist(vehicle.current_mileage)       // « 62 137 mi »
+fmt.distValue(km)                       // la valeur seule, pour un <input>
+fmt.distUnit                            // « mi » — pour un libellé de champ
+fmt.toStorage(saisie)                   // ← OBLIGATOIRE sur toute saisie
+fmt.money(m.cost_paid, m.currency, 2)   // ← la devise DE LA LIGNE (§20.7)
+fmt.totals(recap.cost_by_currency)      // un total ventilé : « 1 200 € + 300 $ »
+fmt.date(m.execution_date)              // ← JAMAIS toLocaleDateString('fr-FR')
+fmt.date(inv.expires_at, { day: '2-digit', month: 'long' })
+fmt.num(data.total_vehicles)            // un décompte, une valeur d'axe
+```
+
+> ⚠️ **Ne jamais poser d'alias local autour de ces fonctions.** Le tableau de
+> bord avait `const fmtEuro = (n) => u.money(n)` : parfaitement correct à la
+> lecture, et pourtant il faisait **passer tout le fichier au travers du grep
+> de contrôle des devises** ci-dessous, qui cherche littéralement
+> `fmt.money(`. Trois montants y suivaient le réglage d'instance au lieu de
+> leur propre devise, sans que rien ne le signale. Un alias qui rend un
+> garde-fou aveugle coûte plus qu'il n'abrège.
+
+Écrire `formatDistance(km, units, lang)` à la main marche aussi, mais sur des
+centaines de sites d'appel le premier oubli du troisième argument donne des
+séparateurs français dans une interface anglaise, **sans erreur ni
+avertissement**. Le hook rend l'oubli impossible.
+
+> ⚠️ **`fmt` doit figurer dans les dépendances de tout `useCallback` /
+> `useEffect` qui l'utilise.** Il est mémorisé sur `[units, lang]` : omis, la
+> fonction garde l'ancienne conversion et un changement d'unité fait sans
+> recharger la page **enregistrerait des miles comme des kilomètres**.
+> `react-hooks/exhaustive-deps` le signale — trois cas réels ont été trouvés
+> ainsi en écrivant ce lot.
+
+#### Où les unités s'appliquent
+
+Partout où une distance est affichée ou saisie : carte véhicule, fiche
+véhicule, « À venir » (échéances, intervalles, et les deux modales
+d'édition), historique d'entretien, formulaire d'entretien, formulaire
+véhicule (compteur, intervalle de révision, et les listes d'exemples),
+carburant (compteur, autonomie, consommation, coût aux 100), tableau de bord,
+planning.
+
+**Le contrôle qui compte**, à relancer après toute modification :
+
+```bash
+grep -rn "mileage_at_intervention\|mileage_at_fill\|current_mileage\|km_interval\|service_interval_km" \
+  frontend/src --include="*.jsx" | grep -E "parseInt|append|payload|updateVehicle" \
+  | grep -v "fmt.toStorage\|fmt.distValue"
+```
+
+Il doit rester **vide** : toute distance envoyée au backend passe par
+`fmt.toStorage`. Le contrôle jumeau côté devise :
+
+```bash
+grep -rn "fmt.money(" frontend/src --include="*.jsx" | grep -v "currency\|money(cost"
+```
+
+Tout montant venu d'une ligne enregistrée doit passer sa devise en second
+argument — sans quoi il se met à suivre le réglage d'instance et ment (§20.7).
+
+**Ce qui reste légitimement sans devise de ligne**, et qu'il faut savoir
+reconnaître pour ne pas « corriger » à tort :
+
+| Cas | Pourquoi |
+|---|---|
+| Fourchettes de prix du catalogue | Elles ne viennent d'aucune saisie (§23.10 bis) |
+| Libellés de champ de saisie | Ils parlent de la devise du moment, c'est leur rôle |
+| Agrégats calculés sur tout l'historique — moyenne mensuelle, total par station, valeur estimée | Il n'y a **pas** de devise de ligne : ce sont des sommes. Elles s'écrivent avec le symbole d'instance, et un `Notice` prévient dès que `fmt.isMixed()` |
+
+Un agrégat mêlé sans ce `Notice`, en revanche, est un bug : c'était le cas du
+tableau de bord et du suivi carburant, qui affichaient des moyennes à cheval
+sur deux devises sans rien dire. Une seule ligne qui y échappe, et un utilisateur en miles
+enregistre des miles dans une colonne de kilomètres — sans erreur, sans trace,
+et l'historique est faussé définitivement.
+
+Et le troisième, qui n'existait pas et aurait dû : celui des formats localisés,
+juste au-dessus. C'est lui qui a trouvé les quinze sites en `fr-FR`.
+
+`APIDocumentation.jsx` reste volontairement en kilomètres : elle documente
+l'API, dont l'unité de stockage ne change pas.
 
 ---
 
 ---
 
+---
+
+
+### 20.7 Le pays du VÉHICULE, et la devise
+
+#### Le contrôle technique suit la machine, pas le spectateur
+
+`vehicles.country` (migration 013). `NULL` = suit le pays de l'instance, et
+c'est le défaut : un parc entièrement français n'a rien à renseigner, et
+aucune instance existante ne change de comportement.
+
+> ⚠️ **Cette colonne est sur le véhicule et non sur l'utilisateur, et ce n'est
+> pas un détail.** Le calendrier du contrôle technique s'en déduit. Par
+> utilisateur, un membre du groupe famille verrait une échéance **différente de
+> celle du propriétaire, sur le même véhicule** — la date de CT est un fait sur
+> la machine, pas un goût de qui la regarde.
+
+La règle française a quitté `maintenance_calculator` pour `regions/fr.py`
+(`next_inspection_date`). Elle y était écrite en dur et appliquée à tous les
+véhicules sans condition. Le déplacement s'est fait **le jour où un véhicule a
+pu nommer son pays** — donc le jour où le point de dispatch est devenu réel
+plutôt que spéculatif, ce que §20.4 exigeait.
+
+`get_all_upcoming_maintenances(..., region_code=...)` transporte le pays.
+**Les cinq appelants le passent** — `_compute_upcoming`, `dashboard`,
+`vehicles` (planning), `vehicle_status` et `reminder_scheduler` — chacun en
+`vehicle.country or <pays de l'instance>`. Un oubli ferait diverger un écran
+des rappels en silence, exactement le défaut contre lequel §3 met en garde.
+
+#### La devise : le réglage dit comment écrire, le marquage dit ce qui a été payé
+
+`app_settings.currency`, réglage **d'instance** (comme le pays), avec `EUR` et
+`USD` pour l'instant. Chaque région porte sa `default_currency`.
+
+D'instance et non par utilisateur, pour la même raison que le pays : deux
+membres d'un même groupe famille doivent lire le même nombre avec le même
+symbole, sinon le partage ment.
+
+La **liste des devises est courte et vérifiée à la main** plutôt qu'un
+référentiel ISO complet : 180 lignes non relues donneraient surtout 180 façons
+de se tromper de symbole. Elle vit dans `backend/currency.py`, recopiée dans
+`frontend/src/lib/currencies.js` — `fmt.money()` est synchrone et tourne sur
+chaque montant affiché, aller chercher un symbole par requête serait absurde.
+Deux listes de deux lignes, dont l'écart se verrait au premier montant affiché.
+
+##### Chaque montant porte sa devise (migration 014)
+
+`maintenances.currency`, `fuel_logs.currency`, `vehicles.currency`. `NULL` =
+ligne antérieure au marquage : elle suit le réglage d'instance, exactement
+comme avant, donc aucune instance existante ne voit un nombre changer.
+
+> ⚠️ **C'est le marquage qui rend l'historique vrai, pas le réglage.** Un
+> montant stocké est un nombre nu. Sans devise à côté, une révision payée
+> 200 $ redevient « 200 € » dès que l'administrateur change le réglage
+> d'affichage, et plus rien ne dit laquelle des deux phrases est vraie. C'est
+> une falsification silencieuse de l'historique — le pire genre, puisqu'aucune
+> erreur n'apparaît nulle part.
+
+La devise est lue **à l'écriture** (`get_active_currency(db)` dans
+`create_maintenance`, `create_fuel_log`, `create_vehicle`) et jamais relue
+ensuite. Sur une modification, elle n'est ré-estampillée que si la ligne
+n'était pas encore marquée : corriger une faute de frappe sur un prix en
+dollars ne doit pas le convertir en euros d'un coup d'éditeur.
+
+**`PUT /admin/currency` fige la devise sortante** sur tout ce qui n'était pas
+encore marqué, avant de basculer (`stamp_unmarked_amounts`). Sans ce geste,
+l'historique antérieur au marquage suivrait le nouveau symbole. Après une
+première bascule, plus aucune ligne n'est ambiguë.
+
+##### La conversion est une commande à part, et **sans écran**
+
+`POST /api/admin/currency/convert` — `{code, rate, dry_run}`. Aperçu par
+défaut, puis sauvegarde de la base (le `backup_database` des migrations, §13),
+puis recalcul, ré-estampillage, et **enfin** le réglage d'instance.
+
+> ⚠️ **Pas de panneau dans les Préférences, et c'est délibéré.** Repartir dans
+> une autre monnaie arrive une fois, ou jamais. Un panneau permanent posait un
+> bouton irréversible à côté d'un réglage d'affichage anodin, pour un besoin
+> que le marquage des montants couvre déjà au quotidien : l'historique reste
+> juste sans qu'on convertisse quoi que ce soit.
+>
+> La route et `api.convertCurrency()` restent en place — le jour où le besoin
+> se présente, l'écran se pose en quelques lignes. Ce qui manquait n'était pas
+> l'interface, c'était la garantie que les montants ne mentent pas.
+
+> ⚠️ **Ne jamais fondre la conversion dans le changement de devise.** Ce sont
+> deux intentions différentes :
+>
+>     « je me suis trompé de symbole »        → changer la devise, rien d'autre
+>     « j'ai déménagé, je repars en dollars » → convertir, puis changer
+>
+> Les réunir obligerait à deviner laquelle, et le premier cas est de loin le
+> plus fréquent — le convertir silencieusement abîmerait l'historique de
+> quelqu'un venu corriger un détail d'affichage.
+
+**Le taux est fourni par l'administrateur, jamais récupéré.** Le bon taux
+serait celui du jour de *chaque ligne* : le plein de mars et celui de novembre
+n'ont pas été payés au même cours. Un taux automatique serait donc tout aussi
+approximatif que celui-ci, mais prétendrait le contraire et ferait bouger
+l'historique tout seul entre deux consultations.
+
+Les lignes marquées d'une **troisième** devise ne sont pas touchées : le taux
+vaut pour un couple, pas pour toutes les monnaies du monde.
+
+##### Un total ne s'additionne pas à travers deux devises
+
+`currency.totals_by_currency()` ventile ; `cost_by_currency` accompagne
+`total_cost` dans le récap, le tableau de bord et les stats carburant. Côté
+frontend, `fmt.totals(cost_by_currency)` écrit « 1 200 € + 300 $ » et
+`fmt.isMixed()` sert à nuancer un libellé.
+
+> ⚠️ 200 € + 200 $ ne fait pas 400. Le cas n'est pas théorique : changer de
+> devise **sans** convertir est légitime — on a déménagé et on saisit désormais
+> en dollars, sans vouloir réécrire l'historique européen. Un total mêlé affiché
+> avec un symbole unique est un chiffre faux qu'on ne recompte jamais.
+
+Les répartitions **par catégorie** additionnent encore sans regarder la devise,
+et le disent : un `Notice` apparaît au-dessus dès que `isMixed`. Les ventiler
+aussi aurait cassé les barres de pourcentage pour un cas que la conversion est
+justement là pour résoudre.
+
+##### Les fourchettes de prix du catalogue ne sont pas des montants
+
+`maintenance_intervals.json` porte des **tarifs français**. Ils s'écrivent avec
+le symbole de l'instance, sans conversion — c'est un ordre de grandeur, pas un
+devis, et c'est la raison du `CountryBadge` posé à côté (§23.10 bis). Un second
+pays apportera ses propres tarifs plutôt qu'un taux de change.
+
+Tests : `tests/test_currency.py`.
+
+#### Ce que ça change pour ajouter un pays
+
+`regions/xx.py` porte désormais **cinq** attributs et **trois** fonctions :
+`code`, `name`, `plate_example`, `default_language`, `default_units`,
+`default_currency`, plus `normalize_plate()`, `parse_plate_response()` et
+`next_inspection_date()`. Toujours un seul fichier, et rien d'autre à toucher.
+
+---
 ## 21. Distribution par images publiées
 
 ### 21.1 Le problème résolu
@@ -2036,6 +2509,18 @@ sur quelques jetons qui n'existaient pas.
 | `.input-field` | Classe **jamais définie** non plus : posée sur 27 champs, elle ne faisait rien | Supprimée — les champs sont stylés par élément (`input`, `select`, `textarea`) |
 | Classes Tailwind de couleur (`bg-white`, `border-gray-300`, `text-blue-900`…) | Illisibles en thème sombre | Jetons CSS |
 
+> **Une seule avait survécu à la passe**, et pendant des mois : le dégradé
+> `bg-gradient-to-r from-purple-50 to-blue-50` du bloc de décodage VIN
+> (`VehicleForm`). En thème sombre, un pavé violet pâle au milieu de la page.
+> Le contrôle qui la trouve :
+>
+> ```bash
+> grep -rn "bg-gradient\|bg-white\|bg-gray-\|border-gray-\|text-blue-" frontend/src --include="*.jsx"
+> ```
+>
+> Il doit rester **vide**. Une couleur Tailwind ne se voit pas tant qu'on
+> travaille dans le thème où elle passe.
+
 > **Le raccourci `background:` efface `background-image`.** L'override sombre
 > `[data-theme="dark"] select { background: … }` supprimait le chevron du
 > `<select>` défini plus haut dans la feuille. Viser `background-color`.
@@ -2138,6 +2623,18 @@ initiale et décompte, corps sur fond creusé) répond à cette seule question.
 À réutiliser pour tout regroupement qui pose la même question, pas comme
 conteneur générique : une carte isolée reste une `card`.
 
+#### Ce que le titre d'un garage doit dire
+
+**Son propre garage s'intitule « Mes véhicules », pas « Garage de <soi> ».**
+Se voir annoncer son propre nom n'apprend rien ; le nom du propriétaire ne
+répond à une vraie question que sur les garages **des autres**, où il reste.
+
+Et la page porte **le nom du foyer** quand il y en a un (`GET /api/family`).
+C'est la seule chose que la personne a elle-même nommée sur cet écran, et il
+ne s'affichait jusqu'ici que dans les paramètres — l'utilisateur qui avait
+baptisé son groupe le retrouvait partout sauf là où il regarde ses véhicules.
+Sans groupe, « Mon garage ».
+
 ### 23.7 Composants partagés
 
 | Composant | Rôle | Remplaçait |
@@ -2193,7 +2690,88 @@ bordure colorée.
 > `routes/vehicle_status.py` et se branche sur `GET /vehicles`, qui lui passe
 > par `list_readable_vehicles`.
 
-### 23.10 Pour modifier
+### 23.10 Drapeaux — la seconde exception colorée
+
+`components/Flag.jsx` est **distinct d'`Icon`, et volontairement**. Le jeu
+d'icônes est monochrome par construction : chaque tracé hérite de
+`currentColor`, ce qui le rend juste dans les deux thèmes sans effort (§23.3).
+Un drapeau ne peut pas suivre cette règle — ses couleurs *sont* son identité.
+Le verser dans `Icon` obligerait à poser des couleurs en dur dans la table des
+tracés, et ouvrirait la porte à ce qu'on en pose ailleurs.
+
+C'est donc la **seconde** exception documentée à « aucune couleur littérale »,
+après le fond de la plaque du logo (§23.2). Elle s'arrête là.
+
+Le cadre porte une bordure `var(--border)` : sans elle, la bande blanche du
+drapeau français se fond dans la surface d'une carte en thème clair et le
+drapeau paraît amputé.
+
+> ⚠️ **Un drapeau désigne un pays, jamais une langue.** L'anglais n'appartient
+> pas au Royaume-Uni ni le français à la France. Le sélecteur de langue affiche
+> donc des noms de langue en toutes lettres ; les drapeaux sont réservés au
+> choix du pays, où ils veulent dire quelque chose.
+
+### 23.10 bis `CountryBadge` — le recensement de ce qui est national
+
+Trois choses ne se traduisent pas, elles se **remplacent** d'un pays à l'autre
+(§20.1) : le format de plaque et le service qui la décode, le calendrier du
+contrôle technique, et la base de communes qui alimente la recherche de
+stations. Rien à l'écran ne le disait, et un contributeur devait relire le code
+pour savoir ce qu'un second pays obligerait à toucher.
+
+`<CountryBadge reason="…" />` affiche le drapeau du pays actif à côté de
+l'élément concerné. Il sert deux fins d'un coup : l'utilisateur voit d'où vient
+la règle, et **ajouter un pays revient à chercher les occurrences de ce
+composant**.
+
+Posé aujourd'hui sur : le bloc de décodage de plaque (`VehicleForm`), le
+contrôle technique dans « À venir » (`UpcomingMaintenance`), la recherche de
+stations (`FuelStations`).
+
+Une quatrième chose est nationale sans l'avoir été jusqu'ici : les **fourchettes
+de prix du catalogue** (`maintenance_intervals.json`) sont des tarifs français.
+Elles s'écrivent avec le symbole de l'instance sans conversion — un ordre de
+grandeur, pas un devis (§20.7).
+
+> ⚠️ **À ne poser que sur ce qui change réellement avec le pays.** Sur un champ
+> ordinaire il devient décoratif, et le jour où l'on cherchera ce qu'un
+> nouveau pays impacte, la liste ne voudra plus rien dire.
+
+L'exemple de plaque n'est plus écrit en dur : il voyage dans
+`effective.plate_example` (§20.3) et alimente à la fois l'indication de saisie
+et le message d'erreur du champ.
+
+### 23.11 L'écran Préférences
+
+Les trois réglages étaient éparpillés — le pays dans un onglet admin à part, la
+langue enfouie dans « Compte », les unités nulle part. On vient les régler dans
+le même mouvement et on les cherchait à trois endroits. Ils sont réunis dans un
+onglet « Préférences », placé **en tête** et ouvert par défaut.
+
+Ils n'ont pourtant pas la même portée, et l'écran doit le dire explicitement :
+
+| Réglage | Portée | Pourquoi |
+|---|---|---|
+| Pays | l'instance, **admin seul** | Il décide du format de plaque et du calendrier réglementaire : des faits sur les véhicules, pas des goûts |
+| Langue | l'utilisateur | |
+| Unités | l'utilisateur, **affichage seul** | Voir §20.6 |
+
+> ⚠️ **Le pays ne doit pas devenir un réglage par utilisateur.** Le contrôle
+> technique se calcule à partir de lui : un membre du groupe famille verrait
+> alors une échéance différente de celle du propriétaire, sur le même véhicule.
+> Si le besoin apparaît — un véhicule immatriculé à l'étranger — la bonne
+> réponse est un pays **par véhicule**, pas par spectateur.
+
+Le pays fournit le **défaut** des deux autres (`default_language`,
+`default_units` portés par chaque région). Un compte qui n'a rien choisi suit
+le pays, et suivra le nouveau si l'admin en change ; un compte qui a choisi
+garde son choix.
+
+Les options sont des **boutons-cartes**, pas un `<select>` : à deux ou trois
+choix, les montrer tous évite le clic qui sert seulement à découvrir ce qui
+existe — et un `<select>` ne sait pas porter un drapeau.
+
+### 23.12 Pour modifier
 
 - **Ajouter une icône** : une entrée dans la table `P` d'`Icon.jsx`. Ne pas
   poser de couleur dans le tracé.

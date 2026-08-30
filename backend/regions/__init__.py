@@ -22,12 +22,14 @@ installation existante est donc inchangé.
 
 Ce qu'il reste à y faire remonter
 ─────────────────────────────────
-Trois blocs sont encore franco-spécifiques et à déplacer ici quand un second
-pays sera réellement demandé — les déplacer avant serait de l'abstraction sans
-second cas pour la valider :
+Le calendrier du contrôle technique EST déjà ici (`next_inspection_date`) : il
+a été déplacé le jour où un véhicule a pu nommer son propre pays, donc le jour
+où le point de dispatch est devenu réel.
 
-- `maintenance_calculator.calculate_inspection_technical_date()` — calendrier
-  du contrôle technique, purement réglementaire français ;
+Deux blocs restent franco-spécifiques, à déplacer quand un second pays sera
+réellement demandé — les déplacer avant serait de l'abstraction sans second cas
+pour la valider :
+
 - `routes/fuel_stations.py` — `communes.csv` et prix-carburants.gouv.fr ;
 - `data/maintenance_intervals.json` — libellés français, dont les clés
   techniques sont désormais découplées (voir migration 007).
@@ -44,12 +46,18 @@ class Region(Protocol):
     code: str
     name: str
     plate_example: str
+    default_language: str
+    default_units: str
+    default_currency: str
 
     def normalize_plate(self, plate: str) -> str:
         """Forme canonique de la plaque, ou chaîne vide si le format est invalide."""
 
     def parse_plate_response(self, payload: dict, vehicle_type_hint: str = None) -> dict:
         """Traduit la réponse du service national en champs véhicule RideLog."""
+
+    def next_inspection_date(self, vehicle_type, registration_date, last_inspection_date):
+        """Prochaine échéance de contrôle technique, selon la règle du pays."""
 
 
 def format_model_text(value: str) -> str:
@@ -105,3 +113,39 @@ def get_region(code: str = None) -> Region:
     rendre l'instance inutilisable."""
     wanted = (code or os.getenv("REGION") or DEFAULT_REGION_CODE).strip().upper()
     return REGIONS.get(wanted, REGIONS[DEFAULT_REGION_CODE])
+
+
+def is_known_region(code: str) -> bool:
+    """Le code désigne-t-il un pays réellement présent au registre ?
+
+    `get_region()` retombe volontairement sur la France pour un code inconnu —
+    c'est le bon comportement au démarrage, où l'alternative serait un backend
+    mort. Mais un administrateur qui choisit un pays dans l'interface doit être
+    refusé plutôt que silencieusement replacé sur la France : il croirait avoir
+    changé de pays. D'où ce prédicat séparé, utilisé par la route de réglage.
+    """
+    return (code or "").strip().upper() in REGIONS
+
+
+def list_regions() -> list[dict]:
+    """Les pays proposables, triés par nom.
+
+    Il n'y en a qu'un aujourd'hui. C'est voulu : §20.4 pose qu'on n'abstrait
+    pas sans second cas réel pour valider l'abstraction. Cette liste est le
+    point où un `regions/be.py` deviendrait visible dans l'interface sans que
+    rien d'autre ne bouge.
+    """
+    return sorted(
+        (
+            {
+                "code": r.code,
+                "name": r.name,
+                "plate_example": r.plate_example,
+                "default_language": r.default_language,
+                "default_units": r.default_units,
+                "default_currency": r.default_currency,
+            }
+            for r in REGIONS.values()
+        ),
+        key=lambda r: r["name"],
+    )

@@ -23,7 +23,34 @@ from routes.access import (
 from schemas import VehicleCreate, VehicleUpdate
 from maintenance_calculator import MaintenanceCalculator, build_last_maintenances_dict
 from routes.vehicle_status import alert_counts_for
-from regions import format_model_text, get_region
+from regions import format_model_text, is_known_region, list_regions
+from settings_store import get_active_currency, get_active_region, get_active_region_code
+
+def _validated_country(value: str | None) -> str | None:
+    """Le pays d'immatriculation d'un véhicule, ou None pour « suit l'instance ».
+
+    Un code absent du registre est **refusé**, jamais absorbé. `get_region()`
+    retomberait silencieusement sur la France, et le véhicule se verrait
+    appliquer le calendrier de contrôle technique français sans que rien ne
+    l'indique — c'est exactement le raisonnement qui a donné `is_known_region()`
+    à `PUT /admin/region` (§20.3), et il vaut ici pour la même raison : le pays
+    décide d'une échéance réglementaire, pas d'un libellé.
+
+    Le sélecteur du formulaire ne propose que les pays du registre, donc ce
+    contrôle ne se déclenche que sur un appel d'API direct. C'est bien là qu'il
+    doit être : l'interface n'est pas une validation.
+    """
+    code = (value or "").strip().upper()
+    if not code:
+        return None
+    if not is_known_region(code):
+        known = ", ".join(r["code"] for r in list_regions())
+        raise HTTPException(
+            status_code=400,
+            detail=f"Pays inconnu : {code}. Pays disponibles : {known}",
+        )
+    return code
+
 
 PHOTO_STORAGE_DIR = Path(os.getenv("PHOTO_STORAGE_DIR", "/data/photos"))
 ALLOWED_PHOTO_MIME = {"image/jpeg", "image/png", "image/webp"}
@@ -68,6 +95,10 @@ def get_planning(
         overrides_by_vehicle.setdefault(o.vehicle_id, {})[o.intervention_key] = o
 
     all_items = []
+    # Pays de l'instance, lu une fois : il sert de repli pour tout véhicule
+    # qui ne nomme pas le sien.
+    instance_region = get_active_region_code(db)
+
     for vehicle in vehicles:
         all_maintenances = db.query(Maintenance).filter(Maintenance.vehicle_id == vehicle.id).all()
         # Cette boucle était recopiée à la main ici, sans le traitement des
@@ -90,6 +121,7 @@ def get_planning(
             service_interval_months=vehicle.service_interval_months,
             motorization=vehicle.motorization,
             overrides=vehicle_overrides,  # ← overrides appliqués
+            region_code=vehicle.country or instance_region,
         )
 
         maintenance_category = planning_calculator.get_maintenance_category(
@@ -169,10 +201,15 @@ def create_vehicle(
         range_category=data.range_category,
         current_mileage=data.current_mileage,
         purchase_price=data.purchase_price,
+        # Estampillée seulement s'il y a un montant : marquer d'une devise un
+        # prix d'achat absent reviendrait à dire quelque chose de rien.
+        currency=get_active_currency(db) if data.purchase_price is not None else None,
         service_interval_km=data.service_interval_km,
         service_interval_months=data.service_interval_months,
         notes=data.notes,
         is_private=data.is_private,
+        # Vide ou absent → NULL, c'est-à-dire « suit le pays de l'instance ».
+        country=_validated_country(data.country),
         user_id=current_user.id
     )
     db.add(vehicle)
@@ -285,8 +322,11 @@ def decode_license_plate(
     plate: str = Query(...),
     vehicle_type_hint: str = Query(None),
     current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
 ):
-    region = get_region()
+    # Le pays choisi dans les réglages fait foi ; `REGION` dans l'environnement
+    # ne sert plus que de valeur initiale tant que personne n'a choisi.
+    region = get_active_region(db)
     normalized_plate = region.normalize_plate(plate)
     if not normalized_plate:
         raise HTTPException(
@@ -447,6 +487,12 @@ def update_vehicle(
         vehicle.is_private = data.is_private
     if data.registration_date is not None:
         vehicle.registration_date = data.registration_date
+    # Pays d'immatriculation. `None` signifie ici « champ absent du corps »,
+    # donc « ne touche pas » — la chaîne vide, elle, remet le véhicule sous le
+    # pays de l'instance. Sans ce second cas, un véhicule déclaré à l'étranger
+    # ne pourrait plus jamais revenir au défaut.
+    if data.country is not None:
+        vehicle.country = _validated_country(data.country)
     if data.current_mileage is not None and data.current_mileage != vehicle.current_mileage:
         if data.current_mileage < vehicle.current_mileage:
             max_maintenance_km = db.query(
@@ -475,6 +521,12 @@ def update_vehicle(
         vehicle.current_mileage = data.current_mileage
     if data.purchase_price is not None:
         vehicle.purchase_price = data.purchase_price
+        # Un prix saisi aujourd'hui l'est dans la devise d'aujourd'hui. On ne
+        # ré-estampille que si la ligne n'était pas encore marquée : sinon,
+        # corriger une faute de frappe sur un prix en dollars le convertirait
+        # en euros d'un coup d'éditeur.
+        if vehicle.currency is None:
+            vehicle.currency = get_active_currency(db)
     if data.service_interval_km is not None:
         vehicle.service_interval_km = data.service_interval_km
     if data.service_interval_months is not None:
