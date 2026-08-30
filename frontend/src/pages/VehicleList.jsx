@@ -4,6 +4,7 @@ import { useT } from '../lib/preferencesContext';
 import VehicleForm from '../components/VehicleForm';
 import VehicleCard from '../components/VehicleCard';
 import Icon from '../components/Icon';
+import PageHeader from '../components/PageHeader';
 
 // Helper module-level : `t` ne peut pas venir d'un hook ici, il se passe en
 // argument. C'est ce qui manquait — la fonction référençait un `t` inexistant
@@ -54,9 +55,17 @@ export default function VehicleList({ onSelectVehicle, currentUser }) {
   const [loading, setLoading] = useState(true);
   const [showForm, setShowForm] = useState(false);
   const [error, setError] = useState(null);
+  // Le nom du foyer, quand il y en a un. C'est la seule chose que la personne
+  // a elle-même nommée sur cet écran ; il n'apparaissait jusqu'ici que dans
+  // les paramètres, et la page continuait de s'intituler d'après le compte.
+  const [familyName, setFamilyName] = useState(null);
 
   useEffect(() => {
     fetchVehicles();
+    // Un groupe absent n'est pas une erreur : la page marche sans.
+    api.getFamily()
+      .then((res) => setFamilyName(res.data?.family?.name || null))
+      .catch(() => setFamilyName(null));
   }, []);
 
   const fetchVehicles = async () => {
@@ -78,9 +87,6 @@ export default function VehicleList({ onSelectVehicle, currentUser }) {
     fetchVehicles();
   };
 
-  const garageTitle = currentUser
-    ? `Garage de ${currentUser.display_name}`
-    : t('Mon garage');
 
   // Séparation par propriétaire : ses véhicules d'abord, puis un garage par
   // membre du groupe famille. Mélangés dans une seule grille, on ne sait plus
@@ -134,6 +140,13 @@ export default function VehicleList({ onSelectVehicle, currentUser }) {
 
   return (
     <div className="flex flex-col" style={{ gap: 24 }}>
+      <PageHeader
+        title={familyName || t('Mon garage')}
+        subtitle={familyName
+          ? t('Les véhicules du foyer, un garage par membre.')
+          : t('Vos véhicules et leur état d\'entretien.')}
+      />
+
       {error && (
         <div
           className="flex items-center gap-2"
@@ -156,8 +169,11 @@ export default function VehicleList({ onSelectVehicle, currentUser }) {
         </div>
       )}
 
+      {/* « Garage de ReNaGe » sur son PROPRE garage n'apprend rien : on sait à
+          qui il est. Le nom du propriétaire n'a de valeur que sur les garages
+          des autres, où il répond à une vraie question. */}
       <GaragePanel
-        title={garageTitle}
+        title={t('Mes véhicules')}
         owner={currentUser?.display_name}
         count={myVehicles.length}
         action={
