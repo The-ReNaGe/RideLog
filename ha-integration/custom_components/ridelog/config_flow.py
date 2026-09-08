@@ -4,15 +4,28 @@ import asyncio
 import logging
 from typing import Any, Dict, Optional
 
+import httpx
 import voluptuous as vol
 from homeassistant import config_entries
 from homeassistant.core import HomeAssistant
 from homeassistant.data_entry_flow import FlowResult
 
 from .const import DOMAIN, DEFAULT_API_URL, CONF_API_URL, CONF_HA_INIT_KEY, CONF_ACCESS_TOKEN
-from .api import RideLogAPI
+from .api import RideLogAPI, describe_error
 
 LOGGER = logging.getLogger(__name__)
+
+# Chaque refus du backend a une cause distincte, et l'utilisateur doit pouvoir
+# la lire. Tout était auparavant rendu en « cannot_connect » : impossible de
+# distinguer une clé erronée d'un serveur injoignable ou d'une mauvaise URL.
+# Le cas 404 est le plus trompeur — l'hôte répond, mais ce n'est pas RideLog
+# (typiquement le port du backend au lieu de celui de l'interface web).
+_ERROR_BY_STATUS = {
+    403: "invalid_auth",        # clé fausse, ou intégration désactivée dans RideLog
+    404: "wrong_url",           # ça répond, mais ce n'est pas l'API RideLog
+    429: "too_many_attempts",   # rate limiting du backend
+    503: "not_configured",      # HA_INIT_KEY absente du .env de RideLog
+}
 
 
 class ConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
@@ -37,26 +50,31 @@ class ConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                 token_response = await api.init_home_assistant(ha_init_key)
                 
                 if token_response and "access_token" in token_response:
-                    await api.close()
-                    
                     # Store configuration with token
                     config_data = {
                         CONF_API_URL: api_url,
                         CONF_ACCESS_TOKEN: token_response["access_token"],
                     }
-                    
+
                     return self.async_create_entry(
                         title="RideLog",
                         data=config_data
                     )
                 else:
-                    LOGGER.error("Failed to get token from HA init")
+                    LOGGER.error("Réponse de RideLog sans jeton d'accès")
                     errors["base"] = "cannot_connect"
-                    
+
+            except httpx.HTTPStatusError as err:
+                errors["base"] = _ERROR_BY_STATUS.get(
+                    err.response.status_code, "cannot_connect"
+                )
+                LOGGER.error("RideLog a refusé la configuration : %s", describe_error(err))
             except Exception as err:
-                LOGGER.error(f"HA init failed: {err}")
+                LOGGER.error("Configuration RideLog impossible : %s", describe_error(err))
                 errors["base"] = "cannot_connect"
             finally:
+                # Une seule fermeture : la branche de succès en faisait une
+                # seconde, juste avant que ce bloc ne s'exécute de toute façon.
                 await api.close()
 
         return self.async_show_form(

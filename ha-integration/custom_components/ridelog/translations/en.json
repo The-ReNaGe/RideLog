@@ -1,0 +1,22 @@
+{
+  "config": {
+    "step": {
+      "user": {
+        "title": "Configure RideLog",
+        "description": "Enter the URL of your RideLog server — the web interface one (port 3100 by default), not the backend one — and the HA_INIT_KEY defined in RideLog's .env file.",
+        "data": {
+          "api_url": "RideLog API URL",
+          "ha_init_key": "HA initialisation key"
+        }
+      }
+    },
+    "error": {
+      "cannot_connect": "Server unreachable. Check the URL, and that Home Assistant can reach that machine.",
+      "wrong_url": "Something answers at this address, but it is not the RideLog API. Use the web interface URL (port 3100 by default), not the backend one.",
+      "invalid_auth": "Initialisation key rejected. Check HA_INIT_KEY, and that the Home Assistant integration is enabled in RideLog (Settings → Integrations).",
+      "too_many_attempts": "Too many attempts. Wait a few minutes before retrying.",
+      "not_configured": "HA_INIT_KEY is not set on the RideLog server. Add it to its .env file, then restart the backend.",
+      "unknown": "Unexpected error."
+    }
+  }
+}
