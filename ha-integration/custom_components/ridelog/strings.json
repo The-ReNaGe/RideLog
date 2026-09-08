@@ -3,7 +3,7 @@
     "step": {
       "user": {
         "title": "Configurer RideLog",
-        "description": "Entrez l'URL de votre serveur RideLog et la clé d'initialisation (HA_INIT_KEY du docker-compose).",
+        "description": "Entrez l'URL de votre serveur RideLog — celle de l'interface web (port 3100 par défaut), pas celle du backend — et la clé HA_INIT_KEY définie dans le fichier .env de RideLog.",
         "data": {
           "api_url": "URL de l'API RideLog",
           "ha_init_key": "Clé d'initialisation HA"

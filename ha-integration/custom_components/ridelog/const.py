@@ -12,7 +12,11 @@ CONF_ACCESS_TOKEN = "access_token"
 CONF_SCAN_INTERVAL = "scan_interval"
 
 # Default values
-DEFAULT_API_URL = "http://localhost:8000"
+# Port de l'INTERFACE WEB (nginx), pas celui du backend. C'est nginx qui
+# proxifie /api vers le backend ; le port 8000 n'a pas vocation à être publié
+# (voir la section « EXPOSITION SUR INTERNET » de .env.example). Proposer 8000
+# ici envoyait droit dans le mur toute installation conforme à cette consigne.
+DEFAULT_API_URL = "http://localhost:3100"
 DEFAULT_SCAN_INTERVAL = 3600  # 1 hour
 
 # Fuel type mappings

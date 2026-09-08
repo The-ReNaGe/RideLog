@@ -217,8 +217,8 @@ export default function HomeAssistantIntegration() {
                   <p><strong>2.</strong> Créer une intégration → rechercher <strong>RideLog</strong></p>
                   <p><strong>3.</strong> URL API :</p>
                   <div className="p-2 rounded mt-1 ml-4" style={{ background: 'var(--bg-base)', wordBreak: 'break-all' }}>
-                    <p className="font-mono" style={{ color: 'var(--text-1)' }}>http://192.168.1.x:8000</p>
-                    <p className="text-xs mt-1" style={{ color: 'var(--text-3)' }}>(Remplacez par votre IP/domaine)</p>
+                    <p className="font-mono" style={{ color: 'var(--text-1)' }}>http://192.168.1.x:3100</p>
+                    <p className="text-xs mt-1" style={{ color: 'var(--text-3)' }}>(Remplacez par votre IP/domaine. C'est le port de cette interface web, pas celui du backend : nginx transmet /api au backend, dont le port n'a pas vocation à être publié.)</p>
                   </div>
                 </div>
               ),
@@ -289,7 +289,7 @@ action:
 
 rest_command:
   ridelog_refresh:
-    url: "http://localhost:8000/api/auth/refresh"
+    url: "http://192.168.1.x:3100/api/auth/refresh-token"
     method: post
     headers:
       Authorization: "Bearer VOTRE_TOKEN_ACTUEL"`}
