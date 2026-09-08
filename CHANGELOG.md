@@ -1,5 +1,16 @@
 # Changelog
 
+## [2.4.1](https://github.com/The-ReNaGe/RideLog/compare/v2.4.0...v2.4.1) (2026-09-08)
+
+
+### Bug Fixes
+
+* connecte l'intégration Home Assistant au port de l'interface web ([5fa2568](https://github.com/The-ReNaGe/RideLog/commit/5fa25682415209830c295512d0c92c14daeb8e42))
+* nomme la cause d'un échec de configuration Home Assistant ([3c07567](https://github.com/The-ReNaGe/RideLog/commit/3c075674f04e58d94cc8b934d4a0136fd30679a9))
+* plafonne les tentatives sur la route d'initialisation Home Assistant ([583e2e9](https://github.com/The-ReNaGe/RideLog/commit/583e2e945c8694ce26af11dec2387e8fe8e88fea))
+* rétablit la copie du YAML Lovelace hors HTTPS ([f9d59f9](https://github.com/The-ReNaGe/RideLog/commit/f9d59f9edf8af58e231affd33d7ca776bee0d691))
+* sort la clé d'initialisation de l'URL, où les journaux la recopiaient ([f74305e](https://github.com/The-ReNaGe/RideLog/commit/f74305ed8aca4df8f4d9c6320f2ec636543fbaae))
+
 ## [2.4.0](https://github.com/The-ReNaGe/RideLog/compare/v2.3.1...v2.4.0) (2026-08-30)
 
 
