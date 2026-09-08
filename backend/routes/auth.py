@@ -411,10 +411,15 @@ async def change_own_password(
     return create_access_token(user.id, user.username, password_changed_at=user.password_changed_at)
 
 
+# En-tête portant la clé d'initialisation. Voir le commentaire de la route.
+HA_INIT_KEY_HEADER = "X-HA-Init-Key"
+
+
 @router.post("/auth/ha-init", response_model=TokenResponse)
 async def init_home_assistant(
     request: Request,
     init_key: str = Query(None),
+    x_ha_init_key: str = Header(None),
     db: Session = Depends(get_db),
 ):
     """
@@ -424,10 +429,27 @@ async def init_home_assistant(
 
     Sécurité :
     - HA_INIT_KEY obligatoire — endpoint désactivé si non définie
+    - Clé attendue dans l'en-tête X-HA-Init-Key ; le paramètre d'URL `init_key`
+      reste accepté mais est DÉPRÉCIÉ (voir plus bas)
     - Rate limiting par IP, comme /auth/login
     - Comparaison timing-safe pour éviter les attaques temporelles
     - Bloqué si l'admin a désactivé l'intégration depuis l'UI
     - Ne crée le compte que s'il est absent (pas de recréation silencieuse)
+
+    ⚠️ Pourquoi la clé est passée en EN-TÊTE et non plus en paramètre d'URL.
+    Une query string est journalisée intégralement, des deux côtés : uvicorn
+    tourne avec --access-log (backend/Dockerfile) et le nginx du frontend
+    utilise le format `combined` par défaut. La clé se retrouvait donc en clair
+    dans `docker logs ridelog-backend` ET `docker logs ridelog-frontend` — et,
+    côté Home Assistant, dans le message des exceptions httpx qui reprennent
+    l'URL complète. Or cette clé délivre un jeton de 30 jours qui lit les
+    véhicules de TOUS les utilisateurs (`list_readable_vehicles` ne filtre pas
+    un compte d'intégration). Un log collé dans un rapport de bug suffisait à
+    la divulguer. Les en-têtes, eux, ne figurent dans aucun de ces journaux.
+
+    Le paramètre d'URL reste accepté pour ne pas empêcher une intégration non
+    encore mise à jour de se configurer, mais chaque usage est signalé dans les
+    logs : la clé vient d'être divulguée, il faut la changer.
     """
     # 1. Clé obligatoire côté serveur
     if not HA_INIT_KEY:
@@ -451,15 +473,30 @@ async def init_home_assistant(
             headers={"Retry-After": str(wait)},
         )
 
-    # 3. Comparaison timing-safe
-    if not init_key or not hmac.compare_digest(init_key, HA_INIT_KEY):
+    # 3. En-tête prioritaire, paramètre d'URL en repli déprécié
+    provided_key = x_ha_init_key
+    if not provided_key and init_key:
+        provided_key = init_key
+        logger.warning(
+            "ha-init : clé reçue en paramètre d'URL (déprécié). Elle vient d'être "
+            "écrite en clair dans les journaux d'accès du backend et du frontend. "
+            "Mettez à jour l'intégration Home Assistant, puis changez HA_INIT_KEY."
+        )
+
+    # 4. Comparaison timing-safe.
+    #    Encodée en UTF-8 : compare_digest lève un TypeError sur une str
+    #    contenant un caractère non-ASCII, ce qui aurait transformé une clé
+    #    accentuée en erreur 500 au lieu d'un refus propre.
+    if not provided_key or not hmac.compare_digest(
+        provided_key.encode("utf-8"), HA_INIT_KEY.encode("utf-8")
+    ):
         login_limiter.record_failure(client_ip)
         logger.warning("ha-init : clé invalide ou manquante")
         raise HTTPException(status_code=403, detail="Clé d'initialisation invalide ou manquante")
 
     login_limiter.record_success(client_ip)
 
-    # 4. Vérifier que l'admin n'a pas désactivé l'intégration
+    # 5. Vérifier que l'admin n'a pas désactivé l'intégration
     global _ha_integration_enabled
     if not _ha_integration_enabled:
         logger.warning("ha-init bloqué — intégration désactivée par l'admin")

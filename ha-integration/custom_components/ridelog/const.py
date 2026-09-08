@@ -11,6 +11,13 @@ CONF_PASSWORD = "password"
 CONF_ACCESS_TOKEN = "access_token"
 CONF_SCAN_INTERVAL = "scan_interval"
 
+# En-tête portant la clé d'initialisation. Doit rester identique à
+# HA_INIT_KEY_HEADER dans backend/routes/auth.py. La clé ne passe SURTOUT pas
+# en paramètre d'URL : une query string est journalisée intégralement par
+# uvicorn (--access-log) et par le nginx de RideLog (format « combined »), ce
+# qui écrivait la clé en clair dans les journaux des deux conteneurs.
+HA_INIT_KEY_HEADER = "X-HA-Init-Key"
+
 # Default values
 # Port de l'INTERFACE WEB (nginx), pas celui du backend. C'est nginx qui
 # proxifie /api vers le backend ; le port 8000 n'a pas vocation à être publié
