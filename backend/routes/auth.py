@@ -413,6 +413,7 @@ async def change_own_password(
 
 @router.post("/auth/ha-init", response_model=TokenResponse)
 async def init_home_assistant(
+    request: Request,
     init_key: str = Query(None),
     db: Session = Depends(get_db),
 ):
@@ -423,6 +424,7 @@ async def init_home_assistant(
 
     Sécurité :
     - HA_INIT_KEY obligatoire — endpoint désactivé si non définie
+    - Rate limiting par IP, comme /auth/login
     - Comparaison timing-safe pour éviter les attaques temporelles
     - Bloqué si l'admin a désactivé l'intégration depuis l'UI
     - Ne crée le compte que s'il est absent (pas de recréation silencieuse)
@@ -435,12 +437,29 @@ async def init_home_assistant(
             detail="Intégration HA non configurée. Définissez HA_INIT_KEY dans les variables d'environnement.",
         )
 
-    # 2. Comparaison timing-safe
+    # 2. Rate limiting AVANT toute comparaison de clé.
+    #    Sans lui, cette route — la plus privilégiée en lecture de l'instance —
+    #    était la seule à accepter un nombre illimité de tentatives, alors que
+    #    /auth/login et les routes de réinitialisation sont plafonnées.
+    #    compare_digest protège du timing, pas du volume.
+    client_ip = get_client_ip(request)
+    wait = login_limiter.check(client_ip)
+    if wait > 0:
+        raise HTTPException(
+            status_code=429,
+            detail=f"Trop de tentatives. Réessayez dans {wait} secondes.",
+            headers={"Retry-After": str(wait)},
+        )
+
+    # 3. Comparaison timing-safe
     if not init_key or not hmac.compare_digest(init_key, HA_INIT_KEY):
+        login_limiter.record_failure(client_ip)
         logger.warning("ha-init : clé invalide ou manquante")
         raise HTTPException(status_code=403, detail="Clé d'initialisation invalide ou manquante")
 
-    # 3. Vérifier que l'admin n'a pas désactivé l'intégration
+    login_limiter.record_success(client_ip)
+
+    # 4. Vérifier que l'admin n'a pas désactivé l'intégration
     global _ha_integration_enabled
     if not _ha_integration_enabled:
         logger.warning("ha-init bloqué — intégration désactivée par l'admin")
