@@ -2,6 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { api } from '../../lib/api';
 import Icon from '../Icon';
 import Notice from '../Notice';
+import { copyToClipboard } from '../../lib/clipboard';
 
 export default function HomeAssistantIntegration() {
   const [activeTab, setActiveTab] = useState('setup');
@@ -22,7 +23,35 @@ export default function HomeAssistantIntegration() {
   const [generatedYaml, setGeneratedYaml] = useState('');
   const [isGenerating, setIsGenerating] = useState(false);
   const [copySuccess, setCopySuccess] = useState(false);
+  const [copyFailed, setCopyFailed] = useState(false);
   const yamlRef = useRef(null);
+
+  // Copie du YAML — DOIT passer par lib/clipboard.js.
+  //
+  // Les deux gestionnaires appelaient `navigator.clipboard.writeText` en direct.
+  // Cet objet n'existe PAS en HTTP non sécurisé, c'est-à-dire dans le cas normal
+  // d'un accès LAN self-hosted : l'appel levait un TypeError avalé par React, le
+  // bouton ne faisait rien et n'affichait même pas « Copié ». L'utilisateur se
+  // rabattait alors sur Ctrl+A / Ctrl+C et collait la page entière au lieu du
+  // YAML. Le repli `document.execCommand` du helper est exactement ce qui manquait.
+  const handleCopyYaml = async () => {
+    if (await copyToClipboard(generatedYaml)) {
+      setCopyFailed(false);
+      setCopySuccess(true);
+      setTimeout(() => setCopySuccess(false), 3000);
+      return;
+    }
+    // Dernier recours : sélectionner le bloc, pour que le Ctrl+C réflexe de
+    // l'utilisateur ne prenne que le YAML et pas toute la page.
+    if (yamlRef.current) {
+      const range = document.createRange();
+      range.selectNodeContents(yamlRef.current);
+      const selection = window.getSelection();
+      selection.removeAllRanges();
+      selection.addRange(range);
+    }
+    setCopyFailed(true);
+  };
 
   useEffect(() => {
     loadAll();
@@ -217,8 +246,8 @@ export default function HomeAssistantIntegration() {
                   <p><strong>2.</strong> Créer une intégration → rechercher <strong>RideLog</strong></p>
                   <p><strong>3.</strong> URL API :</p>
                   <div className="p-2 rounded mt-1 ml-4" style={{ background: 'var(--bg-base)', wordBreak: 'break-all' }}>
-                    <p className="font-mono" style={{ color: 'var(--text-1)' }}>http://192.168.1.x:8000</p>
-                    <p className="text-xs mt-1" style={{ color: 'var(--text-3)' }}>(Remplacez par votre IP/domaine)</p>
+                    <p className="font-mono" style={{ color: 'var(--text-1)' }}>http://192.168.1.x:3100</p>
+                    <p className="text-xs mt-1" style={{ color: 'var(--text-3)' }}>(Remplacez par votre IP/domaine. C'est le port de cette interface web, pas celui du backend : nginx transmet /api au backend, dont le port n'a pas vocation à être publié.)</p>
                   </div>
                 </div>
               ),
@@ -289,7 +318,7 @@ action:
 
 rest_command:
   ridelog_refresh:
-    url: "http://localhost:8000/api/auth/refresh"
+    url: "http://192.168.1.x:3100/api/auth/refresh-token"
     method: post
     headers:
       Authorization: "Bearer VOTRE_TOKEN_ACTUEL"`}
@@ -390,7 +419,7 @@ rest_command:
               <div className="flex justify-between items-center mb-2">
                 <p className="text-xs font-bold" style={{ color: 'var(--text-2)' }}>YAML généré</p>
                 <button
-                  onClick={() => { navigator.clipboard.writeText(generatedYaml); setCopySuccess(true); setTimeout(() => setCopySuccess(false), 3000); }}
+                  onClick={handleCopyYaml}
                   className="text-xs px-3 py-1 rounded font-medium"
                   style={copySuccess
                     ? { background: 'var(--success-light)', color: 'var(--success)', border: '1px solid var(--success)' }
@@ -403,10 +432,16 @@ rest_command:
                 ref={yamlRef}
                 className="p-4 rounded overflow-auto text-xs border cursor-pointer"
                 style={{ backgroundColor: 'var(--bg-base)', borderColor: 'var(--border)', color: 'var(--text-1)', maxHeight: '400px' }}
-                onClick={() => { navigator.clipboard.writeText(generatedYaml); setCopySuccess(true); setTimeout(() => setCopySuccess(false), 3000); }}
+                onClick={handleCopyYaml}
               >
                 {generatedYaml}
               </pre>
+              {copyFailed && (
+                <Notice tone="warning" className="mt-3">
+                  Votre navigateur refuse l'accès au presse-papier, faute de connexion sécurisée.
+                  Le YAML vient d'être sélectionné : faites Ctrl+C (Cmd+C sur Mac) pour le copier.
+                </Notice>
+              )}
               <div className="mt-3 rounded p-3 text-xs" style={{ background: 'var(--warning-light)', border: '1px solid var(--warning)', color: 'var(--text-1)' }}>
                 <p className="font-bold flex items-center gap-2"><Icon name="bulb" size={15} />Comment utiliser</p>
                 <ol className="list-decimal list-inside space-y-1 mt-1">

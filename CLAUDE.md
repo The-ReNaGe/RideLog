@@ -328,6 +328,27 @@ Schémas Pydantic pour les entrées/sorties :
 - Lien généré côté frontend : `{origin}/invite/{token}` — `AuthPage.jsx` extrait le token depuis `window.location.pathname` au montage et valide via `GET /auth/check-invite/{token}`
 - Copie du lien : passe par `lib/clipboard.js` (fallback `document.execCommand('copy')` requis car `navigator.clipboard` est indisponible en HTTP non sécurisé — cas fréquent en accès LAN self-hosted)
 
+> ⚠️ **Aucune copie ne s'écrit hors de `lib/clipboard.js`.** La règle était
+> déjà énoncée ici et elle était violée : le bouton « Copier » du générateur
+> de carte Lovelace (`HomeAssistantIntegration.jsx`) appelait
+> `navigator.clipboard.writeText` en direct, aux **deux** endroits — le bouton
+> et le bloc `<pre>` cliquable. En HTTP non sécurisé, `navigator.clipboard`
+> vaut `undefined` : l'appel levait un `TypeError` avalé par React, le bouton
+> ne faisait rien et n'affichait même pas « Copié ». L'utilisateur se rabattait
+> sur Ctrl+A / Ctrl+C — et collait la page entière au lieu du YAML.
+>
+> Le contrôle qui le trouve, à garder **vide** :
+>
+> ```bash
+> grep -rn "navigator.clipboard" frontend/src --include="*.jsx" --include="*.js" \
+>   | grep -v "lib/clipboard.js"
+> ```
+>
+> Quand même le repli échoue, l'appelant doit **sélectionner** le contenu à
+> copier (`window.getSelection` sur la référence du bloc) et le dire. Sans
+> cela, l'utilisateur reprend son Ctrl+A et le bug se reproduit à l'identique :
+> une copie qui échoue en silence ne se répare pas toute seule.
+
 ### Création manuelle de compte par l'admin
 
 - `POST /api/admin/users` — nécessaire en mode `closed` où l'auto-inscription est impossible, ou pour créer un compte sans passer par le flux d'invitation
@@ -363,10 +384,45 @@ _ha_integration_enabled: bool = True  # défaut au démarrage
 > **Important** : le flag repasse à `True` après un redémarrage du backend (valeur par défaut). Cela ne recrée pas le compte — HA doit appeler `ha-init` lui-même au redémarrage de son composant. Le compte ne se recrée jamais silencieusement si l'admin a explicitement désactivé puis redémarré sans réactiver.
 
 **Sécurité :**
-- Comparaison timing-safe de la `HA_INIT_KEY` (protection anti timing attack)
+- Comparaison timing-safe de la `HA_INIT_KEY` (protection anti timing attack),
+  sur des `bytes` : `hmac.compare_digest` lève un `TypeError` devant une `str`
+  non-ASCII, ce qui rendait un 500 au lieu d'un refus propre
 - Le compte HA ne peut jamais être promu admin (`promote_user` le bloque explicitement)
 - Token 30 jours, renouvelable via `/api/auth/refresh-token`
 - Password aléatoire généré (`secrets.token_urlsafe(32)`) — jamais utilisé pour se connecter
+
+> ⚠️ **La clé se transmet dans l'en-tête `X-HA-Init-Key`, jamais dans l'URL.**
+> Une query string est journalisée **intégralement** des deux côtés : uvicorn
+> tourne avec `--access-log` (`backend/Dockerfile`) et le nginx du frontend
+> utilise le format `combined` par défaut. La clé se retrouvait donc en clair
+> dans `docker logs ridelog-backend` **et** `docker logs ridelog-frontend` —
+> et, côté Home Assistant, dans le message des exceptions httpx, qui reprennent
+> l'URL complète (`LOGGER.error(f"… {err}")`).
+>
+> Ce n'est pas une fuite théorique : le réflexe, face à une intégration qui ne
+> se connecte pas, est de copier ses logs dans un rapport de bug. Or cette clé
+> délivre un jeton de 30 jours qui lit les véhicules de **tous** les
+> utilisateurs — `list_readable_vehicles` ne filtre pas un compte
+> d'intégration (§22.1). C'est le sésame le plus large de l'instance.
+>
+> Le paramètre d'URL `init_key` **reste accepté** pour qu'une intégration pas
+> encore mise à jour puisse se configurer — refuser aurait transformé un
+> correctif en panne. Mais chaque usage émet un avertissement nommant la
+> conséquence : la clé vient de fuiter, il faut la changer. L'avertissement
+> lui-même ne contient pas la clé, ce que verrouille un test.
+
+> ⚠️ **`/auth/ha-init` est rate-limité par IP**, via le même `login_limiter`
+> que `/auth/login` (paliers 3/6/9/12+). C'était la seule route sensible sans
+> plafond : `compare_digest` protège du timing, pas du **volume**, et rien
+> n'empêchait d'essayer des clés indéfiniment sur la route la plus privilégiée
+> du projet. Le contrôle est posé **avant** la comparaison, et un succès remet
+> le compteur à zéro pour que Home Assistant puisse se reconfigurer après
+> quelques essais infructueux.
+
+> ⚠️ **`HA_INIT_KEY` doit rester en ASCII.** Les en-têtes HTTP n'acceptent rien
+> d'autre — httpx refuse net d'envoyer un en-tête accentué, donc l'erreur
+> tombe côté Home Assistant, avant même d'atteindre RideLog. `openssl rand
+> -hex 16`, recommandé dans `.env.example`, satisfait la contrainte.
 
 ### Pour modifier
 
@@ -849,7 +905,44 @@ custom_components/ridelog/
 1. Copier `ha-integration/custom_components/ridelog/` dans `~/.homeassistant/custom_components/`
 2. Redémarrer Home Assistant
 3. Aller dans Paramètres → Appareils & Services → Ajouter une intégration → "RideLog"
-4. Saisir l'URL de l'API (`http://IP:8000`)
+4. Saisir l'URL de **l'interface web** (`http://IP:3100`) et la `HA_INIT_KEY`
+
+> ⚠️ **L'URL est celle du frontend, pas celle du backend.** C'est nginx qui
+> proxifie `/api` vers le backend, et `.env.example` déconseille explicitement
+> de publier le port 8000. L'écran d'installation de RideLog **et**
+> `DEFAULT_API_URL` proposaient pourtant `:8000` : sur une machine où ce port
+> servait à autre chose, l'intégration recevait un 404 d'un service tiers, que
+> le config flow traduisait en « Impossible de se connecter. Vérifiez l'URL et
+> la clé » — soit un message désignant les deux seules choses qui étaient
+> justes. Les trois endroits (`const.py`, `strings.json`,
+> `HomeAssistantIntegration.jsx`) disent maintenant 3100.
+
+> ⚠️ **Ordre de mise à jour : le backend AVANT l'intégration.** Une intégration
+> à jour envoie la clé dans `X-HA-Init-Key` ; un backend antérieur ne lit que
+> le paramètre d'URL et répondra **403**, désormais affiché « Clé
+> d'initialisation refusée » — un message parfaitement trompeur, puisque la clé
+> est bonne. L'inverse est sans danger : le paramètre d'URL reste accepté, donc
+> un backend à jour sert une ancienne intégration sans rien casser. C'est
+> pourquoi le repli existe.
+
+**Le config flow nomme la cause du refus** au lieu de tout ramener à
+`cannot_connect`. La table `_ERROR_BY_STATUS` (`config_flow.py`) fait
+correspondre le statut HTTP à un message :
+
+| Statut | Clé | Ce que ça veut dire |
+|---|---|---|
+| 403 | `invalid_auth` | clé fausse, ou intégration désactivée dans RideLog |
+| 404 | `wrong_url` | ça répond, mais ce n'est pas l'API RideLog — le cas du mauvais port |
+| 429 | `too_many_attempts` | rate limiting du backend |
+| 503 | `not_configured` | `HA_INIT_KEY` absente du `.env` de RideLog |
+| *(autre)* | `cannot_connect` | injoignable pour de bon |
+
+> ⚠️ **Les messages vivent dans `translations/`, pas seulement dans
+> `strings.json`.** Home Assistant ne lit `strings.json` que pour les
+> intégrations du cœur ; un custom component charge `translations/<langue>.json`.
+> Le dossier n'existait pas — les libellés et les erreurs s'affichaient en clés
+> brutes (`invalid_auth`). Toute nouvelle clé d'erreur doit être ajoutée aux
+> **trois** fichiers : `strings.json`, `translations/fr.json`, `translations/en.json`.
 
 ### Capteurs créés (par véhicule)
 
@@ -1669,6 +1762,7 @@ python -m pytest tests/ -v
 | `test_user_preferences.py` | Langue et unités (`users.language`, `users.units`, `PUT /auth/me/preferences`) — un compte neuf porte `NULL` et non `"fr"`/`"metric"`, les préférences effectives retombent sur le pays, `auto` remet un réglage sous ce défaut, une valeur non servie est refusée, et surtout **l'isolation par utilisateur** : le choix d'un membre ne déborde pas sur les autres. |
 | `test_regions_fr.py` | `regions/fr.py` — normalisation de plaque, analyse de la réponse carte grise (détection moto par genre, replis de cylindrée, priorité du genre sur l'indication utilisateur), repli du registre sur `FR`. Aucun appel réseau : cette logique n'était auparavant atteignable que via un service tiers payant, donc jamais testée. |
 | `test_currency.py` | Devise d'un montant et conversion (`currency.py`, `routes/regions.py`) — un montant garde la devise de sa saisie même après un changement de réglage, une ligne non marquée est figée sur la devise sortante, un total à deux devises est ventilé et non additionné, l'aperçu ne touche rien, la conversion recalcule et ré-estampille, une troisième devise est laissée intacte, et seul un admin peut convertir. |
+| `test_ha_init.py` | `/auth/ha-init` — la clé passe par l'en-tête `X-HA-Init-Key`, le paramètre d'URL reste accepté mais journalise un avertissement qui ne contient pas la clé, une clé fausse est refusée puis plafonnée par IP, un succès remet le compteur à zéro, l'intégration désactivée prime sur une clé valide, et l'absence de clé serveur rend 503 et non 403. Voir §4. |
 | `test_regions_settings.py` | Choix du pays (`settings_store.py`, `routes/regions.py`) — France par défaut, refus d'un pays inconnu, écriture réservée à un admin, persistance **en base** et non en mémoire, et repli sur `FR` quand la base garde un pays que le code ne connaît plus (retour arrière, §21.5). |
 | `test_maintenance_routes.py` | Enregistrement d'un entretien via `TestClient` — la clé technique est stockée, deux libellés d'une même intervention partagent une clé, un libellé inconnu n'échoue pas, et l'entretien enregistré ressort bien rattaché à son échéance. |
 | `test_vehicle_status.py` | État d'entretien joint à `GET /vehicles` — présence des compteurs, accord avec `/upcoming`, et surtout : un véhicule **partagé par le groupe famille** porte le sien aussi (voir §23.9). |

@@ -8,7 +8,32 @@ from typing import Any, Dict, List
 import httpx
 from homeassistant.core import HomeAssistant
 
+from .const import HA_INIT_KEY_HEADER
+
 LOGGER = logging.getLogger(__name__)
+
+
+def describe_error(err: Exception) -> str:
+    """Décrit une erreur SANS divulguer de secret, et en restant utile.
+
+    httpx place l'URL complète de la requête dans le message de
+    HTTPStatusError. Tant que la clé d'initialisation voyageait en query
+    string, un simple `LOGGER.error(f"... {err}")` l'écrivait en clair dans les
+    journaux de Home Assistant — un log collé sur un forum d'entraide suffisait
+    à la divulguer.
+
+    On garde le statut HTTP et le champ `detail` renvoyé par l'API, qui est un
+    message métier sans secret : c'est précisément ce qui manquait pour
+    distinguer « clé invalide » de « serveur injoignable ».
+    """
+    if isinstance(err, httpx.HTTPStatusError):
+        detail = ""
+        try:
+            detail = err.response.json().get("detail", "")
+        except Exception:  # réponse non-JSON (page d'erreur d'un proxy, par ex.)
+            pass
+        return f"HTTP {err.response.status_code}" + (f" — {detail}" if detail else "")
+    return f"{type(err).__name__}: {err}"
 
 
 class RideLogAPI:
@@ -78,12 +103,16 @@ class RideLogAPI:
             raise
 
     async def init_home_assistant(self, init_key: str) -> Dict[str, Any]:
-        """Initialize Home Assistant integration account."""
+        """Crée (ou renouvelle) le compte d'intégration côté RideLog.
+
+        La clé voyage dans un EN-TÊTE, jamais dans l'URL : voir
+        HA_INIT_KEY_HEADER dans const.py pour la raison.
+        """
         try:
             client = await self.get_client()
             response = await client.post(
                 f"{self.api_url}/api/auth/ha-init",
-                params={"init_key": init_key}
+                headers={HA_INIT_KEY_HEADER: init_key},
             )
             response.raise_for_status()
             data = response.json()
@@ -93,7 +122,7 @@ class RideLogAPI:
                 self._client.headers["Authorization"] = f"Bearer {self.access_token}"
             return data
         except Exception as err:
-            LOGGER.error(f"HA init failed: {err}")
+            LOGGER.error("Échec de l'initialisation RideLog : %s", describe_error(err))
             raise
 
     async def close(self):
