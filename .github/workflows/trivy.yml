@@ -13,6 +13,7 @@ on:
 
 permissions:
   contents: read
+  packages: read
 
 jobs:
   trivy:
@@ -41,4 +42,28 @@ jobs:
           scan-ref: .
           severity: HIGH,CRITICAL
           exit-code: "0"
+          format: table
+
+      - name: Trivy — image backend publiée
+        if: always() && github.event_name != 'pull_request'
+        uses: aquasecurity/trivy-action@0.28.0
+        with:
+          scan-type: image
+          image-ref: ghcr.io/the-renage/ridelog-backend:stable
+          scanners: vuln
+          severity: CRITICAL
+          ignore-unfixed: true
+          exit-code: "1"
+          format: table
+
+      - name: Trivy — image frontend publiée
+        if: always() && github.event_name != 'pull_request'
+        uses: aquasecurity/trivy-action@0.28.0
+        with:
+          scan-type: image
+          image-ref: ghcr.io/the-renage/ridelog-frontend:stable
+          scanners: vuln
+          severity: CRITICAL
+          ignore-unfixed: true
+          exit-code: "1"
           format: table
