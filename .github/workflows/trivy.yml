@@ -24,7 +24,7 @@ jobs:
         uses: actions/checkout@v4
 
       - name: Trivy — dépendances et secrets
-        uses: aquasecurity/trivy-action@0.28.0
+        uses: aquasecurity/trivy-action@v0.36.0
         with:
           scan-type: fs
           scan-ref: .
@@ -36,7 +36,7 @@ jobs:
 
       - name: Trivy — configuration (Dockerfiles)
         if: always()
-        uses: aquasecurity/trivy-action@0.28.0
+        uses: aquasecurity/trivy-action@v0.36.0
         with:
           scan-type: config
           scan-ref: .
@@ -46,7 +46,7 @@ jobs:
 
       - name: Trivy — image backend publiée
         if: always() && github.event_name != 'pull_request'
-        uses: aquasecurity/trivy-action@0.28.0
+        uses: aquasecurity/trivy-action@v0.36.0
         with:
           scan-type: image
           image-ref: ghcr.io/the-renage/ridelog-backend:stable
@@ -58,7 +58,7 @@ jobs:
 
       - name: Trivy — image frontend publiée
         if: always() && github.event_name != 'pull_request'
-        uses: aquasecurity/trivy-action@0.28.0
+        uses: aquasecurity/trivy-action@v0.36.0
         with:
           scan-type: image
           image-ref: ghcr.io/the-renage/ridelog-frontend:stable
