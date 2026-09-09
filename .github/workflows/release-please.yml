@@ -19,20 +19,6 @@ jobs:
       - uses: googleapis/release-please-action@v4
         id: release
 
-  # ────────────────────────────────────────────────────────────────────────
-  # Publication du tag de version
-  # ────────────────────────────────────────────────────────────────────────
-  # On APPELLE la publication, on ne l'attend pas.
-  #
-  # Le réflexe naturel serait de déclencher publish-images sur
-  # `release: types: [published]`. Ça ne marche pas : GitHub Actions refuse
-  # qu'un évènement produit avec le GITHUB_TOKEN en déclenche un autre — c'est
-  # une protection anti-boucle. release-please créant la Release avec ce jeton,
-  # l'évènement n'arrive jamais. Constaté en vrai : la v2.0.0 a été publiée
-  # sans qu'aucune image `2.0.0` ne soit construite.
-  #
-  # L'appel direct contourne ça sans avoir à créer un jeton personnel, qu'il
-  # faudrait stocker en secret et renouveler à son expiration.
   publier-les-images:
     needs: release-please
     if: needs.release-please.outputs.release_created == 'true'
