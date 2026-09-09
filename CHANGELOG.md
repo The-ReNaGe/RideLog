@@ -1,5 +1,12 @@
 # Changelog
 
+## [2.4.2](https://github.com/The-ReNaGe/RideLog/compare/v2.4.1...v2.4.2) (2026-09-09)
+
+
+### Bug Fixes
+
+* **deps:** corrige des CVE sur PyJWT, python-multipart et axios ([e33f53d](https://github.com/The-ReNaGe/RideLog/commit/e33f53d4b0fb49ee916231458f94f6d6c55094f8))
+
 ## [2.4.1](https://github.com/The-ReNaGe/RideLog/compare/v2.4.0...v2.4.1) (2026-09-08)
 
 
