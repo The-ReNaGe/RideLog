@@ -1,47 +1,9 @@
 name: Publier les images
 
-# ══════════════════════════════════════════════════════════════════════════
-# Pourquoi ce workflow
-# ══════════════════════════════════════════════════════════════════════════
-# Sans lui, chaque utilisateur fabrique son image chez lui. Le code vient de
-# git, mais la base (`python:3.11-slim`, `node:18-alpine`) est un TAG MOBILE,
-# reconstruit régulièrement en amont. Deux personnes sur la même version de
-# RideLog n'ont donc pas la même image si elles ont buildé à quelques semaines
-# d'intervalle — et un bug qui n'apparaît que chez l'une devient
-# indiagnosticable. Publier fixe le contenu : tout le monde tire le même digest.
-#
-# ══════════════════════════════════════════════════════════════════════════
-# Les canaux
-# ══════════════════════════════════════════════════════════════════════════
-#   stable   → promu À LA MAIN. Le canal sur lequel on peut rester sans surprise.
-#   latest   → chaque merge sur main. Utilisable, mais non validé.
-#   X.Y.Z    → épinglage exact, immuable, construit une fois à la release.
-#   sha-xxx  → traçabilité : retrouver l'image d'un commit précis.
-#
-# ⚠️ `docker pull` sans tag prend `latest`, donc le canal NON validé. C'est un
-#    choix assumé du projet : la doc doit recommander `:stable` explicitement.
-#
-# ══════════════════════════════════════════════════════════════════════════
-# La promotion NE RECONSTRUIT PAS
-# ══════════════════════════════════════════════════════════════════════════
-# Elle pose un nom de plus sur un digest déjà publié. Reconstruire produirait
-# une image différente de celle qui a été testée — exactement le problème que
-# tout ce workflow cherche à supprimer. `stable` est donc bit pour bit la
-# version que tu as validée.
-# ══════════════════════════════════════════════════════════════════════════
-
 on:
-  # Chaque merge sur main alimente `latest`.
   push:
     branches: [main]
 
-  # Tag de version immuable, APPELÉ par release-please.
-  #
-  # ⚠️ Surtout pas `release: types: [published]`. Un évènement produit avec le
-  # GITHUB_TOKEN ne déclenche aucun autre workflow — c'est une protection
-  # anti-boucle de GitHub Actions. Or release-please crée la Release avec ce
-  # jeton : l'évènement `release` n'arrive donc JAMAIS. C'est ce qui a laissé
-  # la 2.0.0 sans image `2.0.0`. release-please nous appelle explicitement.
   workflow_call:
     inputs:
       version:
@@ -49,7 +11,6 @@ on:
         required: true
         type: string
 
-  # Promotion manuelle : pose un tag supplémentaire sur un digest EXISTANT.
   workflow_dispatch:
     inputs:
       source:
@@ -65,20 +26,15 @@ on:
 
 permissions:
   contents: read
-  packages: write # nécessaire pour pousser vers ghcr.io avec le GITHUB_TOKEN
+  packages: write
 
 jobs:
-  # ────────────────────────────────────────────────────────────────────────
-  # Construction — merge sur main, ou release
-  # ────────────────────────────────────────────────────────────────────────
   build:
     if: github.event_name != 'workflow_dispatch'
     runs-on: ubuntu-latest
     timeout-minutes: 30
 
     strategy:
-      # Un échec du backend ne doit pas annuler le frontend : on veut savoir
-      # lequel des deux pose problème, pas seulement qu'il y a un problème.
       fail-fast: false
       matrix:
         include:
@@ -92,13 +48,9 @@ jobs:
         uses: actions/checkout@v4
 
       - name: Préparer l'émulation ARM
-        # Le runner est x86. QEMU lui permet d'exécuter des binaires arm64, ce
-        # dont buildx a besoin pour produire l'image ARM.
         uses: docker/setup-qemu-action@v3
 
       - name: Préparer buildx
-        # Le builder Docker par défaut ne sait pas pousser plusieurs
-        # architectures dans un même manifeste. buildx si.
         uses: docker/setup-buildx-action@v3
 
       - name: S'authentifier auprès de ghcr.io
@@ -106,25 +58,16 @@ jobs:
         with:
           registry: ghcr.io
           username: ${{ github.actor }}
-          # Jeton fourni automatiquement, expire à la fin du job. Aucun secret
-          # à créer ni à faire tourner.
           password: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Déterminer les tags
         id: meta
         run: |
-          # ghcr.io n'accepte que des minuscules, alors que le propriétaire
-          # GitHub est « The-ReNaGe ». Sans cette conversion, le push échoue
-          # sur une erreur peu parlante.
           OWNER=$(echo "${{ github.repository_owner }}" | tr '[:upper:]' '[:lower:]')
           IMAGE="ghcr.io/${OWNER}/ridelog-${{ matrix.component }}"
 
-          # On distingue les cas par la PRÉSENCE de l'entrée `version`, pas par
-          # github.event_name : dans un workflow appelé, event_name reste celui
-          # du déclencheur d'origine (`push`), il ne dirait donc rien d'utile.
           VERSION="${{ inputs.version }}"
           if [ -n "$VERSION" ]; then
-            # release-please tague « v2.0.0 » ; les images se taguent « 2.0.0 ».
             VERSION="${VERSION#v}"
             echo "tags=${IMAGE}:${VERSION}" >> "$GITHUB_OUTPUT"
             echo "resume=${IMAGE}:${VERSION} (version épinglable)" >> "$GITHUB_OUTPUT"
@@ -139,31 +82,14 @@ jobs:
           context: ${{ matrix.context }}
           push: true
           tags: ${{ steps.meta.outputs.tags }}
-          # Un seul tag qui fonctionne partout : Docker publie un index de
-          # manifestes, et le client tire l'image correspondant à SA machine.
-          # L'utilisateur sur Raspberry Pi écrit exactement la même ligne dans
-          # son compose que celui sur x86.
-          #
-          # Coût mesuré localement, sans cache, sur ce projet :
-          #   backend   amd64 15 s, arm64 67 s — aucune compilation : bcrypt
-          #             et pydantic-core publient des wheels aarch64
-          #   frontend  arm64 144 s avec npm sous émulation, 17 s une fois
-          #             l'étage de build épinglé à $BUILDPLATFORM
           platforms: linux/amd64,linux/arm64
-          # Cache conservé entre exécutions : sans lui, chaque build
-          # réinstalle toutes les dépendances depuis zéro.
           cache-from: type=gha
           cache-to: type=gha,mode=max
-          # Sans ceci, buildx joint des attestations de provenance qui
-          # affichent des entrées « unknown/unknown » sur la page du package.
           provenance: false
 
       - name: Résumé
         run: echo "✅ ${{ steps.meta.outputs.resume }}" >> "$GITHUB_STEP_SUMMARY"
 
-  # ────────────────────────────────────────────────────────────────────────
-  # Promotion en stable — aucun rebuild
-  # ────────────────────────────────────────────────────────────────────────
   promote:
     if: github.event_name == 'workflow_dispatch'
     runs-on: ubuntu-latest
@@ -192,11 +118,6 @@ jobs:
           SOURCE="${{ inputs.source }}"; SOURCE="${SOURCE#v}"
           TARGET="${{ inputs.target }}"; TARGET="${TARGET#v}"
 
-          # `imagetools create` ajoute un tag sur un manifeste EXISTANT : rien
-          # n'est reconstruit, rien n'est retéléchargé, et les DEUX
-          # architectures suivent. Le tag cible désigne exactement le même
-          # digest que la source — c'est ce qui rend `stable` bit pour bit
-          # identique à ce qui a été validé.
           docker buildx imagetools create \
             --tag "${IMAGE}:${TARGET}" \
             "${IMAGE}:${SOURCE}"

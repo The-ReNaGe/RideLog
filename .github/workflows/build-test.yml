@@ -19,14 +19,12 @@ jobs:
         run: |
           cp .env.example .env
 
-          # JWT_SECRET — obligatoire au démarrage
           if grep -q "^JWT_SECRET=" .env; then
             sed -i "s|^JWT_SECRET=.*|JWT_SECRET=$(openssl rand -hex 32)|" .env
           else
             echo "JWT_SECRET=$(openssl rand -hex 32)" >> .env
           fi
 
-          # HA_INIT_KEY — obligatoire au démarrage (fonctionnalité HA non testée ici)
           if grep -q "^HA_INIT_KEY=" .env; then
             sed -i "s|^HA_INIT_KEY=.*|HA_INIT_KEY=$(openssl rand -hex 16)|" .env
           else
@@ -37,11 +35,6 @@ jobs:
         run: docker compose config --quiet
 
       - name: Build & démarrage des containers
-        # La surcharge dev est INDISPENSABLE ici. docker-compose.yml distribue
-        # désormais les images publiées : sans elle, ce job téléchargerait la
-        # dernière image stable et validerait la version PRÉCÉDENTE, pendant
-        # que le code de la PR ne serait jamais construit. Une CI verte qui ne
-        # teste rien est pire que pas de CI.
         run: |
           docker compose -f docker-compose.yml -f docker-compose.dev.yml \
             up -d --build
