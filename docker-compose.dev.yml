@@ -34,16 +34,29 @@
 # Arrêter l'environnement de dev :
 #   podman-compose -f docker-compose.yml -f docker-compose.dev.yml down
 # ──────────────────────────────────────────────────────────────────────────
+# `image: …:latest` — le build de dev EST la version la plus récente.
+#
+# Le fichier principal nomme l'image `…:${RIDELOG_TAG:-stable}`. Sans surcharge
+# ici, un build de dev retaggerait ce nom `:stable` et ÉCRASERAIT l'image
+# publiée stable en local : un `docker compose up` ultérieur relancerait alors
+# le code du dépôt en croyant lancer la version validée (piège §21.3).
+#
+# On fixe donc le nom de l'image construite sur `:latest`, découplé du
+# RIDELOG_TAG du .env : la dev vit sous `:latest`, la prod garde `:stable`
+# intact, et `docker compose pull` rétablit les deux images publiées.
+# ──────────────────────────────────────────────────────────────────────────
 
 services:
   backend:
     restart: "no"
+    image: ghcr.io/the-renage/ridelog-backend:latest
     build:
       context: ./backend
       dockerfile: Dockerfile
 
   frontend:
     restart: "no"
+    image: ghcr.io/the-renage/ridelog-frontend:latest
     build:
       context: ./frontend
       dockerfile: Dockerfile
