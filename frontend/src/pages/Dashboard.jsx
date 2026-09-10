@@ -176,7 +176,15 @@ export default function Dashboard({ onSelectVehicle, currentUser }) {
               <div className="min-w-0" style={{ flex: 1 }}>
                 <div className="row-name text-ellipsis">{v.name}</div>
                 <div className="row-meta text-ellipsis">
-                  {v.brand} {v.model} · {v.year} · {fmt.dist(v.current_mileage)}
+                  {/* Le nom du véhicule est le plus souvent « marque modèle » :
+                      le réécrire juste en dessous n'apprend rien. */}
+                  {[
+                    `${v.brand} ${v.model}`.trim() === (v.name || '').trim()
+                      ? null
+                      : `${v.brand} ${v.model}`,
+                    v.year,
+                    fmt.dist(v.current_mileage),
+                  ].filter(Boolean).join(' · ')}
                 </div>
               </div>
 

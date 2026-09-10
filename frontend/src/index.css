@@ -1058,3 +1058,25 @@ main { animation: fadeIn 0.18s ease-out; }
      avant le titre. Elle reste entière, simplement plus courte. */
   .hero-media { aspect-ratio: auto; max-height: 190px; }
 }
+
+/* Une ligne de réglage — intitulé à gauche, choix à droite.
+
+   Chaque réglage occupait une carte pleine largeur pour un titre et deux
+   petits boutons : quatre boîtes empilées, chacune vide aux trois quarts.
+   En lignes, la colonne de droite porte les choix et la largeur sert. */
+.setting-row {
+  display: flex;
+  align-items: flex-start;
+  gap: 28px;
+  padding: 18px 20px;
+  border-top: 1px solid var(--border-light);
+}
+.setting-row:first-child { border-top: 0; }
+
+.setting-row-label { width: 320px; flex-shrink: 0; }
+.setting-row-control { flex: 1; min-width: 0; }
+
+@media (max-width: 767px) {
+  .setting-row { flex-direction: column; gap: 12px; padding: 16px; }
+  .setting-row-label { width: auto; }
+}
