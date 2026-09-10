@@ -299,23 +299,25 @@ export default function Planning() {
 
       {/* L'état, en tête ; le détail des dépassées, sous le calendrier. */}
       {summary.overdue.length > 0 ? (
-        <div className="headline">
-          <span className="headline-n" style={{ color: 'var(--danger)' }}>{summary.overdue.length}</span>
-          <span className="headline-t">
+        <div className="status-band tone-danger">
+          <Icon name="alertCircle" size={18} />
+          <span className="headline-n">{summary.overdue.length}</span>
+          <span className="status-band-text">
             {summary.overdue.length > 1 ? t('échéances dépassées') : t('échéance dépassée')}
           </span>
-          <span className="headline-s">{t('· listées sous le calendrier')}</span>
+          <span className="status-band-hint">{t('listées sous le calendrier')}</span>
         </div>
       ) : (
-        <div className="headline">
-          <span className="headline-t" style={{ color: 'var(--success)', fontWeight: 700 }}>
+        <div className="status-band tone-success">
+          <Icon name="checkCircle" size={18} />
+          <span className="status-band-text" style={{ color: 'currentColor' }}>
             {t('Aucune échéance dépassée')}
           </span>
           {summary.urgent.length > 0 && (
-            <span className="headline-s">
+            <span className="status-band-hint">
               {summary.urgent.length > 1
-                ? t('· {count} urgentes dans les prochaines semaines', { count: summary.urgent.length })
-                : t('· 1 urgente dans les prochaines semaines')}
+                ? t('{count} urgentes dans les prochaines semaines', { count: summary.urgent.length })
+                : t('1 urgente dans les prochaines semaines')}
             </span>
           )}
         </div>

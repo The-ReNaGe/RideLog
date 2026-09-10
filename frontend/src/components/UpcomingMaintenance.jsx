@@ -639,7 +639,15 @@ function UpcomingRow({ item, fmt, canEdit, onEdit }) {
   );
 }
 
-/** Un groupe d'échéances, replié au-delà de sa limite. */
+/** Un groupe d'échéances, replié au-delà de sa limite.
+ *
+ * L'état se lisait dans une pastille de six pixels et une ligne de gris
+ * clair : à l'échelle de l'écran, rien ne distinguait « deux entretiens en
+ * retard depuis trois ans » de « neuf entretiens dans deux ans ». Le groupe
+ * porte donc une bande d'en-tête teintée de son état et un liseré sur son
+ * bord gauche — une fois par groupe, jamais par ligne : c'est ce qui évite
+ * le damier de cartes cerclées qu'on avait avant.
+ */
 function Group({ group, fmt, canEdit, onEdit }) {
   const [expanded, setExpanded] = useState(false);
   const hidden = group.items.length - group.limit;
@@ -651,19 +659,19 @@ function Group({ group, fmt, canEdit, onEdit }) {
   const max = group.items.reduce((s, i) => s + (i.estimated_cost_max || 0), 0);
 
   return (
-    <section>
-      <div className="group-head">
-        <span className={`dot ${group.dot || ''}`} aria-hidden="true" />
-        <span className="group-title" style={group.quiet ? { color: 'var(--text-2)' } : undefined}>
-          {group.title}
-        </span>
-        <span className="group-meta">
-          {group.items.length} intervention{group.items.length > 1 ? 's' : ''}
-          {max > 0 && ` · ${fmt.money(min)} à ${fmt.money(max)} estimés`}
-        </span>
+    <section className={`upcoming-group tone-${group.tone}`}>
+      <div className="upcoming-group-bar">
+        <Icon name={group.icon} size={16} />
+        <span className="upcoming-group-title">{group.title}</span>
+        <span className="upcoming-group-count tabular">{group.items.length}</span>
+        {max > 0 && (
+          <span className="upcoming-group-meta">
+            {fmt.money(min)} à {fmt.money(max)} estimés
+          </span>
+        )}
       </div>
 
-      <div className={`rows ${group.quiet ? 'quiet' : ''}`}>
+      <div className={`rows bare ${group.quiet ? 'quiet' : ''}`}>
         {shown.map((item, idx) => (
           <UpcomingRow
             key={item.intervention_key || idx}
@@ -757,21 +765,24 @@ export default React.memo(function UpcomingMaintenance({ data, vehicleId, onRefr
     {
       key: 'overdue',
       title: 'En retard',
-      dot: 'danger',
+      tone: 'danger',
+      icon: 'alertCircle',
       items: upcoming.filter(i => i.status === 'overdue'),
       limit: 6,
     },
     {
       key: 'soon',
       title: 'À prévoir',
-      dot: 'warning',
+      tone: 'warning',
+      icon: 'alert',
       items: upcoming.filter(i => i.status === 'urgent' || i.status === 'warning'),
       limit: 6,
     },
     {
       key: 'later',
       title: 'Plus tard',
-      dot: null,
+      tone: 'neutral',
+      icon: 'clock',
       quiet: true,
       items: upcoming.filter(i => !['overdue', 'urgent', 'warning'].includes(i.status)),
       limit: 4,

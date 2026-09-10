@@ -507,12 +507,15 @@ export default function VehicleDetail({ vehicleId, onBack, currentUser }) {
           .sort((a, b) => new Date(a.next_due_date) - new Date(b.next_due_date))[0];
 
         const state = overdue > 0
-          ? { n: overdue, color: 'var(--danger)',  txt: overdue > 1 ? 'entretiens en retard' : 'entretien en retard' }
+          ? { n: overdue, tone: 'danger',  icon: 'alertCircle',
+              txt: overdue > 1 ? 'entretiens en retard' : 'entretien en retard' }
           : urgent > 0
-          ? { n: urgent,  color: 'var(--warning)', txt: urgent > 1 ? 'entretiens urgents' : 'entretien urgent' }
+          ? { n: urgent,  tone: 'warning', icon: 'alert',
+              txt: urgent > 1 ? 'entretiens urgents' : 'entretien urgent' }
           : warning > 0
-          ? { n: warning, color: 'var(--warning)', txt: warning > 1 ? 'entretiens à surveiller' : 'entretien à surveiller' }
-          : { n: null,    color: 'var(--success)', txt: 'Tout est à jour' };
+          ? { n: warning, tone: 'warning', icon: 'clock',
+              txt: warning > 1 ? 'entretiens à surveiller' : 'entretien à surveiller' }
+          : { n: null,    tone: 'success', icon: 'checkCircle', txt: 'Tout est à jour' };
 
         const hint = overdue > 0 && oldest
           ? `· le plus ancien depuis ${fmt.date(oldest.next_due_date, { month: 'long', year: 'numeric' })}`
@@ -536,14 +539,11 @@ export default function VehicleDetail({ vehicleId, onBack, currentUser }) {
         return (
           <div className="hero-footer">
             <div className="flex flex-wrap items-start justify-between gap-3">
-              <div className="headline">
-                {state.n != null && (
-                  <span className="headline-n" style={{ color: state.color }}>{state.n}</span>
-                )}
-                <span className="headline-t" style={state.n == null ? { color: state.color, fontWeight: 700 } : undefined}>
-                  {state.txt}
-                </span>
-                {hint && <span className="headline-s">{hint}</span>}
+              <div className={`status-band tone-${state.tone}`}>
+                <Icon name={state.icon} size={18} />
+                {state.n != null && <span className="headline-n">{state.n}</span>}
+                <span className="status-band-text">{state.txt}</span>
+                {hint && <span className="status-band-hint">{hint}</span>}
               </div>
 
               {canEdit && (
