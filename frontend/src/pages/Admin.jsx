@@ -19,7 +19,9 @@ function ToggleSwitch({ checked, onChange, disabled, title }) {
         width: '48px',
         height: '26px',
         // Un interrupteur « éteint » en rouge se lit comme une erreur : gris.
-        background: checked ? 'var(--success)' : 'var(--border-strong)',
+        // Et « allumé » n'est pas un succès mais un état actif : l'accent,
+        // comme partout ailleurs dans l'interface.
+        background: checked ? 'var(--accent)' : 'var(--border-strong)',
         cursor: disabled ? 'not-allowed' : 'pointer',
         flexShrink: 0,
       }}
@@ -253,22 +255,77 @@ export default function Admin({ currentUser }) {
 
       {error && <Notice tone="danger" className="mb-4">{error}</Notice>}
 
-      {/* ── Création de compte (Privé ou Ouvert uniquement) ── */}
-      {registrationMode !== null && (
-        <div className="card mb-5">
-          <div className="flex items-center justify-between gap-3 flex-wrap">
-            <h3 className="section-title">{t('Créer un compte')}</h3>
-            {canCreateManually && (
-              <button
-                onClick={() => { setShowCreateForm(!showCreateForm); setCreatedResult(null); setCreateError(null); }}
-                className={`btn btn-sm ${showCreateForm ? 'btn-secondary' : 'btn-primary'}`}
-              >
-                <Icon name={showCreateForm ? 'close' : 'plus'} size={15} strokeWidth={2} />
-                {showCreateForm ? t('Fermer') : t('Nouveau compte')}
-              </button>
-            )}
+      <div className="card mb-5 flex items-center justify-between gap-3 flex-wrap">
+        <div className="flex items-start gap-3">
+          <div>
+          <h3 className="section-title" style={{ fontSize: '0.95rem' }}>
+            {t('Réinitialisation de mot de passe')}
+          </h3>
+          <p className="text-xs mt-1" style={{ color: 'var(--text-3)' }}>
+            {passwordResetEnabled
+              ? t("Les admins peuvent réinitialiser le mot de passe d'un utilisateur (pas de SMTP/lien par email disponible).")
+              : t('Désactivée : aucun admin ne peut réinitialiser un mot de passe actuellement.')}
+          </p>
           </div>
+        </div>
+        <div className="flex items-center gap-2">
+          <span
+            className="text-xs font-semibold whitespace-nowrap"
+            style={{ color: 'var(--text-2)' }}
+          >
+            {togglingReset ? t('Patientez…') : passwordResetEnabled ? t('Activé') : t('Désactivé')}
+          </span>
+          <ToggleSwitch
+            checked={passwordResetEnabled}
+            onChange={handleTogglePasswordReset}
+            disabled={togglingReset}
+            title={passwordResetEnabled ? t('Cliquer pour désactiver') : t('Cliquer pour activer')}
+          />
+        </div>
+      </div>
 
+      {resetError && <Notice tone="danger" className="mb-4">{resetError}</Notice>}
+
+      {resetResult && (
+        <Notice tone="success" className="mb-5">
+          <p style={{ color: 'var(--text-1)' }}>
+            {t('Mot de passe de @{name} réinitialisé.', { name: resetResult.username })}
+          </p>
+          <p className="text-xs mt-2" style={{ color: 'var(--text-2)' }}>
+            {t("Copiez-le maintenant et transmettez-le à l'utilisateur par un canal sécurisé (il ne sera plus jamais affiché) :")}
+          </p>
+          <code
+            className="block mt-1 px-2 py-1.5 rounded text-sm select-all"
+            style={{ background: 'var(--bg-surface)', border: '1px solid var(--border)', color: 'var(--text-1)' }}
+          >
+            {resetResult.generated_password}
+          </code>
+        </Notice>
+      )}
+
+      <div className="card">
+        <div className="flex items-center justify-between gap-3 flex-wrap mb-3">
+          <h3 className="section-title">
+            {t('Comptes')}
+            {users.length > 0 && (
+              <span className="group-meta" style={{ marginLeft: 8 }}>{users.length}</span>
+            )}
+          </h3>
+          {canCreateManually && (
+            <button
+              onClick={() => { setShowCreateForm(!showCreateForm); setCreatedResult(null); setCreateError(null); }}
+              className={`btn btn-sm ${showCreateForm ? 'btn-secondary' : 'btn-primary'}`}
+            >
+              <Icon name={showCreateForm ? 'close' : 'plus'} size={15} strokeWidth={2} />
+              {showCreateForm ? t('Fermer') : t('Nouveau compte')}
+            </button>
+          )}
+        </div>
+
+        {/* Création de compte — le formulaire seulement, ouvert par le
+            bouton de l'en-tête ci-dessus. */}
+        {registrationMode !== null && (
+          <>
           {!canCreateManually && (
             <Notice tone="neutral" icon="lock" className="mt-3">
               {t("Le mode d'inscription est « Sur invitation ». Pour faire entrer quelqu'un, générez un lien depuis Paramètres → Inscription, ou changez le mode d'inscription.")}
@@ -363,60 +420,9 @@ export default function Admin({ currentUser }) {
               )}
             </Notice>
           )}
-        </div>
-      )}
+        </>
+        )}
 
-      <div className="card mb-5 flex items-center justify-between gap-3 flex-wrap">
-        <div className="flex items-start gap-3">
-          <div className="icon-box"><Icon name="key" size={17} /></div>
-          <div>
-          <h3 className="section-title" style={{ fontSize: '0.95rem' }}>
-            {t('Réinitialisation de mot de passe')}
-          </h3>
-          <p className="text-xs mt-1" style={{ color: 'var(--text-3)' }}>
-            {passwordResetEnabled
-              ? t("Les admins peuvent réinitialiser le mot de passe d'un utilisateur (pas de SMTP/lien par email disponible).")
-              : t('Désactivée : aucun admin ne peut réinitialiser un mot de passe actuellement.')}
-          </p>
-          </div>
-        </div>
-        <div className="flex items-center gap-2">
-          <span
-            className="text-xs font-semibold whitespace-nowrap"
-            style={{ color: passwordResetEnabled ? 'var(--success)' : 'var(--danger)' }}
-          >
-            {togglingReset ? t('Patientez…') : passwordResetEnabled ? t('Activé') : t('Désactivé')}
-          </span>
-          <ToggleSwitch
-            checked={passwordResetEnabled}
-            onChange={handleTogglePasswordReset}
-            disabled={togglingReset}
-            title={passwordResetEnabled ? t('Cliquer pour désactiver') : t('Cliquer pour activer')}
-          />
-        </div>
-      </div>
-
-      {resetError && <Notice tone="danger" className="mb-4">{resetError}</Notice>}
-
-      {resetResult && (
-        <Notice tone="success" className="mb-5">
-          <p style={{ color: 'var(--text-1)' }}>
-            {t('Mot de passe de @{name} réinitialisé.', { name: resetResult.username })}
-          </p>
-          <p className="text-xs mt-2" style={{ color: 'var(--text-2)' }}>
-            {t("Copiez-le maintenant et transmettez-le à l'utilisateur par un canal sécurisé (il ne sera plus jamais affiché) :")}
-          </p>
-          <code
-            className="block mt-1 px-2 py-1.5 rounded text-sm select-all"
-            style={{ background: 'var(--bg-surface)', border: '1px solid var(--border)', color: 'var(--text-1)' }}
-          >
-            {resetResult.generated_password}
-          </code>
-        </Notice>
-      )}
-
-      <div className="card">
-        <h3 className="section-title mb-3">{t('Gestion des utilisateurs')}</h3>
 
         {loading ? (
           <div className="text-center py-6">
@@ -475,7 +481,7 @@ export default function Admin({ currentUser }) {
                           {t('Service')}
                         </span>
                       ) : user.is_admin ? (
-                        <span className="badge badge-success">
+                        <span className="badge badge-info">
                           <Icon name="shield" size={11} strokeWidth={2.2} />
                           {t('Admin')}
                         </span>
@@ -542,8 +548,20 @@ export default function Admin({ currentUser }) {
           milieu pour garder un <strong> laissait des moitiés de phrase dans le
           catalogue, intraduisibles hors contexte. L'emphase se perd, le sens
           se garde. */}
-      <Notice tone="neutral" title={t("Ce que cette console permet, et ce qu'elle interdit")} className="mt-5">
-        <ul className="space-y-1 mt-1 list-disc list-inside">
+      {/* Huit règles de fonctionnement, dépliées en permanence sous la liste
+          des comptes : c'est un mode d'emploi, pas une alerte, et on ne le lit
+          qu'une fois. Replié par défaut. */}
+      <details className="card mt-5" style={{ padding: '12px 16px' }}>
+        <summary
+          className="section-title"
+          style={{ fontSize: '0.92rem', cursor: 'pointer', listStyle: 'revert' }}
+        >
+          {t("Ce que cette console permet, et ce qu'elle interdit")}
+        </summary>
+        <ul
+          className="space-y-1 mt-3 list-disc list-inside"
+          style={{ fontSize: 13.5, color: 'var(--text-2)' }}
+        >
           <li>{t("Le premier compte créé sur l'instance est automatiquement administrateur.")}</li>
           <li>{t('Un administrateur peut promouvoir ou rétrograder les autres, mais pas lui-même.')}</li>
           <li>{t('En mode « Privé » ou « Ouvert », un administrateur crée un compte directement ; en mode « Sur invitation », il passe par un lien (Paramètres → Inscription).')}</li>
@@ -553,7 +571,7 @@ export default function Admin({ currentUser }) {
           <li>{t("Les administrateurs ne peuvent pas être supprimés : rétrogradez-les d'abord.")}</li>
           <li>{t('Supprimer un utilisateur supprime aussi tous ses véhicules.')}</li>
         </ul>
-      </Notice>
+      </details>
     </div>
   );
 }
