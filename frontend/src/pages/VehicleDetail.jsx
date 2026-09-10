@@ -329,9 +329,13 @@ export default function VehicleDetail({ vehicleId, onBack, currentUser }) {
       {/* En-tête du véhicule */}
       <section className="card mb-5" style={{ padding: 0, overflow: 'hidden' }}>
         <div className="flex flex-col sm:flex-row">
-          {/* Visuel — silhouette en fond, photo par-dessus si elle existe.
-              Une hauteur fixe évite que la fiche saute selon la présence
-              d'une photo et selon son format. */}
+          {/* Visuel — la photo, quand il y en a une.
+
+              Sans photo, ce cadre occupait un tiers de l'en-tête pour n'y
+              montrer qu'une silhouette grise : beaucoup de place pour dire
+              « rien ». Le bouton « Ajouter une photo » est déjà dans la rangée
+              d'actions, il suffit à signaler l'absence. */}
+          {vehicle.photo_url && (
           <div
             className="photo-container hero-media relative"
           >
@@ -364,6 +368,7 @@ export default function VehicleDetail({ vehicleId, onBack, currentUser }) {
               </button>
             )}
           </div>
+          )}
 
           <div className="flex-1 min-w-0 flex flex-col gap-3" style={{ padding: '16px 18px' }}>
             <div className="flex items-start justify-between gap-3 flex-wrap">
@@ -464,115 +469,113 @@ export default function VehicleDetail({ vehicleId, onBack, currentUser }) {
         </div>
       </section>
 
-      {/* KPI Cards */}
+      {/* État du véhicule, action principale et mesures.
+
+          Cinq encadrés KPI répétaient tous la même chose — « État : En
+          retard », « En retard : 8 », « Prochaine : En retard » — pendant
+          qu'un bandeau rouge la répétait une quatrième fois. Une phrase la
+          dit une fois ; les mesures qui restent sont des faits, sans
+          couleur ni cadre. */}
       {(() => {
-        const overdue = upcoming?.upcoming?.filter(u => u.status === 'overdue').length || 0;
-        const urgent  = upcoming?.upcoming?.filter(u => u.status === 'urgent').length || 0;
-        const warning = upcoming?.upcoming?.filter(u => u.status === 'warning').length || 0;
+        const list    = upcoming?.upcoming || [];
+        const overdue = list.filter(u => u.status === 'overdue').length;
+        const urgent  = list.filter(u => u.status === 'urgent').length;
+        const warning = list.filter(u => u.status === 'warning').length;
+
         // 999999 est la sentinelle « pas de composante temps » : un entretien
         // suivi au seul kilométrage l'affichait tel quel, « 999999 j ».
-        const next    = upcoming?.upcoming?.find(u => u.days_remaining != null && u.days_remaining !== 999999);
+        const dated   = list.filter(u => u.days_remaining != null && u.days_remaining !== 999999);
+        const next    = dated.find(u => u.days_remaining > 0) || dated[0];
         const nextDays = next ? Math.round(next.days_remaining) : null;
 
-        const stateConfig = overdue > 0
-          ? { icon: 'alertCircle', tone: 'danger',  label: 'En retard',    color: 'var(--danger)' }
-          : urgent > 0
-          ? { icon: 'alert',       tone: 'warning', label: 'Urgent',       color: 'var(--warning)' }
-          : warning > 0
-          ? { icon: 'clock',       tone: 'warning', label: 'À surveiller', color: 'var(--warning)' }
-          : { icon: 'checkCircle', tone: 'success', label: 'À jour',       color: 'var(--success)' };
+        // La plus ancienne échéance dépassée : c'est elle qui dit la gravité.
+        // « 8 en retard » ne distingue pas huit oublis d'un mois de huit ans.
+        const oldest = list
+          .filter(u => u.status === 'overdue' && u.next_due_date)
+          .sort((a, b) => new Date(a.next_due_date) - new Date(b.next_due_date))[0];
 
-        const nextLabel = nextDays == null ? '—'
-          : nextDays <= 0 ? 'En retard'
-          : nextDays === 1 ? 'Demain'
-          : `${nextDays} j`;
-        const nextColor = nextDays == null ? 'var(--text-3)'
-          : nextDays <= 0 ? 'var(--danger)'
-          : nextDays <= 7 ? 'var(--warning)'
-          : 'var(--text-1)';
-        const nextName = next?.intervention_type || null;
+        const state = overdue > 0
+          ? { n: overdue, color: 'var(--danger)',  txt: overdue > 1 ? 'entretiens en retard' : 'entretien en retard' }
+          : urgent > 0
+          ? { n: urgent,  color: 'var(--warning)', txt: urgent > 1 ? 'entretiens urgents' : 'entretien urgent' }
+          : warning > 0
+          ? { n: warning, color: 'var(--warning)', txt: warning > 1 ? 'entretiens à surveiller' : 'entretien à surveiller' }
+          : { n: null,    color: 'var(--success)', txt: 'Tout est à jour' };
+
+        const hint = overdue > 0 && oldest
+          ? `· le plus ancien depuis ${fmt.date(oldest.next_due_date, { month: 'long', year: 'numeric' })}`
+          : next && nextDays > 0
+          ? `· prochaine échéance dans ${nextDays} j`
+          : null;
 
         // Ventilé par devise : voir fmt.totals. Un historique à deux
         // monnaies s'écrit « 1 200 € + 300 $ », jamais une somme mêlée.
-        const fmtTotal = () => fmt.totals(recap?.cost_by_currency);
+        const total = recap?.total_cost != null ? fmt.totals(recap?.cost_by_currency) : null;
 
-        // Style commun à toutes les cards — libellé, valeur, précision.
-        // Toutes partagent la même taille de valeur et la même hauteur : une
-        // rangée dont les chiffres n'ont pas le même corps se lit comme une
-        // hiérarchie qui n'existe pas.
-        const KpiCard = ({ label, value, valueColor = 'var(--text-1)', sub = null }) => (
-          <div className="card" style={{ padding: 14, minHeight: 92, display: 'flex', flexDirection: 'column', justifyContent: 'space-between' }}>
-            <div className="card-label" style={{ marginBottom: 0 }}>{label}</div>
-            <div>
-              <div className="tabular" style={{ fontSize: 21, fontWeight: 800, lineHeight: 1.2, letterSpacing: '-0.02em', color: valueColor }}>
-                {value}
-              </div>
-              {sub && <div className="text-ellipsis" style={{ fontSize: 12, color: 'var(--text-3)', marginTop: 2 }}>{sub}</div>}
-            </div>
+        const Metric = ({ label, value, sub }) => (
+          <div>
+            <div className="metric-l">{label}</div>
+            <div className="metric-v tabular">{value ?? '—'}</div>
+            {sub && <div className="metric-s text-ellipsis">{sub}</div>}
           </div>
         );
 
         return (
-          <div className="mb-6">
-            {canEdit && (
-              <div className="flex justify-end mb-3">
-                <button onClick={() => setShowMaintenanceForm(!showMaintenanceForm)} className={`btn ${showMaintenanceForm ? 'btn-secondary' : 'btn-primary'}`}>
+          <section className="mb-6">
+            <div className="flex flex-wrap items-start justify-between gap-3">
+              <div className="headline">
+                {state.n != null && (
+                  <span className="headline-n" style={{ color: state.color }}>{state.n}</span>
+                )}
+                <span className="headline-t" style={state.n == null ? { color: state.color, fontWeight: 700 } : undefined}>
+                  {state.txt}
+                </span>
+                {hint && <span className="headline-s">{hint}</span>}
+              </div>
+
+              {canEdit && (
+                <button
+                  onClick={() => setShowMaintenanceForm(!showMaintenanceForm)}
+                  className={`btn ${showMaintenanceForm ? 'btn-secondary' : 'btn-primary'}`}
+                >
                   <Icon name={showMaintenanceForm ? 'close' : 'plus'} size={16} strokeWidth={2} />
                   {showMaintenanceForm ? 'Annuler' : 'Enregistrer une intervention'}
                 </button>
-              </div>
-            )}
-            <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
-              <KpiCard
-                label="État"
-                value={
-                  <span className="inline-flex items-center" style={{ gap: 8 }}>
-                    <span className={`icon-box sm ${stateConfig.tone}`}>
-                      <Icon name={stateConfig.icon} size={16} />
-                    </span>
-                    <span style={{ fontSize: 15, fontWeight: 700, color: stateConfig.color }}>{stateConfig.label}</span>
-                  </span>
+              )}
+            </div>
+
+            <div className="metrics mt-4">
+              <Metric
+                label="Prochaine échéance"
+                value={next ? next.intervention_type : null}
+                sub={
+                  next == null ? null
+                  : nextDays <= 0 ? 'en retard'
+                  : nextDays === 1 ? 'demain'
+                  : `dans ${nextDays} j`
                 }
               />
-              <KpiCard
-                label="En retard"
-                value={overdue}
-                valueColor={overdue > 0 ? 'var(--danger)' : 'var(--success)'}
-                sub={overdue === 0 ? 'aucun' : overdue === 1 ? 'intervention' : 'interventions'}
-              />
-              <KpiCard
-                label="Prochaine"
-                value={nextLabel}
-                valueColor={nextColor}
-                sub={nextName}
-              />
-              <KpiCard
+              <Metric
                 label="Total dépensé"
-                value={recap?.total_cost != null ? fmtTotal() : '—'}
-                valueColor={recap?.total_cost != null ? 'var(--accent)' : 'var(--text-3)'}
+                value={total}
+                sub={recap?.maintenances?.length ? `entretien · ${recap.maintenances.length} interventions` : null}
               />
-              <KpiCard
-                label={`Moy. ${fmt.distUnit}/an`}
-                value={avgKmPerYear?.value ? fmt.dist(avgKmPerYear.value) : '—'}
-                valueColor={avgKmPerYear?.value ? 'var(--text-1)' : 'var(--text-3)'}
-                sub={avgKmPerYear?.estimated ? 'estimation' : null}
+              <Metric
+                label={`Moyenne annuelle`}
+                value={avgKmPerYear?.value ? fmt.dist(avgKmPerYear.value) : null}
+                sub={avgKmPerYear?.estimated ? 'estimation — moins de 6 mois de données' : null}
               />
+              {estimate?.estimated_value != null && (
+                <Metric
+                  label="Prix d'achat"
+                  value={fmt.money(estimate.estimated_value)}
+                  sub={vehicle.year ? String(vehicle.year) : null}
+                />
+              )}
             </div>
-          </div>
+          </section>
         );
       })()}
-
-      {estimate && estimate.estimated_value != null && (
-        <div className="card mb-5 inline-flex items-center gap-3" style={{ padding: '12px 16px' }}>
-          <div className="icon-box success"><Icon name="euro" size={18} /></div>
-          <div>
-          <div className="card-label" style={{ marginBottom: 2 }}>Prix d'achat</div>
-          <div className="stat-number" style={{ color: 'var(--success)', fontSize: 22 }}>
-            {fmt.money(estimate.estimated_value)}
-          </div>
-          </div>
-        </div>
-      )}
 
       {showMaintenanceForm && (
         <div className="card p-4 sm:p-6 mb-6">
@@ -589,38 +592,24 @@ export default function VehicleDetail({ vehicleId, onBack, currentUser }) {
         </div>
       )}
 
-      {/* Recommendations */}
-      {recommendations?.recommendations?.length > 0 && (
-        <div className="mb-6">
-          <h3 className="section-title mb-3">Recommandations</h3>
-          <div className="space-y-2">
-            {recommendations.recommendations.map((rec, idx) => {
-              const tone = {
-                error:   { color: 'var(--danger)',  bg: 'var(--danger-light)',  icon: 'alertCircle', label: 'Critique' },
-                warning: { color: 'var(--warning)', bg: 'var(--warning-light)', icon: 'alert',       label: 'Attention' },
-                info:    { color: 'var(--accent)',  bg: 'var(--accent-light)',  icon: 'info',        label: 'Information' },
-              }[rec.type] || { color: 'var(--accent)', bg: 'var(--accent-light)', icon: 'info', label: 'Information' };
-              return (
-                <div
-                  key={idx}
-                  className="flex items-start gap-3"
-                  style={{
-                    background: tone.bg, border: '1px solid var(--border)',
-                    borderLeft: `3px solid ${tone.color}`,
-                    borderRadius: 'var(--radius)', padding: '12px 14px',
-                  }}
-                >
-                  <Icon name={tone.icon} size={17} style={{ color: tone.color, marginTop: 2 }} />
-                  <div className="min-w-0">
-                    <p style={{ color: tone.color, fontWeight: 700, fontSize: 13 }}>{tone.label}</p>
-                    <p style={{ color: 'var(--text-1)', fontSize: 14 }}>{rec.message}</p>
-                  </div>
-                </div>
-              );
-            })}
+      {/* Conseils — et seulement des conseils.
+          La recommandation « N entretiens en retard » est écartée : c'est
+          mot pour mot la phrase d'état juste au-dessus. Ne restent que
+          celles qui apprennent quelque chose (courroie jamais enregistrée
+          sur un véhicule ancien, regroupement d'interventions urgentes). */}
+      {(() => {
+        const advice = (recommendations?.recommendations || []).filter(r => r.type !== 'error');
+        if (advice.length === 0) return null;
+        return (
+          <div className="mb-6 space-y-2">
+            {advice.map((rec, idx) => (
+              <Notice key={idx} tone={rec.type === 'warning' ? 'warning' : 'info'}>
+                {rec.message}
+              </Notice>
+            ))}
           </div>
-        </div>
-      )}
+        );
+      })()}
 
       {/* Tabs */}
       <div className="tabs mb-5">
@@ -809,7 +798,7 @@ export default function VehicleDetail({ vehicleId, onBack, currentUser }) {
                             <td></td>
                             <td className="pt-3 text-right" style={{ color: 'var(--accent)' }}>{fmt.totals(recap.cost_by_currency)}</td>
                             <td></td>
-                            <td className="pt-3 text-sm" style={{ color: 'var(--text-3)' }}>{recap.documents_count} doc(s)</td>
+                            <td className="pt-3 text-sm" style={{ color: 'var(--text-3)' }}>{recap.documents_count} {recap.documents_count > 1 ? 'documents' : 'document'}</td>
                           </tr>
                         </tfoot>
                       )}
