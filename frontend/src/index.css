@@ -1218,3 +1218,57 @@ main { animation: fadeIn 0.18s ease-out; }
 .status-band.tone-warning { border-color: var(--warning); }
 .status-band.tone-warning .status-band-icon { background: var(--warning-light); color: var(--warning); }
 .status-band.tone-success .status-band-icon { background: var(--success-light); color: var(--success); }
+
+/* ============================================
+   BARRES DE RÉPARTITION
+   ============================================
+   Une barre empilée : chaque segment est une part, sa largeur EST la valeur.
+
+   ⚠️ Le rouge et l'orange des états ne se distinguent pas en vision
+   deutéranope — mesuré à ΔE 3,0, très en dessous du seuil de 6 qui autorise
+   encore une couleur seule. La barre ne porte donc JAMAIS l'information à
+   elle seule : l'ordre des segments est fixe, une légende les nomme et les
+   chiffre dans le même ordre, et chaque segment porte son intitulé en
+   infobulle. Retirer la légende casserait la lisibilité pour ~8 % des
+   hommes, sans que rien ne le signale à l'écran.
+   ============================================ */
+.meter {
+  display: flex;
+  gap: 2px;                 /* le filet de surface qui sépare deux parts */
+  height: 10px;
+  border-radius: 999px;
+  overflow: hidden;
+  background: var(--bg-inset);
+}
+
+.meter-seg {
+  height: 100%;
+  border-radius: 999px;
+  min-width: 3px;
+  transition: opacity 0.15s;
+}
+
+.meter-legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 16px;
+  margin-top: 8px;
+  font-size: 12px;
+  color: var(--text-2);
+}
+
+.meter-legend-item { display: inline-flex; align-items: center; gap: 6px; }
+
+/* La pastille de légende porte la couleur ; le texte garde l'encre du
+   thème — un libellé coloré se lit comme un lien ou une alerte. */
+.meter-key {
+  width: 9px;
+  height: 9px;
+  border-radius: 3px;
+  flex-shrink: 0;
+}
+
+.meter-legend-count { font-weight: 700; color: var(--text-1); font-variant-numeric: tabular-nums; }
+
+/* Version compacte, dans une ligne de liste. */
+.meter.sm { height: 6px; }

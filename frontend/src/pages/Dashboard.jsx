@@ -37,6 +37,53 @@ function remainingLabel(item) {
   return `dans ${d} j`;
 }
 
+/**
+ * Une barre empilée d'états, avec sa légende.
+ *
+ * ⚠️ La légende n'est pas décorative : le rouge et l'orange des états ne se
+ * distinguent pas en vision deutéranope (ΔE 3,0, mesuré). L'ordre des
+ * segments est fixe et la légende les nomme dans le même ordre — c'est elle
+ * qui porte l'information quand la couleur ne le peut pas.
+ */
+function Meter({ segments, legend = true, showValues = true, className = '' }) {
+  const total = segments.reduce((a, s) => a + s.value, 0);
+  if (total === 0) return null;
+
+  const label = segments
+    .filter(s => s.value > 0)
+    .map(s => `${s.value} ${s.label}`)
+    .join(', ');
+
+  return (
+    <div>
+      <div className={`meter ${className}`} role="img" aria-label={label}>
+        {segments.filter(s => s.value > 0).map(s => (
+          <div
+            key={s.key}
+            className="meter-seg"
+            style={{ flex: s.value, background: s.color }}
+            title={`${s.value} ${s.label}`}
+          />
+        ))}
+      </div>
+
+      {legend && (
+        <div className="meter-legend">
+          {segments.filter(s => s.value > 0).map(s => (
+            <span key={s.key} className="meter-legend-item">
+              <span className="meter-key" style={{ background: s.color }} aria-hidden="true" />
+              {/* Le montant est déjà dans l'intitulé d'une part de dépense :
+                  l'écrire deux fois donne « 479 entretien 479 € ». */}
+              {showValues && <span className="meter-legend-count">{s.value}</span>}
+              {s.label}
+            </span>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
 export default function Dashboard({ onSelectVehicle, currentUser }) {
   const fmt = useFormat();
   const t = useT();
@@ -119,6 +166,34 @@ export default function Dashboard({ onSelectVehicle, currentUser }) {
     return [...firstOfEach, ...others].slice(0, 5);
   })();
 
+  // Les trois états que le reste de l'application emploie déjà — « En
+  // retard », « À prévoir », « À jour ». Urgent et à surveiller sont réunis
+  // sous « À prévoir » : la nuance existe dans la fiche du véhicule, elle
+  // n'apporte rien à l'échelle du parc, et deux oranges côte à côte dans une
+  // barre ne se distinguent pas.
+  const bucketsOf = (items) => {
+    const b = { overdue: 0, soon: 0, ok: 0 };
+    for (const item of items) {
+      if (item.status === 'overdue') b.overdue += 1;
+      else if (item.status === 'urgent' || item.status === 'warning') b.soon += 1;
+      else b.ok += 1;
+    }
+    return b;
+  };
+
+  const segmentsOf = (b) => [
+    { key: 'overdue', value: b.overdue, label: t('en retard'),  color: 'var(--danger)' },
+    { key: 'soon',    value: b.soon,    label: t('à prévoir'),  color: 'var(--warning)' },
+    { key: 'ok',      value: b.ok,      label: t('à jour'),     color: 'var(--success)' },
+  ];
+
+  const fleetSegments = segmentsOf(bucketsOf(priorityItems));
+
+  const byVehicle = {};
+  for (const item of priorityItems) {
+    (byVehicle[item.vehicle_id] = byVehicle[item.vehicle_id] || []).push(item);
+  }
+
   return (
     <div>
       <PageHeader
@@ -161,6 +236,12 @@ export default function Dashboard({ onSelectVehicle, currentUser }) {
               </span>
             </div>
 
+            {fleetSegments.some(seg => seg.value > 0) && (
+              <div style={{ marginTop: 14 }}>
+                <Meter segments={fleetSegments} />
+              </div>
+            )}
+
             <div className="metrics mt-4">
               <div>
                 <div className="metric-l">{t('Véhicules')}</div>
@@ -176,9 +257,22 @@ export default function Dashboard({ onSelectVehicle, currentUser }) {
                     jamais. */}
                 <div className="metric-l">{t('Coût total')}</div>
                 <div className="metric-v tabular">{fmt.totals(data.cost_by_currency)}</div>
-                <div className="metric-s">
-                  {t('Entretien')} {fmt.money(data.total_maintenance_cost)} · {t('Carburant')} {fmt.money(data.total_fuel_cost)}
-                </div>
+                {(data.total_maintenance_cost > 0 || data.total_fuel_cost > 0) ? (
+                  <div style={{ marginTop: 6, maxWidth: 260 }}>
+                    <Meter
+                      className="sm"
+                      showValues={false}
+                      segments={[
+                        { key: 'maint', value: data.total_maintenance_cost,
+                          label: `${t('entretien')} ${fmt.money(data.total_maintenance_cost)}`,
+                          color: 'var(--accent)' },
+                        { key: 'fuel', value: data.total_fuel_cost,
+                          label: `${t('carburant')} ${fmt.money(data.total_fuel_cost)}`,
+                          color: 'var(--purple)' },
+                      ]}
+                    />
+                  </div>
+                ) : null}
               </div>
               <div>
                 {/* « — » et non « 0 € » quand aucun véhicule n'a de prix
@@ -309,11 +403,22 @@ export default function Dashboard({ onSelectVehicle, currentUser }) {
                     </div>
                   </div>
 
-                  <div className="flex items-center gap-2" style={{ justifyContent: 'flex-end' }}>
-                    <span className={`dot ${state.dot}`} aria-hidden="true" />
-                    <span style={{ fontSize: 13, fontWeight: 600, color: state.color, whiteSpace: 'nowrap' }}>
-                      {state.label}
-                    </span>
+                  <div style={{ width: 132, flexShrink: 0 }}>
+                    <div className="flex items-center gap-2" style={{ justifyContent: 'flex-end' }}>
+                      <span className={`dot ${state.dot}`} aria-hidden="true" />
+                      <span style={{ fontSize: 13, fontWeight: 600, color: state.color, whiteSpace: 'nowrap' }}>
+                        {state.label}
+                      </span>
+                    </div>
+                    {byVehicle[v.id] && (
+                      <div style={{ marginTop: 6 }}>
+                        <Meter
+                          className="sm"
+                          legend={false}
+                          segments={segmentsOf(bucketsOf(byVehicle[v.id]))}
+                        />
+                      </div>
+                    )}
                   </div>
                 </div>
               );
