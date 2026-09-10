@@ -86,7 +86,7 @@ export default function Dashboard({ onSelectVehicle, currentUser }) {
         const state = overdue > 0
           ? { n: overdue, tone: 'danger', icon: 'alertCircle',
               txt: overdue > 1 ? t('entretiens en retard') : t('entretien en retard'),
-              hint: touched > 1 ? t('sur {count} véhicules', { count: touched }) : null }
+              hint: touched > 1 ? t('Répartis sur {count} véhicules', { count: touched }) : null }
           : urgent > 0
           ? { n: urgent, tone: 'warning', icon: 'alert',
               txt: urgent > 1 ? t('entretiens urgents') : t('entretien urgent'), hint: null }
@@ -95,10 +95,13 @@ export default function Dashboard({ onSelectVehicle, currentUser }) {
         return (
           <section className="mb-6">
             <div className={`status-band tone-${state.tone}`}>
-              <Icon name={state.icon} size={18} />
-              {state.n != null && <span className="headline-n">{state.n}</span>}
-              <span className="status-band-text">{state.txt}</span>
-              {state.hint && <span className="status-band-hint">{state.hint}</span>}
+              <span className="status-band-icon"><Icon name={state.icon} size={18} /></span>
+              <span>
+                <span className="status-band-text">
+                  {state.n != null ? `${state.n} ${state.txt}` : state.txt}
+                </span>
+                {state.hint && <span className="status-band-hint">{state.hint}</span>}
+              </span>
             </div>
 
             <div className="metrics mt-4">
@@ -206,8 +209,15 @@ export default function Dashboard({ onSelectVehicle, currentUser }) {
         })}
       </div>
 
-      {/* Bottom row: Recent Activity + Charts — items-stretch pour aligner les hauteurs */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 items-start">
+      {/* Les deux colonnes du bas.
+
+          `items-start` laissait chaque carte à sa hauteur naturelle : celle
+          des graphiques descendait 110 px plus bas que celle de l'activité,
+          et le bas de la page finissait en marche d'escalier — c'est ce qui
+          « dépassait ». Les cartes s'étirent donc à la même hauteur. Rien ne
+          s'étire à l'intérieur : les graphiques restent en haut de leur
+          carte, sinon on retrouve le vide de 400 px corrigé plus tôt. */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
 
         {/* Recent Activity */}
         <div className="card p-4">
