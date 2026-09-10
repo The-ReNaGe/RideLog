@@ -697,7 +697,7 @@ export default React.memo(function UpcomingMaintenance({ data, vehicleId, onRefr
   }, [onRefresh]);
 
   const addButton = canEdit && vehicleId ? (
-    <div className="flex justify-end" style={{ marginBottom: 12 }}>
+    <div className="flex" style={{ marginTop: 16 }}>
       <button onClick={() => setCreating(true)} className="btn btn-secondary btn-sm">
         <Icon name="plus" size={14} />
         Ajouter un entretien récurrent
@@ -737,12 +737,12 @@ export default React.memo(function UpcomingMaintenance({ data, vehicleId, onRefr
   if (!upcoming || upcoming.length === 0) {
     return (
       <>
-        {addButton}
         <div className="card text-center" style={{ padding: '40px 16px' }}>
           <div className="icon-box lg success mx-auto" style={{ marginBottom: 12 }}>
             <Icon name="checkCircle" size={20} />
           </div>
           <p style={{ color: 'var(--text-2)' }}>Aucune intervention prévue.</p>
+          {addButton && <div className="flex justify-center">{addButton}</div>}
         </div>
         {disabledSection}
         {modals}
@@ -780,7 +780,6 @@ export default React.memo(function UpcomingMaintenance({ data, vehicleId, onRefr
 
   return (
     <>
-      {addButton}
       <div className="space-y-6">
         {groups.map(group => (
           <Group
@@ -792,6 +791,8 @@ export default React.memo(function UpcomingMaintenance({ data, vehicleId, onRefr
           />
         ))}
       </div>
+
+      {addButton}
 
       {disabledSection}
       {modals}

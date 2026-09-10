@@ -392,11 +392,13 @@ export default function VehicleDetail({ vehicleId, onBack, currentUser }) {
                   <input ref={photoInputRef} type="file" accept="image/jpeg,image/png,image/webp" onChange={handlePhotoUpload} className="hidden" />
                   <button onClick={() => photoInputRef.current?.click()} disabled={photoUploading} className="btn btn-secondary btn-sm">
                     <Icon name="camera" size={15} />
-                    {photoUploading ? 'Envoi…' : vehicle.photo_url ? 'Changer la photo' : 'Ajouter une photo'}
+                    <span className="hide-phone">
+                      {photoUploading ? 'Envoi…' : vehicle.photo_url ? 'Changer la photo' : 'Ajouter une photo'}
+                    </span>
                   </button>
                   <button onClick={handleEditStart} className="btn btn-secondary btn-sm">
                     <Icon name="pencil" size={15} />
-                    Modifier
+                    <span className="hide-phone">Modifier</span>
                   </button>
                   <button
                     onClick={handleDeleteVehicle}
@@ -467,7 +469,6 @@ export default function VehicleDetail({ vehicleId, onBack, currentUser }) {
             )}
           </div>
         </div>
-      </section>
 
       {/* État du véhicule, action principale et mesures.
 
@@ -488,6 +489,17 @@ export default function VehicleDetail({ vehicleId, onBack, currentUser }) {
         const next    = dated.find(u => u.days_remaining > 0) || dated[0];
         const nextDays = next ? Math.round(next.days_remaining) : null;
 
+        // Un délai s'écrit dans l'unité où on le pense : « dans 11 mois »,
+        // pas « dans 350 j ».
+        const delay = (d) => {
+          const n = Math.round(d);
+          if (n <= 0) return 'en retard';
+          if (n === 1) return 'demain';
+          if (n > 365) return `dans ${Math.floor(n / 365)} an${Math.floor(n / 365) > 1 ? 's' : ''}`;
+          if (n > 60) return `dans ${Math.round(n / 30)} mois`;
+          return `dans ${n} j`;
+        };
+
         // La plus ancienne échéance dépassée : c'est elle qui dit la gravité.
         // « 8 en retard » ne distingue pas huit oublis d'un mois de huit ans.
         const oldest = list
@@ -505,7 +517,7 @@ export default function VehicleDetail({ vehicleId, onBack, currentUser }) {
         const hint = overdue > 0 && oldest
           ? `· le plus ancien depuis ${fmt.date(oldest.next_due_date, { month: 'long', year: 'numeric' })}`
           : next && nextDays > 0
-          ? `· prochaine échéance dans ${nextDays} j`
+          ? `· prochaine échéance ${delay(nextDays)}`
           : null;
 
         // Ventilé par devise : voir fmt.totals. Un historique à deux
@@ -513,15 +525,16 @@ export default function VehicleDetail({ vehicleId, onBack, currentUser }) {
         const total = recap?.total_cost != null ? fmt.totals(recap?.cost_by_currency) : null;
 
         const Metric = ({ label, value, sub }) => (
+          value == null ? null :
           <div>
             <div className="metric-l">{label}</div>
-            <div className="metric-v tabular">{value ?? '—'}</div>
+            <div className="metric-v tabular">{value}</div>
             {sub && <div className="metric-s text-ellipsis">{sub}</div>}
           </div>
         );
 
         return (
-          <section className="mb-6">
+          <div className="hero-footer">
             <div className="flex flex-wrap items-start justify-between gap-3">
               <div className="headline">
                 {state.n != null && (
@@ -536,7 +549,7 @@ export default function VehicleDetail({ vehicleId, onBack, currentUser }) {
               {canEdit && (
                 <button
                   onClick={() => setShowMaintenanceForm(!showMaintenanceForm)}
-                  className={`btn ${showMaintenanceForm ? 'btn-secondary' : 'btn-primary'}`}
+                  className={`btn full-phone ${showMaintenanceForm ? 'btn-secondary' : 'btn-primary'}`}
                 >
                   <Icon name={showMaintenanceForm ? 'close' : 'plus'} size={16} strokeWidth={2} />
                   {showMaintenanceForm ? 'Annuler' : 'Enregistrer une intervention'}
@@ -548,17 +561,14 @@ export default function VehicleDetail({ vehicleId, onBack, currentUser }) {
               <Metric
                 label="Prochaine échéance"
                 value={next ? next.intervention_type : null}
-                sub={
-                  next == null ? null
-                  : nextDays <= 0 ? 'en retard'
-                  : nextDays === 1 ? 'demain'
-                  : `dans ${nextDays} j`
-                }
+                sub={next == null ? null : delay(nextDays)}
               />
               <Metric
                 label="Total dépensé"
                 value={total}
-                sub={recap?.maintenances?.length ? `entretien · ${recap.maintenances.length} interventions` : null}
+                sub={recap?.maintenances?.length
+                  ? `${recap.maintenances.length} intervention${recap.maintenances.length > 1 ? 's' : ''} enregistrée${recap.maintenances.length > 1 ? 's' : ''}`
+                  : null}
               />
               <Metric
                 label={`Moyenne annuelle`}
@@ -573,9 +583,10 @@ export default function VehicleDetail({ vehicleId, onBack, currentUser }) {
                 />
               )}
             </div>
-          </section>
+          </div>
         );
       })()}
+      </section>
 
       {showMaintenanceForm && (
         <div className="card p-4 sm:p-6 mb-6">

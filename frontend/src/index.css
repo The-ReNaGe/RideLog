@@ -562,7 +562,7 @@ tbody tr:hover td { background: var(--bg-hover); }
 }
 
 @media (min-width: 640px) {
-  .hero-media { max-width: 320px; flex-shrink: 0; }
+  .hero-media { max-width: 260px; flex-shrink: 0; align-self: stretch; aspect-ratio: auto; }
 }
 
 /* Vignette de liste (tableau de bord) : même format, pour la même raison. */
@@ -969,4 +969,92 @@ main { animation: fadeIn 0.18s ease-out; }
   .metrics { gap: 14px 28px; }
   .metric-v { font-size: 17px; }
   .row-item { padding: 12px 14px; gap: 12px; }
+}
+
+/* Le pied de la carte d'en-tête — état, action principale, mesures.
+
+   Ces trois choses flottaient sous la carte, qui gardait pour elle une moitié
+   droite vide. Réunies dans la carte, elles la remplissent et l'écran ne
+   commence plus par trois bandes empilées. */
+.hero-footer {
+  padding: 16px 18px;
+  border-top: 1px solid var(--border);
+  background: var(--bg-inset);
+}
+
+.hero-footer .metrics {
+  border-top: 1px solid var(--border);
+  margin-top: 14px;
+}
+
+@media (max-width: 640px) {
+  .hero-footer { padding: 14px; }
+}
+
+/* Carte véhicule sur téléphone — une rangée, pas une affiche.
+
+   En grille, la carte est verticale : photo en 3/2 pleine largeur, puis le
+   texte. Sur un écran de 400 px, cette photo fait 265 px de haut et un seul
+   véhicule tient à l'écran — il faut trois balayages pour voir un garage de
+   trois voitures. La même carte passe donc en rangée : vignette à gauche,
+   nom, compteur et état à droite. La photo reste entière (`contain` +
+   doublure), simplement plus petite. */
+.vcard {
+  display: flex;
+  flex-direction: column;
+}
+
+@media (max-width: 639px) {
+  .vcard {
+    display: grid;
+    grid-template-columns: 104px minmax(0, 1fr);
+    grid-template-areas:
+      "photo body"
+      "alert alert";
+    align-items: center;
+  }
+
+  .vcard-photo {
+    grid-area: photo;
+    width: 104px;
+    aspect-ratio: 3 / 2;
+    margin: 12px 0 12px 12px;
+    border-radius: var(--radius-sm);
+    overflow: hidden;
+  }
+
+  .vcard-body {
+    grid-area: body;
+    min-width: 0;
+    padding: 12px 14px !important;
+    gap: 6px !important;
+  }
+
+  /* `margin-top: auto` poussait le compteur en bas d'une colonne ; en rangée
+     il n'y a plus de bas à rejoindre. */
+  .vcard-body > div:last-child { margin-top: 0 !important; }
+
+  /* La vignette d'icône devant le nom fait doublon avec la photo juste à
+     côté, et vole 28 px de large sur un écran qui n'en a pas de trop. */
+  .vcard-body .icon-box.sm { display: none; }
+
+  .vcard-alert { grid-area: alert; }
+}
+
+/* Deux utilitaires pour la composition sur téléphone.
+
+   `hide-phone` retire le libellé d'un bouton secondaire : sur un écran de
+   400 px, trois boutons texte alignés sous un titre repoussent le contenu
+   sous la ligne de flottaison. L'icône suffit — l'action reste accessible au
+   lecteur d'écran par son `title`/`aria-label`.
+
+   `full-phone` donne toute la largeur à l'action principale : une seule par
+   écran, une cible qu'on touche sans viser. */
+@media (max-width: 639px) {
+  .hide-phone { display: none; }
+  .full-phone { width: 100%; justify-content: center; }
+
+  /* La photo de la fiche prenait 300 px de haut, soit 40 % du premier écran,
+     avant le titre. Elle reste entière, simplement plus courte. */
+  .hero-media { aspect-ratio: auto; max-height: 190px; }
 }
