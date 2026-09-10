@@ -265,18 +265,19 @@ export default function Admin({ currentUser }) {
           <div className="flex flex-wrap items-center gap-3 mb-5">
             {pending > 0 ? (
               <span className="status-band tone-warning">
-                <Icon name="bell" size={18} />
-                <span className="headline-n">{pending}</span>
-                <span className="status-band-text">
-                  {pending > 1 ? t('mots de passe à réinitialiser') : t('mot de passe à réinitialiser')}
+                <span className="status-band-icon"><Icon name="bell" size={18} /></span>
+                <span>
+                  <span className="status-band-text">
+                    {pending}{' '}
+                    {pending > 1 ? t('mots de passe à réinitialiser') : t('mot de passe à réinitialiser')}
+                  </span>
+                  <span className="status-band-hint">{t('Une personne attend une action de votre part.')}</span>
                 </span>
               </span>
             ) : (
               <span className="status-band tone-success">
-                <Icon name="checkCircle" size={18} />
-                <span className="status-band-text" style={{ color: 'currentColor' }}>
-                  {t('Aucune demande en attente')}
-                </span>
+                <span className="status-band-icon"><Icon name="checkCircle" size={18} /></span>
+                <span className="status-band-text">{t('Aucune demande en attente')}</span>
               </span>
             )}
             <span className="group-meta">

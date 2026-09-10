@@ -1156,22 +1156,55 @@ main { animation: fadeIn 0.18s ease-out; }
    Elle était écrite en texte nu au milieu de la carte : juste, mais aussi
    discrète que le reste. Teintée, elle se voit avant qu'on ait lu. */
 .status-band {
-  /* `inline-flex` : la bande épouse son texte au lieu de barrer l'écran —
-     une boîte étirée pour cinq mots se lit comme un bandeau d'alerte
-     permanent, ce qu'elle n'est pas. */
+  /* Deux lignes, pas une.
+
+     La version d'avant alignait tout sur une seule ligne : un « 2 » de 30 px
+     collé à « entretiens en retard » en 15 px, puis un point médian et une
+     précision en gris. Trois corps de texte et deux couleurs sur une même
+     ligne de base — ça se lit comme une étiquette de promotion, pas comme
+     l'état d'un véhicule. La phrase porte son nombre, la précision passe
+     dessous, et une vignette d'icône tient le bloc à gauche. */
   display: inline-flex;
   align-items: center;
-  flex-wrap: wrap;
-  gap: 4px 10px;
-  padding: 10px 14px;
+  gap: 12px;
+  padding: 10px 14px 10px 10px;
+  border-radius: var(--radius);
+  border: 1px solid var(--border);
+  background: var(--bg-surface);
+}
+
+.status-band-icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 34px;
+  height: 34px;
+  min-width: 34px;
   border-radius: var(--radius-sm);
   background: var(--bg-inset);
   color: var(--text-2);
 }
 
-.status-band .headline-n { color: currentColor; }
-.status-band.tone-danger  { background: var(--danger-light);  color: var(--danger); }
-.status-band.tone-warning { background: var(--warning-light); color: var(--warning); }
-.status-band.tone-success { background: var(--success-light); color: var(--success); }
-.status-band-text { font-size: 15px; font-weight: 600; color: var(--text-1); }
-.status-band-hint { font-size: 13px; color: var(--text-3); }
+.status-band-text {
+  font-size: 15px;
+  font-weight: 700;
+  color: var(--text-1);
+  letter-spacing: -0.01em;
+  line-height: 1.25;
+}
+
+.status-band-hint {
+  display: block;
+  font-size: 12.5px;
+  font-weight: 400;
+  color: var(--text-3);
+  margin-top: 1px;
+}
+
+/* Le ton colore la vignette et le liseré, pas le fond entier : un aplat
+   rouge derrière du texte noir se lit comme une erreur d'application. */
+.status-band.tone-danger  { border-color: var(--danger); }
+.status-band.tone-danger  .status-band-icon { background: var(--danger-light);  color: var(--danger); }
+.status-band.tone-warning { border-color: var(--warning); }
+.status-band.tone-warning .status-band-icon { background: var(--warning-light); color: var(--warning); }
+.status-band.tone-success .status-band-icon { background: var(--success-light); color: var(--success); }

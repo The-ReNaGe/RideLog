@@ -518,9 +518,9 @@ export default function VehicleDetail({ vehicleId, onBack, currentUser }) {
           : { n: null,    tone: 'success', icon: 'checkCircle', txt: 'Tout est à jour' };
 
         const hint = overdue > 0 && oldest
-          ? `· le plus ancien depuis ${fmt.date(oldest.next_due_date, { month: 'long', year: 'numeric' })}`
+          ? `Le plus ancien depuis ${fmt.date(oldest.next_due_date, { month: 'long', year: 'numeric' })}`
           : next && nextDays > 0
-          ? `· prochaine échéance ${delay(nextDays)}`
+          ? `Prochaine échéance ${delay(nextDays)}`
           : null;
 
         // Ventilé par devise : voir fmt.totals. Un historique à deux
@@ -540,10 +540,13 @@ export default function VehicleDetail({ vehicleId, onBack, currentUser }) {
           <div className="hero-footer">
             <div className="flex flex-wrap items-start justify-between gap-3">
               <div className={`status-band tone-${state.tone}`}>
-                <Icon name={state.icon} size={18} />
-                {state.n != null && <span className="headline-n">{state.n}</span>}
-                <span className="status-band-text">{state.txt}</span>
-                {hint && <span className="status-band-hint">{hint}</span>}
+                <span className="status-band-icon"><Icon name={state.icon} size={18} /></span>
+                <span>
+                  <span className="status-band-text">
+                    {state.n != null ? `${state.n} ${state.txt}` : state.txt}
+                  </span>
+                  {hint && <span className="status-band-hint">{hint}</span>}
+                </span>
               </div>
 
               {canEdit && (
