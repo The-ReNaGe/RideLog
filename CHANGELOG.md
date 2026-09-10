@@ -1,5 +1,18 @@
 # Changelog
 
+## [2.4.3](https://github.com/The-ReNaGe/RideLog/compare/v2.4.2...v2.4.3) (2026-09-10)
+
+
+### Bug Fixes
+
+* **libellés:** supprime les pluriels entre parenthèses ([72cf183](https://github.com/The-ReNaGe/RideLog/commit/72cf1830b1310c7025426b40157a4a0aa393b615))
+* **planning:** liste les échéances dépassées, absentes de la grille ([bffa545](https://github.com/The-ReNaGe/RideLog/commit/bffa545e241c642f5f3262745669131a45f01350))
+* **planning:** place les échéances dépassées sous le calendrier ([b322e66](https://github.com/The-ReNaGe/RideLog/commit/b322e66bf4b39151fded75f3992dab93da8220e7))
+* **style:** quatre couleurs en dur et des espacements hors échelle ([51608d5](https://github.com/The-ReNaGe/RideLog/commit/51608d51697d33d6c0c842bb786aa932d3318483))
+* **tableau-de-bord:** aligne le bas des deux colonnes ([ff4cda5](https://github.com/The-ReNaGe/RideLog/commit/ff4cda5687db220b64d9136dd5830757d389bb99))
+* **tableau-de-bord:** la ligne de mesures rejoint une carte de résumé ([2b80441](https://github.com/The-ReNaGe/RideLog/commit/2b8044141585e1e61b8b2e08152c78efb7586863))
+* **tableau-de-bord:** le graphique annuel occupe sa carte au lieu d'en déborder ([8291945](https://github.com/The-ReNaGe/RideLog/commit/8291945826e57e7de6596a5dc70aabe4b9d28d0d))
+
 ## [2.4.2](https://github.com/The-ReNaGe/RideLog/compare/v2.4.1...v2.4.2) (2026-09-09)
 
 
