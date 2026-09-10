@@ -226,6 +226,7 @@ export default function Dashboard({ onSelectVehicle, currentUser }) {
 
         return (
           <section className="card mb-6" style={{ padding: '16px 18px' }}>
+            <div className="flex flex-wrap items-center justify-between gap-4">
             <div className={`status-band tone-${state.tone} bare`}>
               <span className="status-band-icon"><Icon name={state.icon} size={18} /></span>
               <span>
@@ -236,11 +237,17 @@ export default function Dashboard({ onSelectVehicle, currentUser }) {
               </span>
             </div>
 
+            {/* La barre se pose à DROITE de la phrase, pas en dessous : en
+                pleine largeur, un aplat rouge de 1 250 px se lit comme une
+                barre de chargement. Bornée à 380 px et posée à côté de ce
+                qu'elle détaille, c'est une mesure. Elle occupe au passage la
+                moitié droite de la carte, qui était vide. */}
             {fleetSegments.some(seg => seg.value > 0) && (
-              <div style={{ marginTop: 14 }}>
+              <div style={{ flex: '1 1 260px', maxWidth: 380 }}>
                 <Meter segments={fleetSegments} />
               </div>
             )}
+            </div>
 
             <div className="metrics mt-4">
               <div>

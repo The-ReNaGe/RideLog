@@ -1234,25 +1234,33 @@ main { animation: fadeIn 0.18s ease-out; }
    ============================================ */
 .meter {
   display: flex;
-  gap: 2px;                 /* le filet de surface qui sépare deux parts */
-  height: 10px;
-  border-radius: 999px;
+  /* Six pixels, pas dix : une barre de répartition est une mesure, pas une
+     jauge de chargement. */
+  height: 6px;
+  /* ⚠️ Le rayon est posé sur la BARRE, pas sur ses segments. Arrondir chaque
+     segment donnait trois pastilles flottantes — l'effet bonbon qui fait
+     bon marché. Les extrémités de la mesure s'arrondissent, ses coupes
+     internes restent droites. */
+  border-radius: 3px;
   overflow: hidden;
   background: var(--bg-inset);
+  box-shadow: inset 0 0 0 1px var(--border-light);
 }
 
 .meter-seg {
   height: 100%;
-  border-radius: 999px;
-  min-width: 3px;
-  transition: opacity 0.15s;
+  min-width: 2px;
 }
+
+/* Le filet de surface entre deux parts : une bordure plutôt qu'un `gap`,
+   pour ne pas laisser voir la piste entre les segments. */
+.meter-seg + .meter-seg { border-left: 2px solid var(--bg-surface); }
 
 .meter-legend {
   display: flex;
   flex-wrap: wrap;
   gap: 4px 16px;
-  margin-top: 8px;
+  margin-top: 9px;
   font-size: 12px;
   color: var(--text-2);
 }
@@ -1262,13 +1270,13 @@ main { animation: fadeIn 0.18s ease-out; }
 /* La pastille de légende porte la couleur ; le texte garde l'encre du
    thème — un libellé coloré se lit comme un lien ou une alerte. */
 .meter-key {
-  width: 9px;
-  height: 9px;
-  border-radius: 3px;
+  width: 8px;
+  height: 8px;
+  border-radius: 2px;
   flex-shrink: 0;
 }
 
 .meter-legend-count { font-weight: 700; color: var(--text-1); font-variant-numeric: tabular-nums; }
 
 /* Version compacte, dans une ligne de liste. */
-.meter.sm { height: 6px; }
+.meter.sm { height: 5px; border-radius: 2.5px; }
