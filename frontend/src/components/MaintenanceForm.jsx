@@ -237,7 +237,9 @@ export default function MaintenanceForm({
                 <span style={{ color: 'var(--text-3)' }}>
                   <Icon name="clipboard" size={15} />
                   {pendingSubInterventions && pendingSubInterventions.length > 0
-                    ? t('{count} élément(s) sélectionné(s)', { count: pendingSubInterventions.length })
+                    ? pendingSubInterventions.length > 1
+                      ? t('{count} éléments sélectionnés', { count: pendingSubInterventions.length })
+                      : t('{count} élément sélectionné', { count: pendingSubInterventions.length })
                     : t('Aucun détail sélectionné')}
                 </span>
                 <button

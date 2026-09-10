@@ -35,23 +35,23 @@ const ALERT_LEVELS = {
   overdue: {
     color: 'var(--danger)',
     fill: 'var(--danger-light)',
-    outline: true,
+    outline: false,
     icon: 'alert',
-    label: (n, t) => t('{count} entretien(s) en retard', { count: n }),
+    label: (n, t) => n > 1 ? t('{count} entretiens en retard', { count: n }) : t('{count} entretien en retard', { count: n }),
   },
   urgent: {
     color: 'var(--warning)',
     fill: 'var(--warning-light)',
     outline: false,
     icon: 'alertCircle',
-    label: (n, t) => t('{count} entretien(s) urgent(s)', { count: n }),
+    label: (n, t) => n > 1 ? t('{count} entretiens urgents', { count: n }) : t('{count} entretien urgent', { count: n }),
   },
   warning: {
     color: 'var(--warning)',
     fill: 'transparent',
     outline: false,
     icon: 'clock',
-    label: (n, t) => t('{count} entretien(s) à surveiller', { count: n }),
+    label: (n, t) => n > 1 ? t('{count} entretiens à surveiller', { count: n }) : t('{count} entretien à surveiller', { count: n }),
   },
   ok: {
     color: 'var(--text-3)',

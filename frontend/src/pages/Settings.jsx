@@ -428,7 +428,7 @@ function ReminderSettings() {
               setChecking(true);
               try {
                 const res = await api.checkReminders();
-                alert(`Vérification terminée. ${res.data.cleared_logs} rappel(s) réinitialisé(s).`);
+                alert(`Vérification terminée. ${res.data.cleared_logs} ${res.data.cleared_logs > 1 ? 'rappels réinitialisés' : 'rappel réinitialisé'}.`);
               } catch (err) {
                 alert('Erreur : ' + (err.response?.data?.detail || err.message));
               }

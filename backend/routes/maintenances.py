@@ -666,7 +666,9 @@ def get_recommendations(vehicle_id: int, current_user: User = Depends(get_curren
 
     overdue_count = sum(1 for u in upcoming if u["status"] == "overdue")
     if overdue_count > 0:
-        recommendations.append({"type": "error", "message": f"{overdue_count} entretien(s) en retard. Veuillez les effectuer dès que possible."})
+        pluriel = "s" if overdue_count > 1 else ""
+        pronom = "les" if overdue_count > 1 else "l'"
+        recommendations.append({"type": "error", "message": f"{overdue_count} entretien{pluriel} en retard. Veuillez {pronom}effectuer dès que possible."})
 
     return {"vehicle_id": vehicle_id, "recommendations": recommendations}
 
