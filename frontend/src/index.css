@@ -1173,6 +1173,16 @@ main { animation: fadeIn 0.18s ease-out; }
   background: var(--bg-surface);
 }
 
+/* Posée DANS une carte, la bande n'a pas besoin de son propre cadre : deux
+   bordures à quelques pixels l'une de l'autre se voient, et pour rien. La
+   vignette teintée suffit à porter le ton. */
+.status-band.bare {
+  border: 0;
+  background: transparent;
+  padding-left: 0;
+  padding-top: 0;
+}
+
 .status-band-icon {
   display: flex;
   align-items: center;

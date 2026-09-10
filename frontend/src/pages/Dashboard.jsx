@@ -93,8 +93,8 @@ export default function Dashboard({ onSelectVehicle, currentUser }) {
           : { n: null, tone: 'success', icon: 'checkCircle', txt: t('Tout le parc est à jour'), hint: null };
 
         return (
-          <section className="mb-6">
-            <div className={`status-band tone-${state.tone}`}>
+          <section className="card mb-6" style={{ padding: '16px 18px' }}>
+            <div className={`status-band tone-${state.tone} bare`}>
               <span className="status-band-icon"><Icon name={state.icon} size={18} /></span>
               <span>
                 <span className="status-band-text">
