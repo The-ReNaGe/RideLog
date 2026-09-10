@@ -803,3 +803,170 @@ main { animation: fadeIn 0.18s ease-out; }
 }
 
 [data-theme="dark"] th { background: var(--bg-inset); }
+
+/* ============================================
+   REFONTE — DENSITÉ ET HIÉRARCHIE
+   ============================================
+   Trois primitives qui remplacent trois habitudes :
+
+   1. `.headline`  remplace la rangée de cartes KPI en tête d'écran. Une
+      phrase dit l'état, un chiffre le quantifie. Cinq encadrés répétant
+      « En retard » ne hiérarchisaient rien.
+   2. `.metrics`   remplace les encadrés de statistiques par une ligne de
+      mesures séparées par un filet. Même information, sans le carton.
+   3. `.rows`      remplace les listes de cartes par des lignes. Vingt cartes
+      cerclées de rouge font un damier ; vingt lignes se lisent.
+
+   Règle de couleur inchangée et resserrée : l'accent marque ce qui est
+   actif, `--danger` ce qui est dépassé. Un montant, un volume, un
+   décompte n'ont pas de couleur — ce sont des faits, pas des états.
+   ============================================ */
+
+/* --- 1. La phrase d'état ------------------------------------------------ */
+.headline {
+  display: flex;
+  align-items: baseline;
+  flex-wrap: wrap;
+  gap: 4px 10px;
+}
+
+.headline-n {
+  font-size: 30px;
+  font-weight: 800;
+  line-height: 1.1;
+  letter-spacing: -0.02em;
+  font-variant-numeric: tabular-nums;
+}
+
+.headline-t { font-size: 15px; color: var(--text-1); }
+.headline-s { font-size: 13px; color: var(--text-3); }
+
+/* --- 2. La ligne de mesures --------------------------------------------- */
+.metrics {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 18px 40px;
+  padding-top: 18px;
+  border-top: 1px solid var(--border);
+}
+
+.metric-l {
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--text-3);
+}
+
+.metric-v {
+  font-size: 19px;
+  font-weight: 700;
+  color: var(--text-1);
+  line-height: 1.25;
+  margin-top: 3px;
+  letter-spacing: -0.01em;
+}
+
+.metric-s {
+  font-size: 12px;
+  color: var(--text-3);
+  margin-top: 2px;
+}
+
+/* --- 3. La liste en lignes ---------------------------------------------- */
+.group-head {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-bottom: 8px;
+}
+
+.group-title { font-size: 13px; font-weight: 700; letter-spacing: 0.01em; }
+.group-meta  { font-size: 12px; color: var(--text-3); }
+
+/* Pastille d'état : six pixels suffisent à ouvrir un groupe. Le cadre de la
+   ligne, lui, reste neutre — c'est ce qui évite le damier. */
+.dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  flex-shrink: 0;
+  background: var(--border-strong);
+}
+.dot.danger  { background: var(--danger); }
+.dot.warning { background: var(--warning); }
+.dot.success { background: var(--success); }
+.dot.accent  { background: var(--accent); }
+
+.rows {
+  background: var(--bg-surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  overflow: hidden;
+}
+
+.row-item {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  padding: 13px 16px;
+  border-top: 1px solid var(--border-light);
+}
+.row-item:first-child { border-top: 0; }
+.row-item.interactive { cursor: pointer; }
+.row-item.interactive:hover { background: var(--bg-hover); }
+
+.row-name { font-size: 14px; font-weight: 600; color: var(--text-1); }
+.row-meta { font-size: 12px; color: var(--text-3); margin-top: 2px; }
+
+/* Colonne de droite : la valeur qui répond à la question de l'écran. */
+.row-value {
+  font-size: 13px;
+  font-weight: 600;
+  text-align: right;
+  white-space: nowrap;
+  font-variant-numeric: tabular-nums;
+}
+.row-value small {
+  display: block;
+  font-size: 11.5px;
+  font-weight: 400;
+  color: var(--text-3);
+  margin-top: 2px;
+}
+.row-value.late { color: var(--danger); }
+
+/* Posée DANS une carte, la liste n'a pas besoin de son propre cadre : deux
+   bordures à un pixel l'une de l'autre se voient, et pour rien. */
+.rows.bare {
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+}
+
+/* Un groupe lointain se tait : il reste lisible sans réclamer l'attention. */
+.rows.quiet .row-name  { font-weight: 500; color: var(--text-2); }
+.rows.quiet .row-value { font-weight: 500; color: var(--text-2); }
+
+/* Le dépliant d'un groupe replié — un lien, pas un bouton plein. */
+.row-more {
+  display: block;
+  width: 100%;
+  padding: 11px;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--accent);
+  background: none;
+  border: 0;
+  border-top: 1px solid var(--border-light);
+  cursor: pointer;
+}
+.row-more:hover { background: var(--bg-hover); }
+
+@media (max-width: 640px) {
+  .headline-n { font-size: 26px; }
+  .metrics { gap: 14px 28px; }
+  .metric-v { font-size: 17px; }
+  .row-item { padding: 12px 14px; gap: 12px; }
+}
