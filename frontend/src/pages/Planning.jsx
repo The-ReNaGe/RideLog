@@ -297,27 +297,16 @@ export default function Planning() {
         subtitle={t('Toutes les échéances de votre parc, mois par mois.')}
       />
 
-      {/* Ce qui est déjà dépassé — et qui n'apparaît nulle part dans la grille.
-
-          Une échéance en retard porte une date PASSÉE : elle se trouve dans un
-          mois qu'on ne regarde plus. La page annonçait donc « 21 en retard »
-          dans une puce, puis montrait un mois vide en plein écran. La liste
-          est ici, au-dessus du calendrier, qui redevient ce qu'il est : la vue
-          de ce qui arrive. */}
-      {summary.overdue.length > 0 && (
-        <section>
-          <div className="group-head">
-            <span className="dot danger" aria-hidden="true" />
-            <span className="group-title">{t('En retard')}</span>
-            <span className="group-meta">
-              {summary.overdue.length} {summary.overdue.length > 1 ? t('échéances dépassées') : t('échéance dépassée')}
-            </span>
-          </div>
-          <OverdueList items={summary.overdue} fmt={fmt} t={t} />
-        </section>
-      )}
-
-      {summary.overdue.length === 0 && (
+      {/* L'état, en tête ; le détail des dépassées, sous le calendrier. */}
+      {summary.overdue.length > 0 ? (
+        <div className="headline">
+          <span className="headline-n" style={{ color: 'var(--danger)' }}>{summary.overdue.length}</span>
+          <span className="headline-t">
+            {summary.overdue.length > 1 ? t('échéances dépassées') : t('échéance dépassée')}
+          </span>
+          <span className="headline-s">{t('· listées sous le calendrier')}</span>
+        </div>
+      ) : (
         <div className="headline">
           <span className="headline-t" style={{ color: 'var(--success)', fontWeight: 700 }}>
             {t('Aucune échéance dépassée')}
@@ -384,6 +373,26 @@ export default function Planning() {
           })}
         </div>
       </div>
+
+      {/* Ce qui est déjà dépassé — et qui n'apparaît nulle part dans la grille.
+
+          Une échéance en retard porte une date PASSÉE : elle se trouve dans un
+          mois qu'on ne regarde plus. La page annonçait donc « 21 en retard »
+          dans une puce, puis montrait un mois vide en plein écran. La liste
+          vient APRÈS le calendrier : celui-ci reste la vue principale, montrant
+          ce qui arrive, et le retard se consulte ensuite. */}
+      {summary.overdue.length > 0 && (
+        <section>
+          <div className="group-head">
+            <span className="dot danger" aria-hidden="true" />
+            <span className="group-title">{t('En retard')}</span>
+            <span className="group-meta">
+              {summary.overdue.length} {summary.overdue.length > 1 ? t('échéances dépassées') : t('échéance dépassée')}
+            </span>
+          </div>
+          <OverdueList items={summary.overdue} fmt={fmt} t={t} />
+        </section>
+      )}
 
       {/* Legend */}
       <div className="flex flex-wrap gap-4" style={{ fontSize: 12.5, color: 'var(--text-2)' }}>
