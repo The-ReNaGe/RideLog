@@ -379,7 +379,7 @@ export default function FuelTracking({ vehicleId, onFuelAdded, canEdit = true })
 
 						{/* Auto-calculated liters preview */}
 						{formData.total_cost && formData.price_per_liter && parseFloat(formData.price_per_liter) > 0 && (
-							<div style={{ fontSize: 12, color: 'var(--text-2)', marginBottom: 12, padding: '6px 10px', background: 'var(--border)', borderRadius: 6 }}>
+							<div style={{ fontSize: 12, color: 'var(--text-2)', marginBottom: 12, padding: '8px 10px', background: 'var(--bg-inset)', borderRadius: 6 }}>
 								Litres estimés : <strong>{(parseFloat(formData.total_cost) / parseFloat(formData.price_per_liter)).toFixed(1)} L</strong>
 							</div>
 						)}

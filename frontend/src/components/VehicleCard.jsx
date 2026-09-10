@@ -152,7 +152,7 @@ export default React.memo(function VehicleCard({ vehicle, onSelect, currentUser 
         )}
       </div>
 
-      <div className="vcard-body" style={{ padding: '14px 16px 16px', display: 'flex', flexDirection: 'column', gap: 12, flex: 1 }}>
+      <div className="vcard-body" style={{ padding: '14px 16px', display: 'flex', flexDirection: 'column', gap: 12, flex: 1 }}>
         <div className="flex items-start gap-3">
           <div className="icon-box sm" aria-hidden="true">
             <Icon name={typeIcon} size={16} />
@@ -194,7 +194,7 @@ export default React.memo(function VehicleCard({ vehicle, onSelect, currentUser 
           className="vcard-alert"
           style={{
             display: 'flex', alignItems: 'center', gap: 7,
-            padding: '9px 16px',
+            padding: '10px 16px',
             borderTop: '1px solid var(--border)',
             background: level.fill,
             color: level.color,

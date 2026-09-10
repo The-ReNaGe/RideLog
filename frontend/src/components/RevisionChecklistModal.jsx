@@ -162,7 +162,7 @@ export default function RevisionChecklistModal({
               <div style={{ display: "flex", flexDirection: "column", gap: "0.35rem" }}>
                 {group.items.map((item) => {
                   const isChecked = checked[item.key] ?? false;
-                  const bg = isChecked ? "rgba(108,138,247,0.07)" : "transparent";
+                  const bg = isChecked ? "var(--accent-light)" : "transparent";
                   const border = isChecked ? "var(--accent)" : "var(--border)";
                   const showAsCheckbox = item.key !== '__single__';
 
@@ -220,7 +220,7 @@ export default function RevisionChecklistModal({
                                 padding: "0.4rem 0.6rem",
                                 borderRadius: "0.5rem",
                                 border: `1px solid ${subChecked ? "var(--accent)" : "var(--border)"}`,
-                                background: subChecked ? "rgba(108,138,247,0.07)" : "transparent",
+                                background: subChecked ? "var(--accent-light)" : "transparent",
                                 cursor: "pointer",
                               }}>
                                 <input
