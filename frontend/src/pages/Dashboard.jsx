@@ -71,130 +71,136 @@ export default function Dashboard({ onSelectVehicle, currentUser }) {
           : t("Vue d'ensemble du garage")}
       />
 
-      {/* KPI Cards Row */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-5">
-        {[
-          { icon: 'car',   label: t('Véhicules'),     value: fmt.num(data.total_vehicles) },
-          // Ventilé, jamais additionné à travers deux devises : « 400 » pour
-          // 200 € et 200 $ est un chiffre faux qu'on ne recompte jamais.
-          { icon: 'euro',  label: t('Coût total'),    value: fmt.totals(data.cost_by_currency),
-            sub: `${t('Entretien')} ${fmt.money(data.total_maintenance_cost)} · ${t('Carburant')} ${fmt.money(data.total_fuel_cost)}` },
-          { icon: 'gauge', label: t('Distance totale'), value: fmt.dist(data.total_mileage) },
-          // « — » et non « 0 € » quand aucun véhicule n'a de prix d'achat :
-          // un parc sans prix saisi n'a pas une valeur de zéro, il n'en a pas.
-          { icon: 'package', label: t("Valeur d'achat"),
-            value: fmt.isMixed(data.fleet_purchase_by_currency) || data.fleet_purchase_price
-              ? fmt.totals(data.fleet_purchase_by_currency)
-              : '—',
-            sub: t("Prix d'achat cumulé du parc") },
-        ].map(kpi => (
-          <div key={kpi.label} className="card" style={{ padding: 16 }}>
-            <div className="flex items-center gap-2" style={{ marginBottom: 8 }}>
-              <Icon name={kpi.icon} size={15} style={{ color: 'var(--text-3)' }} />
-              <span className="card-label" style={{ marginBottom: 0 }}>{kpi.label}</span>
+      {/* État du parc — une phrase, puis les mesures.
+
+          Le bloc « Alertes » a disparu : il énumérait, véhicule par véhicule,
+          exactement ce que les lignes juste en dessous répètent, et ce que la
+          liste des véhicules affiche une troisième fois. Le décompte total
+          suffit ici ; le détail est dans la ligne du véhicule concerné. */}
+      {(() => {
+        const alerts = data.alert_details || [];
+        const overdue = alerts.filter(a => a.type === 'overdue').reduce((s, a) => s + a.count, 0);
+        const urgent  = alerts.filter(a => a.type === 'urgent').reduce((s, a) => s + a.count, 0);
+        const touched = new Set(alerts.filter(a => a.type === 'overdue').map(a => a.vehicle_id)).size;
+
+        const state = overdue > 0
+          ? { n: overdue, color: 'var(--danger)',
+              txt: overdue > 1 ? t('entretiens en retard') : t('entretien en retard'),
+              hint: touched > 1 ? t('· sur {count} véhicules', { count: touched }) : null }
+          : urgent > 0
+          ? { n: urgent, color: 'var(--warning)',
+              txt: urgent > 1 ? t('entretiens urgents') : t('entretien urgent'), hint: null }
+          : { n: null, color: 'var(--success)', txt: t('Tout le parc est à jour'), hint: null };
+
+        return (
+          <section className="mb-6">
+            <div className="headline">
+              {state.n != null && <span className="headline-n" style={{ color: state.color }}>{state.n}</span>}
+              <span className="headline-t" style={state.n == null ? { color: state.color, fontWeight: 700 } : undefined}>
+                {state.txt}
+              </span>
+              {state.hint && <span className="headline-s">{state.hint}</span>}
             </div>
-            <div className="stat-number" style={{ fontSize: 24 }}>{kpi.value}</div>
-            {kpi.sub && <div style={{ fontSize: 12, color: 'var(--text-3)', marginTop: 3 }}>{kpi.sub}</div>}
-          </div>
-        ))}
-      </div>
 
-      {/* Alerts Row */}
-      {data.alert_details && data.alert_details.length > 0 && (
-        <div className="card mb-5">
-          <h3 className="section-title flex items-center gap-2" style={{ marginBottom: 10 }}>
-            <Icon name="bell" size={16} style={{ color: 'var(--text-3)' }} />
-            {t('Alertes')}
-          </h3>
-          <div className="space-y-2">
-            {data.alert_details.map((alert, i) => {
-              const cfg = alert.type === 'overdue'
-                ? { icon: 'alertCircle', label: t('en retard'), color: 'var(--danger)' }
-                : alert.type === 'urgent'
-                ? { icon: 'alert', label: t('urgent'), color: 'var(--warning)' }
-                : { icon: 'clock', label: t('à prévoir'), color: 'var(--accent)' };
-              return (
-                <button
-                  key={i}
-                  className="inset flex items-center justify-between gap-3 w-full text-left"
-                  style={{ padding: '10px 12px', borderLeft: `3px solid ${cfg.color}`, cursor: 'pointer' }}
-                  onClick={() => onSelectVehicle(alert.vehicle_id)}
-                >
-                  <span className="flex items-center gap-2 min-w-0">
-                    <Icon name={cfg.icon} size={16} style={{ color: cfg.color }} />
-                    <span className="font-bold text-sm text-ellipsis" style={{ color: 'var(--text-1)' }}>{alert.vehicle_name}</span>
-                  </span>
-                  <span className="text-xs font-bold" style={{ color: cfg.color, whiteSpace: 'nowrap' }}>
-                    {alert.count} {cfg.label}
-                  </span>
-                </button>
-              );
-            })}
-          </div>
-        </div>
-      )}
+            <div className="metrics mt-4">
+              <div>
+                <div className="metric-l">{t('Véhicules')}</div>
+                <div className="metric-v tabular">{fmt.num(data.total_vehicles)}</div>
+              </div>
+              <div>
+                <div className="metric-l">{t('Distance totale')}</div>
+                <div className="metric-v tabular">{fmt.dist(data.total_mileage)}</div>
+              </div>
+              <div>
+                {/* Ventilé, jamais additionné à travers deux devises : « 400 »
+                    pour 200 € et 200 $ est un chiffre faux qu'on ne recompte
+                    jamais. */}
+                <div className="metric-l">{t('Coût total')}</div>
+                <div className="metric-v tabular">{fmt.totals(data.cost_by_currency)}</div>
+                <div className="metric-s">
+                  {t('Entretien')} {fmt.money(data.total_maintenance_cost)} · {t('Carburant')} {fmt.money(data.total_fuel_cost)}
+                </div>
+              </div>
+              <div>
+                {/* « — » et non « 0 € » quand aucun véhicule n'a de prix
+                    d'achat : un parc sans prix saisi n'a pas une valeur de
+                    zéro, il n'en a pas. */}
+                <div className="metric-l">{t("Valeur d'achat")}</div>
+                <div className="metric-v tabular">
+                  {fmt.isMixed(data.fleet_purchase_by_currency) || data.fleet_purchase_price
+                    ? fmt.totals(data.fleet_purchase_by_currency)
+                    : '—'}
+                </div>
+                <div className="metric-s">{t("Prix d'achat cumulé du parc")}</div>
+              </div>
+            </div>
+          </section>
+        );
+      })()}
 
-      {/* Vehicles Grid */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 mb-5">
+      {/* Le parc, en lignes.
+
+          Chaque véhicule était une carte à réglette colorée contenant trois
+          encadrés — dont un qui répétait l'état déjà porté par la réglette ET
+          par la vignette d'icône. Une ligne par véhicule, une pastille pour
+          l'état, les chiffres alignés à droite. */}
+      <div className="rows mb-6">
         {data.vehicles.map((v) => {
-          // L'état colore une réglette à gauche, pas tout le contour : quatre
-          // cartes cerclées de rouge et de vert font un damier, pas une liste.
           const state = v.overdue_count > 0
-            ? { color: 'var(--danger)',  tone: 'danger',  icon: 'alertCircle', label: t('{count} en retard', { count: v.overdue_count }) }
+            ? { dot: 'danger',  color: 'var(--danger)',  label: t('{count} en retard', { count: v.overdue_count }) }
             : v.urgent_count > 0
-            ? { color: 'var(--warning)', tone: 'warning', icon: 'alert',       label: t('{count} urgent(s)', { count: v.urgent_count }) }
+            ? { dot: 'warning', color: 'var(--warning)', label: v.urgent_count > 1 ? t('{count} urgents', { count: v.urgent_count }) : t('{count} urgent', { count: v.urgent_count }) }
             : v.warning_count > 0
-            ? { color: 'var(--warning)', tone: 'warning', icon: 'clock',       label: t('{count} à prévoir', { count: v.warning_count }) }
-            : { color: 'var(--success)', tone: 'success', icon: 'checkCircle', label: t('À jour') };
+            ? { dot: 'warning', color: 'var(--text-2)',  label: t('{count} à prévoir', { count: v.warning_count }) }
+            : { dot: 'success', color: 'var(--text-3)',  label: t('À jour') };
 
           return (
-            <article
+            <div
               key={v.id}
-              className="card card-interactive"
-              style={{ borderLeft: `3px solid ${state.color}` }}
+              className="row-item interactive"
               onClick={() => onSelectVehicle(v.id)}
               role="button" tabIndex={0}
               onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onSelectVehicle(v.id); } }}
             >
-              <div className="flex items-start gap-3 mb-3">
-                <div className="photo-container photo-thumb flex-shrink-0">
-                  <Icon
-                    name={v.vehicle_type === 'motorcycle' ? 'motorcycle' : 'car'}
-                    size={24} strokeWidth={1.4}
-                    style={{ color: 'var(--border-strong)', position: 'absolute' }}
-                  />
-                  {v.photo_url && (
-                    <VehiclePhoto vehicleId={v.id} version={v.updated_at} alt={v.name} backdrop />
-                  )}
+              <div className="photo-container photo-thumb flex-shrink-0" style={{ width: 54 }}>
+                <Icon
+                  name={v.vehicle_type === 'motorcycle' ? 'motorcycle' : 'car'}
+                  size={20} strokeWidth={1.4}
+                  style={{ color: 'var(--border-strong)', position: 'absolute' }}
+                />
+                {v.photo_url && (
+                  <VehiclePhoto vehicleId={v.id} version={v.updated_at} alt={v.name} backdrop />
+                )}
+              </div>
+
+              <div className="min-w-0" style={{ flex: 1 }}>
+                <div className="row-name text-ellipsis">{v.name}</div>
+                <div className="row-meta text-ellipsis">
+                  {v.brand} {v.model} · {v.year} · {fmt.dist(v.current_mileage)}
                 </div>
-                <div className="flex-1 min-w-0">
-                  <div className="font-bold text-ellipsis" style={{ color: 'var(--text-1)', fontSize: 15 }}>{v.name}</div>
-                  <div className="text-ellipsis" style={{ color: 'var(--text-3)', fontSize: 13 }}>{v.brand} {v.model} · {v.year}</div>
-                  <div className="tabular" style={{ color: 'var(--text-2)', fontSize: 13, fontWeight: 600 }}>{fmt.dist(v.current_mileage)}</div>
-                </div>
-                <span className={`icon-box sm ${state.tone}`} title={state.label}>
-                  <Icon name={state.icon} size={15} />
+              </div>
+
+              <div
+                className="tabular hidden sm:block"
+                style={{ fontSize: 13, color: 'var(--text-2)', width: 110, textAlign: 'right', whiteSpace: 'nowrap' }}
+                title={t('Dépenses')}
+              >
+                {fmt.totals(v.cost_by_currency)}
+              </div>
+
+              <div className="flex items-center gap-2" style={{ width: 132, justifyContent: 'flex-end' }}>
+                <span className={`dot ${state.dot}`} aria-hidden="true" />
+                <span style={{ fontSize: 13, fontWeight: 600, color: state.color, whiteSpace: 'nowrap' }}>
+                  {state.label}
                 </span>
               </div>
-              <div className="grid grid-cols-3 gap-2 text-center">
-                {[
-                  { label: t('Dépenses'),     value: fmt.totals(v.cost_by_currency), color: 'var(--text-1)' },
-                  { label: t("Prix d'achat"), value: fmt.money(v.purchase_price, v.purchase_price_currency), color: 'var(--text-1)' },
-                  { label: t('État'),         value: state.label,            color: state.color },
-                ].map(cell => (
-                  <div key={cell.label} className="inset" style={{ padding: '9px 6px' }}>
-                    <div className="tabular text-sm font-bold text-ellipsis" style={{ color: cell.color }}>{cell.value}</div>
-                    <div style={{ fontSize: 11.5, color: 'var(--text-3)' }}>{cell.label}</div>
-                  </div>
-                ))}
-              </div>
-            </article>
+            </div>
           );
         })}
       </div>
 
       {/* Bottom row: Recent Activity + Charts — items-stretch pour aligner les hauteurs */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 items-stretch">
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 items-start">
 
         {/* Recent Activity */}
         <div className="card p-4">
@@ -205,27 +211,24 @@ export default function Dashboard({ onSelectVehicle, currentUser }) {
           {data.recent_activity.length === 0 ? (
             <p className="text-sm" style={{ color: 'var(--text-3)' }}>{t('Aucune activité')}</p>
           ) : (
-            <div className="space-y-2">
+            <div className="rows bare">
               {data.recent_activity.map((a) => (
-                <button
+                <div
                   key={a.id}
-                  className="inset flex items-center justify-between gap-3 w-full text-left"
-                  style={{ padding: '8px 10px', cursor: 'pointer' }}
+                  className="row-item interactive"
                   onClick={() => onSelectVehicle(a.vehicle_id)}
+                  role="button" tabIndex={0}
+                  onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onSelectVehicle(a.vehicle_id); } }}
                 >
-                  <div>
-                    <span className="text-sm font-medium" style={{ color: 'var(--text-1)' }}>{a.intervention_type}</span>
-                    <span className="text-xs ml-2" style={{ color: 'var(--text-3)' }}>— {a.vehicle_name}</span>
+                  <div className="min-w-0" style={{ flex: 1 }}>
+                    <div className="row-name text-ellipsis">{a.intervention_type}</div>
+                    <div className="row-meta text-ellipsis">{a.vehicle_name}</div>
                   </div>
-                  <div className="flex items-center gap-3">
-                    {a.cost_paid != null && (
-                      <span className="text-xs font-semibold" style={{ color: 'var(--text-2)' }}>{fmt.money(a.cost_paid, a.currency)}</span>
-                    )}
-                    <span className="text-xs" style={{ color: 'var(--text-3)' }}>
-                      {fmt.date(a.execution_date)}
-                    </span>
+                  <div className="row-value" style={{ color: 'var(--text-2)' }}>
+                    {a.cost_paid != null ? fmt.money(a.cost_paid, a.currency) : ''}
+                    <small>{fmt.date(a.execution_date)}</small>
                   </div>
-                </button>
+                </div>
               ))}
             </div>
           )}
@@ -286,7 +289,7 @@ function CostCharts({ monthlyCosts, mixed }) {
   const maxAnnual = Math.max(...annualData.map(d => d.cost), 1);
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', flex: 1, gap: '1.25rem' }}>
+    <div style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
       {/* Une barre est une somme, et une somme ne traverse pas deux devises.
           Les ventiler ferait deux barres par mois et casserait la lecture ;
           on additionne donc, et on le dit — même arbitrage que pour les
@@ -325,13 +328,13 @@ function CostCharts({ monthlyCosts, mixed }) {
       {/* Séparateur */}
       <div style={{ borderTop: '1px solid var(--border)' }} />
 
-      {/* Graphique annuel — titre en haut, graphique en bas */}
-      <div style={{ flex: 1, display: 'flex', flexDirection: 'column' }}>
+      {/* Graphique annuel */}
+      <div>
         <h3 className="section-title flex items-center gap-2" style={{ marginBottom: 10 }}>
           <Icon name="trendUp" size={16} style={{ color: 'var(--text-3)' }} />
           {t('Dépenses annuelles')}
         </h3>
-        <div style={{ flex: 1, display: 'flex', flexDirection: 'column', justifyContent: 'flex-end' }}>
+        <div>
           {annualData.length === 0 ? (
             <p className="text-sm" style={{ color: 'var(--text-3)' }}>{t('Aucune donnée')}</p>
           ) : (
@@ -385,9 +388,42 @@ function BarChart({ data, max, money, height = 160, accentOpacity = 0.6, minBarW
         </div>
       )}
 
+      {/* Grille chiffrée.
+
+          Le graphique n'avait ni ligne de base ni échelle : on voyait des
+          barres, on ne lisait aucune valeur sans les survoler — et sur un
+          téléphone, il n'y a pas de survol. Deux repères (maximum et moitié)
+          suffisent à donner l'ordre de grandeur au repos. */}
+      <div style={{ position: 'absolute', inset: `28px 0 ${useScroll ? 0 : 0}px 0`, pointerEvents: 'none' }}>
+        {[1, 0.5, 0].map(ratio => (
+          <div
+            key={ratio}
+            style={{
+              position: 'absolute',
+              left: 0, right: 0,
+              top: `${(1 - ratio) * height}px`,
+              borderTop: `1px ${ratio === 0 ? 'solid' : 'dashed'} var(--border)`,
+            }}
+          >
+            {ratio > 0 && !useScroll && (
+              <span
+                style={{
+                  position: 'absolute', right: 0, top: -14,
+                  fontSize: 10, color: 'var(--text-3)',
+                  background: 'var(--bg-surface)', padding: '0 3px',
+                }}
+              >
+                {money(Math.round(max * ratio))}
+              </span>
+            )}
+          </div>
+        ))}
+      </div>
+
       {/* Barres */}
       <div
         style={{
+          position: 'relative',
           display: 'flex',
           alignItems: 'flex-end',
           gap: '4px',
