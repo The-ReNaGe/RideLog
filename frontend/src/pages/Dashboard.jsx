@@ -5,11 +5,47 @@ import Icon from '../components/Icon';
 import PageHeader from '../components/PageHeader';
 import VehiclePhoto from '../components/VehiclePhoto';
 import Notice from '../components/Notice';
+import { getInterventionDisplayName } from '../lib/interventionTranslations';
+
+/**
+ * Ce qu'il reste avant l'échéance, en une phrase courte.
+ *
+ * Même règle que dans « À venir » : on annonce la contrainte qui tombera la
+ * première, pas les deux — « dans 8 950 km ou 11 mois » demande au lecteur
+ * de faire le tri lui-même.
+ */
+function remainingLabel(item) {
+  const num = (v) => (v == null || v === 999999 || v === Infinity ? null : v);
+  const days = num(item.days_remaining);
+
+  if (item.status === 'overdue') {
+    if (days != null && days < 0) {
+      const d = Math.abs(Math.round(days));
+      if (d > 365) return `depuis ${Math.floor(d / 365)} an${Math.floor(d / 365) > 1 ? 's' : ''}`;
+      if (d > 30) return `depuis ${Math.floor(d / 30)} mois`;
+      return `depuis ${d} j`;
+    }
+    return 'en retard';
+  }
+
+  if (days == null) return null;
+  const d = Math.round(days);
+  if (d <= 0) return 'aujourd’hui';
+  if (d === 1) return 'demain';
+  if (d > 365) return `dans ${Math.floor(d / 365)} an${Math.floor(d / 365) > 1 ? 's' : ''}`;
+  if (d > 60) return `dans ${Math.round(d / 30)} mois`;
+  return `dans ${d} j`;
+}
 
 export default function Dashboard({ onSelectVehicle, currentUser }) {
   const fmt = useFormat();
   const t = useT();
   const [data, setData] = useState(null);
+  // Le planning global : c'est lui qui porte les échéances, intervention par
+  // intervention. Le tableau de bord ne servait que des décomptes — il disait
+  // « 12 en retard » sans jamais dire lesquels, alors que c'est la question
+  // qui amène quelqu'un ici.
+  const [planning, setPlanning] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
 
@@ -20,8 +56,14 @@ export default function Dashboard({ onSelectVehicle, currentUser }) {
   const fetchDashboard = async () => {
     try {
       setLoading(true);
-      const res = await api.getDashboard();
+      // Deux requêtes en parallèle : le planning n'est pas indispensable à
+      // l'écran, son échec ne doit pas emporter le reste.
+      const [res, plan] = await Promise.all([
+        api.getDashboard(),
+        api.getPlanning().catch(() => null),
+      ]);
       setData(res.data);
+      setPlanning(plan?.data || null);
       setError(null);
     } catch (err) {
       setError(t('Impossible de charger le tableau de bord'));
@@ -61,6 +103,21 @@ export default function Dashboard({ onSelectVehicle, currentUser }) {
   // un, et il faisait passer ce fichier au travers du grep de contrôle des
   // devises documenté au §20.6, qui cherche le nom de la fonction elle-même.
   const mixed = fmt.isMixed(data.cost_by_currency);
+  // Les cinq échéances les plus pressantes, mais **une par véhicule
+  // d'abord** : trié par pure urgence, le panneau affichait cinq lignes du
+  // même véhicule et taisait les deux autres. Le planning arrive déjà trié,
+  // on ne fait que le dérouler en deux passes.
+  const priorityItems = planning?.items || [];
+  const priority = (() => {
+    const seen = new Set();
+    const firstOfEach = [];
+    const others = [];
+    for (const item of priorityItems) {
+      if (seen.has(item.vehicle_id)) others.push(item);
+      else { seen.add(item.vehicle_id); firstOfEach.push(item); }
+    }
+    return [...firstOfEach, ...others].slice(0, 5);
+  })();
 
   return (
     <div>
@@ -140,73 +197,129 @@ export default function Dashboard({ onSelectVehicle, currentUser }) {
         );
       })()}
 
-      {/* Le parc, en lignes.
+      {/* Ce qu'il faut faire, et sur quoi.
 
-          Chaque véhicule était une carte à réglette colorée contenant trois
-          encadrés — dont un qui répétait l'état déjà porté par la réglette ET
-          par la vignette d'icône. Une ligne par véhicule, une pastille pour
-          l'état, les chiffres alignés à droite. */}
-      <div className="rows mb-6">
-        {data.vehicles.map((v) => {
-          const state = v.overdue_count > 0
-            ? { dot: 'danger',  color: 'var(--danger)',  label: t('{count} en retard', { count: v.overdue_count }) }
-            : v.urgent_count > 0
-            ? { dot: 'warning', color: 'var(--warning)', label: v.urgent_count > 1 ? t('{count} urgents', { count: v.urgent_count }) : t('{count} urgent', { count: v.urgent_count }) }
-            : v.warning_count > 0
-            ? { dot: 'warning', color: 'var(--text-2)',  label: t('{count} à prévoir', { count: v.warning_count }) }
-            : { dot: 'success', color: 'var(--text-3)',  label: t('À jour') };
+          Le tableau de bord servait des décomptes — « 12 en retard » — sans
+          jamais dire lesquels ni sur quel véhicule. Il fallait ouvrir chaque
+          fiche pour l'apprendre. Les deux colonnes répondent aux deux
+          questions qu'on se pose en arrivant : par quoi je commence, et
+          comment va chaque véhicule. */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
 
-          return (
-            <div
-              key={v.id}
-              className="row-item interactive"
-              onClick={() => onSelectVehicle(v.id)}
-              role="button" tabIndex={0}
-              onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onSelectVehicle(v.id); } }}
-            >
-              <div className="photo-container photo-thumb flex-shrink-0" style={{ width: 54 }}>
-                <Icon
-                  name={v.vehicle_type === 'motorcycle' ? 'motorcycle' : 'car'}
-                  size={20} strokeWidth={1.4}
-                  style={{ color: 'var(--border-strong)', position: 'absolute' }}
-                />
-                {v.photo_url && (
-                  <VehiclePhoto vehicleId={v.id} version={v.updated_at} alt={v.name} backdrop />
-                )}
-              </div>
+        <div className="card p-4">
+          <h3 className="section-title flex items-center gap-2" style={{ marginBottom: 10 }}>
+            <Icon name="clipboard" size={16} style={{ color: 'var(--text-3)' }} />
+            {t('À faire en premier')}
+          </h3>
 
-              <div className="min-w-0" style={{ flex: 1 }}>
-                <div className="row-name text-ellipsis">{v.name}</div>
-                <div className="row-meta text-ellipsis">
-                  {/* Le nom du véhicule est le plus souvent « marque modèle » :
-                      le réécrire juste en dessous n'apprend rien. */}
-                  {[
-                    `${v.brand} ${v.model}`.trim() === (v.name || '').trim()
-                      ? null
-                      : `${v.brand} ${v.model}`,
-                    v.year,
-                    fmt.dist(v.current_mileage),
-                  ].filter(Boolean).join(' · ')}
-                </div>
-              </div>
-
-              <div
-                className="tabular hidden sm:block"
-                style={{ fontSize: 13, color: 'var(--text-2)', width: 110, textAlign: 'right', whiteSpace: 'nowrap' }}
-                title={t('Dépenses')}
-              >
-                {fmt.totals(v.cost_by_currency)}
-              </div>
-
-              <div className="flex items-center gap-2" style={{ width: 132, justifyContent: 'flex-end' }}>
-                <span className={`dot ${state.dot}`} aria-hidden="true" />
-                <span style={{ fontSize: 13, fontWeight: 600, color: state.color, whiteSpace: 'nowrap' }}>
-                  {state.label}
-                </span>
-              </div>
+          {priority.length === 0 ? (
+            <p className="text-sm" style={{ color: 'var(--text-3)' }}>
+              {t('Aucune échéance à court terme.')}
+            </p>
+          ) : (
+            <div className="rows bare">
+              {priority.map((item, i) => {
+                const late = item.status === 'overdue';
+                const due = item.next_due_mileage
+                  ? fmt.dist(item.next_due_mileage)
+                  : item.estimated_date ? fmt.date(item.estimated_date)
+                  : '—';
+                return (
+                  <div
+                    key={`${item.vehicle_id}-${item.intervention_key || i}`}
+                    className="row-item interactive"
+                    onClick={() => onSelectVehicle(item.vehicle_id)}
+                    role="button" tabIndex={0}
+                    onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onSelectVehicle(item.vehicle_id); } }}
+                  >
+                    <span className={`dot ${late ? 'danger' : item.status === 'urgent' ? 'warning' : ''}`} aria-hidden="true" />
+                    <div className="min-w-0" style={{ flex: 1 }}>
+                      <div className="row-name text-ellipsis">
+                        {getInterventionDisplayName(item.intervention_type)}
+                      </div>
+                      <div className="row-meta text-ellipsis">{item.vehicle_name}</div>
+                    </div>
+                    <div className={`row-value ${late ? 'late' : ''}`}>
+                      {due}
+                      <small>{remainingLabel(item)}</small>
+                    </div>
+                  </div>
+                );
+              })}
             </div>
-          );
-        })}
+          )}
+
+          {priorityItems.length > priority.length && (
+            <p className="field-hint" style={{ marginTop: 10 }}>
+              {t('et {count} autres échéances, dans Planning', { count: priorityItems.length - priority.length })}
+            </p>
+          )}
+        </div>
+
+        <div className="card p-4">
+          <h3 className="section-title flex items-center gap-2" style={{ marginBottom: 10 }}>
+            <Icon name="car" size={16} style={{ color: 'var(--text-3)' }} />
+            {t('Le parc')}
+            <span className="group-meta">
+              {data.vehicles.length} {data.vehicles.length > 1 ? t('véhicules') : t('véhicule')}
+            </span>
+          </h3>
+
+          <div className="rows bare">
+            {data.vehicles.map((v) => {
+              const state = v.overdue_count > 0
+                ? { dot: 'danger',  color: 'var(--danger)',  label: t('{count} en retard', { count: v.overdue_count }) }
+                : v.urgent_count > 0
+                ? { dot: 'warning', color: 'var(--warning)', label: v.urgent_count > 1 ? t('{count} urgents', { count: v.urgent_count }) : t('{count} urgent', { count: v.urgent_count }) }
+                : v.warning_count > 0
+                ? { dot: 'warning', color: 'var(--text-2)',  label: t('{count} à prévoir', { count: v.warning_count }) }
+                : { dot: 'success', color: 'var(--text-3)',  label: t('À jour') };
+
+              return (
+                <div
+                  key={v.id}
+                  className="row-item interactive"
+                  onClick={() => onSelectVehicle(v.id)}
+                  role="button" tabIndex={0}
+                  onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onSelectVehicle(v.id); } }}
+                >
+                  <div className="photo-container photo-thumb flex-shrink-0" style={{ width: 54 }}>
+                    <Icon
+                      name={v.vehicle_type === 'motorcycle' ? 'motorcycle' : 'car'}
+                      size={20} strokeWidth={1.4}
+                      style={{ color: 'var(--border-strong)', position: 'absolute' }}
+                    />
+                    {v.photo_url && (
+                      <VehiclePhoto vehicleId={v.id} version={v.updated_at} alt={v.name} backdrop />
+                    )}
+                  </div>
+
+                  <div className="min-w-0" style={{ flex: 1 }}>
+                    <div className="row-name text-ellipsis">{v.name}</div>
+                    <div className="row-meta text-ellipsis">
+                      {/* Le nom du véhicule est le plus souvent « marque modèle » :
+                          le réécrire juste en dessous n'apprend rien. */}
+                      {[
+                        `${v.brand} ${v.model}`.trim() === (v.name || '').trim()
+                          ? null
+                          : `${v.brand} ${v.model}`,
+                        v.year,
+                        fmt.dist(v.current_mileage),
+                      ].filter(Boolean).join(' · ')}
+                    </div>
+                  </div>
+
+                  <div className="flex items-center gap-2" style={{ justifyContent: 'flex-end' }}>
+                    <span className={`dot ${state.dot}`} aria-hidden="true" />
+                    <span style={{ fontSize: 13, fontWeight: 600, color: state.color, whiteSpace: 'nowrap' }}>
+                      {state.label}
+                    </span>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </div>
       </div>
 
       {/* Les deux colonnes du bas.
@@ -266,6 +379,10 @@ export default function Dashboard({ onSelectVehicle, currentUser }) {
 // ─────────────────────────────────────────────────────────────────────────────
 
 const MONTH_LABELS = ['Jan', 'Fév', 'Mar', 'Avr', 'Mai', 'Jun', 'Jul', 'Aoû', 'Sep', 'Oct', 'Nov', 'Déc'];
+// Sous l'axe, une abréviation ; dans une phrase, le mois s'écrit en entier —
+// « mois le plus cher : Aoû » se lit comme une coquille.
+const MONTH_NAMES_FULL = ['janvier', 'février', 'mars', 'avril', 'mai', 'juin',
+  'juillet', 'août', 'septembre', 'octobre', 'novembre', 'décembre'];
 
 function CostCharts({ monthlyCosts, mixed }) {
   const t = useT();
@@ -293,6 +410,7 @@ function CostCharts({ monthlyCosts, mixed }) {
   // Données mensuelles pour l'année sélectionnée — 12 mois fixes
   const monthlyData = MONTH_LABELS.map((label, i) => ({
     label,
+    fullLabel: MONTH_NAMES_FULL[i],
     cost: byYearMonth[selectedYear]?.[i] || 0,
   }));
 
@@ -301,6 +419,9 @@ function CostCharts({ monthlyCosts, mixed }) {
     label: year,
     cost: Object.values(byYearMonth[year] || {}).reduce((a, b) => a + b, 0),
   }));
+
+  const yearTotal = monthlyData.reduce((a, b) => a + b.cost, 0);
+  const peak = monthlyData.reduce((m, d) => (d.cost > m.cost ? d : m), monthlyData[0]);
 
   const maxMonthly = Math.max(...monthlyData.map(d => d.cost), 1);
   const maxAnnual = Math.max(...annualData.map(d => d.cost), 1);
@@ -311,12 +432,6 @@ function CostCharts({ monthlyCosts, mixed }) {
           Les ventiler ferait deux barres par mois et casserait la lecture ;
           on additionne donc, et on le dit — même arbitrage que pour les
           répartitions par catégorie de la fiche véhicule. */}
-      {mixed && (
-        <Notice tone="warning" title={t('Plusieurs devises dans cet historique')}>
-          {t('Les graphiques additionnent des montants saisis dans des devises différentes. Les totaux ci-dessus, eux, restent ventilés.')}
-        </Notice>
-      )}
-
       {/* Graphique mensuel */}
       <div>
         <div className="flex items-center justify-between mb-3">
@@ -339,6 +454,12 @@ function CostCharts({ monthlyCosts, mixed }) {
             </div>
           )}
         </div>
+        {yearTotal > 0 && (
+          <p className="field-hint" style={{ marginTop: -4, marginBottom: 10 }}>
+            {fmt.money(yearTotal)} {t('sur l’année')} · {fmt.money(yearTotal / 12)}{t('/mois')} {t('en moyenne')}
+            {peak && peak.cost > 0 && ` · ${t('mois le plus cher')} : ${t(peak.fullLabel)} (${fmt.money(peak.cost)})`}
+          </p>
+        )}
         <BarChart data={monthlyData} max={maxMonthly} money={fmt.money} height={160} />
       </div>
 
@@ -359,6 +480,15 @@ function CostCharts({ monthlyCosts, mixed }) {
           )}
         </div>
       </div>
+
+      {/* Une barre est une somme, et une somme ne traverse pas deux devises.
+          Les ventiler ferait deux barres par mois et casserait la lecture ;
+          on additionne donc, et on le dit. */}
+      {mixed && (
+        <Notice tone="warning">
+          {t('Ces graphiques additionnent des montants saisis dans des devises différentes. Les totaux du haut de page, eux, restent ventilés.')}
+        </Notice>
+      )}
     </div>
   );
 }
