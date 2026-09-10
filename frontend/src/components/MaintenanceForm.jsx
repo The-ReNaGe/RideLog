@@ -237,14 +237,16 @@ export default function MaintenanceForm({
                 <span style={{ color: 'var(--text-3)' }}>
                   <Icon name="clipboard" size={15} />
                   {pendingSubInterventions && pendingSubInterventions.length > 0
-                    ? t('{count} élément(s) sélectionné(s)', { count: pendingSubInterventions.length })
+                    ? pendingSubInterventions.length > 1
+                      ? t('{count} éléments sélectionnés', { count: pendingSubInterventions.length })
+                      : t('{count} élément sélectionné', { count: pendingSubInterventions.length })
                     : t('Aucun détail sélectionné')}
                 </span>
                 <button
                   type="button"
                   onClick={() => setShowRevisionModal(true)}
                   className="btn btn-secondary"
-                  style={{ fontSize: '0.75rem', padding: '0.2rem 0.6rem' }}
+                  style={{ fontSize: '0.75rem', padding: '3px 10px' }}
                 >
                   Modifier le détail
                 </button>

@@ -222,6 +222,23 @@ function PreferencesSettings({ currentUser }) {
     }
   };
 
+  // Quatre réglages, quatre cartes pleine largeur ne contenant chacune qu'un
+  // titre et deux petits boutons : le reste de la largeur était vide, et
+  // l'écran ressemblait à une pile de boîtes. Un panneau, une ligne par
+  // réglage — intitulé et explication à gauche, choix à droite.
+  const SettingRow = ({ title, hint, children, footer }) => (
+    <div className="setting-row">
+      <div className="setting-row-label">
+        <h3 className="section-title" style={{ fontSize: '0.95rem' }}>{title}</h3>
+        {hint && <p className="field-hint" style={{ marginTop: 2 }}>{hint}</p>}
+      </div>
+      <div className="setting-row-control">
+        {children}
+        {footer}
+      </div>
+    </div>
+  );
+
   if (loading) {
     return <div className="text-center py-8"><div className="spinner mx-auto"></div></div>;
   }
@@ -235,13 +252,12 @@ function PreferencesSettings({ currentUser }) {
         <Notice tone="danger" icon="alertCircle" className="mb-5">{error}</Notice>
       )}
 
+      <div className="panel">
       {/* ── Pays ─────────────────────────────────────────────────────── */}
-      <div className="card p-6 mb-5">
-        <h3 className="section-title mb-1">{t('Pays')}</h3>
-        <p className="field-hint mb-3">
-          {t("Décide du format de plaque d'immatriculation, du service qui la décode et du calendrier du contrôle technique. S'applique à toute l'instance.")}
-        </p>
-
+      <SettingRow
+        title={t('Pays')}
+        hint={t("Décide du format de plaque d'immatriculation, du service qui la décode et du calendrier du contrôle technique. S'applique à toute l'instance.")}
+      >
         <OptionRow>
           {regions.map((r) => (
             <OptionButton
@@ -262,21 +278,19 @@ function PreferencesSettings({ currentUser }) {
           </p>
         )}
         {isAdmin && onlyOneCountry && (
-          <p className="field-hint">
+          <p className="field-hint" style={{ marginTop: 8 }}>
             {t("La France est pour l'instant le seul pays pris en charge. D'autres apparaîtront ici sans qu'aucun réglage ne soit à refaire.")}
           </p>
         )}
-      </div>
+      </SettingRow>
 
       {/* ── Langue ───────────────────────────────────────────────────── */}
-      <div className="card p-6 mb-5">
-        <h3 className="section-title mb-1">{t('Langue')}</h3>
-        <p className="field-hint mb-3">
-          {activeRegion
-            ? t('Ne vaut que pour votre compte. Par défaut, celle de {country}.', { country: activeRegion.name })
-            : t('Ne vaut que pour votre compte.')}
-        </p>
-
+      <SettingRow
+        title={t('Langue')}
+        hint={activeRegion
+          ? t('Ne vaut que pour votre compte. Par défaut, celle de {country}.', { country: activeRegion.name })
+          : t('Ne vaut que pour votre compte.')}
+      >
         <OptionRow>
           {LANGUAGES.map((l) => (
             <OptionButton
@@ -293,15 +307,13 @@ function PreferencesSettings({ currentUser }) {
             {t('La traduction anglaise est en cours : certains écrans sont encore en français.')}
           </Notice>
         )}
-      </div>
+      </SettingRow>
 
       {/* ── Unités ───────────────────────────────────────────────────── */}
-      <div className="card p-6">
-        <h3 className="section-title mb-1">{t('Unités')}</h3>
-        <p className="field-hint mb-3">
-          {t('Ne vaut que pour votre compte, et ne change que l\'affichage : vos données restent enregistrées en kilomètres et en litres.')}
-        </p>
-
+      <SettingRow
+        title={t('Unités')}
+        hint={t('Ne vaut que pour votre compte, et ne change que l\'affichage : vos données restent enregistrées en kilomètres et en litres.')}
+      >
         <OptionRow>
           {UNIT_SYSTEMS.map((u) => (
             <OptionButton
@@ -313,15 +325,13 @@ function PreferencesSettings({ currentUser }) {
             />
           ))}
         </OptionRow>
-      </div>
+      </SettingRow>
 
       {/* ── Devise ───────────────────────────────────────────────────── */}
-      <div className="card p-6 mt-5">
-        <h3 className="section-title mb-1">{t('Devise')}</h3>
-        <p className="field-hint mb-3">
-          {t("Change le symbole affiché, rien d'autre : aucun montant déjà enregistré n'est converti.")}
-        </p>
-
+      <SettingRow
+        title={t('Devise')}
+        hint={t("Change le symbole affiché, rien d'autre : aucun montant déjà enregistré n'est converti.")}
+      >
         <OptionRow>
           {currencies.map((c) => (
             <OptionButton
@@ -343,6 +353,7 @@ function PreferencesSettings({ currentUser }) {
         <Notice tone="info" icon="info" className="mt-3">
           {t("Chaque montant garde la devise dans laquelle il a été saisi : une révision payée 200 $ continue de s'afficher « 200 $ » même après un passage à l'euro. Changer ce réglage ne recalcule rien.")}
         </Notice>
+      </SettingRow>
       </div>
     </div>
   );
@@ -428,7 +439,7 @@ function ReminderSettings() {
               setChecking(true);
               try {
                 const res = await api.checkReminders();
-                alert(`Vérification terminée. ${res.data.cleared_logs} rappel(s) réinitialisé(s).`);
+                alert(`Vérification terminée. ${res.data.cleared_logs} ${res.data.cleared_logs > 1 ? 'rappels réinitialisés' : 'rappel réinitialisé'}.`);
               } catch (err) {
                 alert('Erreur : ' + (err.response?.data?.detail || err.message));
               }

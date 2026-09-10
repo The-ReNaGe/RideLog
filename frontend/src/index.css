@@ -430,6 +430,12 @@ textarea:focus {
   text-transform: uppercase;
 }
 
+/* Dans une ligne de tableau, 34 px écrasent la rangée. */
+.avatar.sm {
+  width: 26px; height: 26px; min-width: 26px;
+  font-size: 12px;
+}
+
 /* ============================================
    TYPOGRAPHIE UTILITAIRE
    ============================================ */
@@ -562,7 +568,7 @@ tbody tr:hover td { background: var(--bg-hover); }
 }
 
 @media (min-width: 640px) {
-  .hero-media { max-width: 320px; flex-shrink: 0; }
+  .hero-media { max-width: 260px; flex-shrink: 0; align-self: stretch; aspect-ratio: auto; }
 }
 
 /* Vignette de liste (tableau de bord) : même format, pour la même raison. */
@@ -803,3 +809,474 @@ main { animation: fadeIn 0.18s ease-out; }
 }
 
 [data-theme="dark"] th { background: var(--bg-inset); }
+
+/* ============================================
+   REFONTE — DENSITÉ ET HIÉRARCHIE
+   ============================================
+   Trois primitives qui remplacent trois habitudes :
+
+   1. `.headline`  remplace la rangée de cartes KPI en tête d'écran. Une
+      phrase dit l'état, un chiffre le quantifie. Cinq encadrés répétant
+      « En retard » ne hiérarchisaient rien.
+   2. `.metrics`   remplace les encadrés de statistiques par une ligne de
+      mesures séparées par un filet. Même information, sans le carton.
+   3. `.rows`      remplace les listes de cartes par des lignes. Vingt cartes
+      cerclées de rouge font un damier ; vingt lignes se lisent.
+
+   Règle de couleur inchangée et resserrée : l'accent marque ce qui est
+   actif, `--danger` ce qui est dépassé. Un montant, un volume, un
+   décompte n'ont pas de couleur — ce sont des faits, pas des états.
+   ============================================ */
+
+/* --- 1. La phrase d'état ------------------------------------------------ */
+.headline {
+  display: flex;
+  align-items: baseline;
+  flex-wrap: wrap;
+  gap: 4px 10px;
+}
+
+.headline-n {
+  font-size: 30px;
+  font-weight: 800;
+  line-height: 1.1;
+  letter-spacing: -0.02em;
+  font-variant-numeric: tabular-nums;
+}
+
+.headline-t { font-size: 15px; color: var(--text-1); }
+.headline-s { font-size: 13px; color: var(--text-3); }
+
+/* --- 2. La ligne de mesures --------------------------------------------- */
+.metrics {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 18px 40px;
+  padding-top: 18px;
+  border-top: 1px solid var(--border);
+}
+
+.metric-l {
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--text-3);
+}
+
+.metric-v {
+  font-size: 19px;
+  font-weight: 700;
+  color: var(--text-1);
+  line-height: 1.25;
+  margin-top: 3px;
+  letter-spacing: -0.01em;
+}
+
+.metric-s {
+  font-size: 12px;
+  color: var(--text-3);
+  margin-top: 2px;
+}
+
+/* --- 3. La liste en lignes ---------------------------------------------- */
+.group-head {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-bottom: 8px;
+}
+
+.group-title { font-size: 13px; font-weight: 700; letter-spacing: 0.01em; }
+.group-meta  { font-size: 12px; color: var(--text-3); }
+
+/* Pastille d'état : six pixels suffisent à ouvrir un groupe. Le cadre de la
+   ligne, lui, reste neutre — c'est ce qui évite le damier. */
+.dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  flex-shrink: 0;
+  background: var(--border-strong);
+}
+.dot.danger  { background: var(--danger); }
+.dot.warning { background: var(--warning); }
+.dot.success { background: var(--success); }
+.dot.accent  { background: var(--accent); }
+
+.rows {
+  background: var(--bg-surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  overflow: hidden;
+}
+
+.row-item {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  padding: 13px 16px;
+  border-top: 1px solid var(--border-light);
+}
+.row-item:first-child { border-top: 0; }
+.row-item.interactive { cursor: pointer; }
+.row-item.interactive:hover { background: var(--bg-hover); }
+
+.row-name { font-size: 14px; font-weight: 600; color: var(--text-1); }
+.row-meta { font-size: 12px; color: var(--text-3); margin-top: 2px; }
+
+/* Colonne de droite : la valeur qui répond à la question de l'écran. */
+.row-value {
+  font-size: 13px;
+  font-weight: 600;
+  text-align: right;
+  white-space: nowrap;
+  font-variant-numeric: tabular-nums;
+}
+.row-value small {
+  display: block;
+  font-size: 11.5px;
+  font-weight: 400;
+  color: var(--text-3);
+  margin-top: 2px;
+}
+.row-value.late { color: var(--danger); }
+
+/* Posée DANS une carte, la liste n'a pas besoin de son propre cadre : deux
+   bordures à un pixel l'une de l'autre se voient, et pour rien. */
+.rows.bare {
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+}
+
+/* Un groupe lointain se tait : il reste lisible sans réclamer l'attention. */
+.rows.quiet .row-name  { font-weight: 500; color: var(--text-2); }
+.rows.quiet .row-value { font-weight: 500; color: var(--text-2); }
+
+/* Le dépliant d'un groupe replié — un lien, pas un bouton plein. */
+.row-more {
+  display: block;
+  width: 100%;
+  padding: 11px;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--accent);
+  background: none;
+  border: 0;
+  border-top: 1px solid var(--border-light);
+  cursor: pointer;
+}
+.row-more:hover { background: var(--bg-hover); }
+
+@media (max-width: 640px) {
+  .headline-n { font-size: 26px; }
+  .metrics { gap: 14px 28px; }
+  .metric-v { font-size: 17px; }
+  .row-item { padding: 12px 14px; gap: 12px; }
+}
+
+/* Le pied de la carte d'en-tête — état, action principale, mesures.
+
+   Ces trois choses flottaient sous la carte, qui gardait pour elle une moitié
+   droite vide. Réunies dans la carte, elles la remplissent et l'écran ne
+   commence plus par trois bandes empilées. */
+.hero-footer {
+  padding: 16px 18px;
+  border-top: 1px solid var(--border);
+  background: var(--bg-inset);
+}
+
+.hero-footer .metrics {
+  border-top: 1px solid var(--border);
+  margin-top: 14px;
+}
+
+@media (max-width: 640px) {
+  .hero-footer { padding: 14px; }
+}
+
+/* Carte véhicule sur téléphone — une rangée, pas une affiche.
+
+   En grille, la carte est verticale : photo en 3/2 pleine largeur, puis le
+   texte. Sur un écran de 400 px, cette photo fait 265 px de haut et un seul
+   véhicule tient à l'écran — il faut trois balayages pour voir un garage de
+   trois voitures. La même carte passe donc en rangée : vignette à gauche,
+   nom, compteur et état à droite. La photo reste entière (`contain` +
+   doublure), simplement plus petite. */
+.vcard {
+  display: flex;
+  flex-direction: column;
+}
+
+@media (max-width: 639px) {
+  .vcard {
+    display: grid;
+    grid-template-columns: 104px minmax(0, 1fr);
+    grid-template-areas:
+      "photo body"
+      "alert alert";
+    align-items: center;
+  }
+
+  .vcard-photo {
+    grid-area: photo;
+    width: 104px;
+    aspect-ratio: 3 / 2;
+    margin: 12px 0 12px 12px;
+    border-radius: var(--radius-sm);
+    overflow: hidden;
+  }
+
+  .vcard-body {
+    grid-area: body;
+    min-width: 0;
+    padding: 12px 14px !important;
+    gap: 6px !important;
+  }
+
+  /* `margin-top: auto` poussait le compteur en bas d'une colonne ; en rangée
+     il n'y a plus de bas à rejoindre. */
+  .vcard-body > div:last-child { margin-top: 0 !important; }
+
+  /* La vignette d'icône devant le nom fait doublon avec la photo juste à
+     côté, et vole 28 px de large sur un écran qui n'en a pas de trop. */
+  .vcard-body .icon-box.sm { display: none; }
+
+  .vcard-alert { grid-area: alert; }
+}
+
+/* Deux utilitaires pour la composition sur téléphone.
+
+   `hide-phone` retire le libellé d'un bouton secondaire : sur un écran de
+   400 px, trois boutons texte alignés sous un titre repoussent le contenu
+   sous la ligne de flottaison. L'icône suffit — l'action reste accessible au
+   lecteur d'écran par son `title`/`aria-label`.
+
+   `full-phone` donne toute la largeur à l'action principale : une seule par
+   écran, une cible qu'on touche sans viser. */
+@media (max-width: 639px) {
+  .hide-phone { display: none; }
+  .full-phone { width: 100%; justify-content: center; }
+
+  /* La photo de la fiche prenait 300 px de haut, soit 40 % du premier écran,
+     avant le titre. Elle reste entière, simplement plus courte. */
+  .hero-media { aspect-ratio: auto; max-height: 190px; }
+}
+
+/* Une ligne de réglage — intitulé à gauche, choix à droite.
+
+   Chaque réglage occupait une carte pleine largeur pour un titre et deux
+   petits boutons : quatre boîtes empilées, chacune vide aux trois quarts.
+   En lignes, la colonne de droite porte les choix et la largeur sert. */
+.setting-row {
+  display: flex;
+  align-items: flex-start;
+  gap: 28px;
+  padding: 18px 20px;
+  border-top: 1px solid var(--border-light);
+}
+.setting-row:first-child { border-top: 0; }
+
+.setting-row-label { width: 320px; flex-shrink: 0; }
+.setting-row-control { flex: 1; min-width: 0; }
+
+@media (max-width: 767px) {
+  .setting-row { flex-direction: column; gap: 12px; padding: 16px; }
+  .setting-row-label { width: auto; }
+}
+
+/* Un groupe d'échéances — bande d'en-tête teintée, liseré sur le bord.
+
+   L'état tenait dans une pastille de 6 px et une ligne de gris : à l'échelle
+   de l'écran, « deux entretiens en retard depuis trois ans » et « neuf dans
+   deux ans » se ressemblaient. La teinte est portée par le groupe, une seule
+   fois — jamais par chaque ligne, sinon on retombe sur le damier de cartes
+   cerclées que ce système a justement retiré. */
+.upcoming-group {
+  border: 1px solid var(--border);
+  border-left: 3px solid var(--border-strong);
+  border-radius: var(--radius);
+  overflow: hidden;
+  background: var(--bg-surface);
+}
+
+.upcoming-group-bar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 14px;
+  border-bottom: 1px solid var(--border);
+  background: var(--bg-inset);
+  color: var(--text-2);
+}
+
+.upcoming-group-title { font-size: 13.5px; font-weight: 700; }
+
+/* Le décompte est la réponse à « combien ? » : il se lit avant le reste. */
+.upcoming-group-count {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 22px;
+  height: 20px;
+  padding: 0 6px;
+  border-radius: 999px;
+  font-size: 12px;
+  font-weight: 700;
+  /* ⚠️ Pas de `background: currentColor` ici : `currentColor` résout la
+     couleur DE CET ÉLÉMENT, or on lui fixe justement `color` juste après —
+     la pastille devenait blanche sur blanc, chiffre invisible. La couleur
+     vient donc du ton, explicitement. */
+  background: var(--text-3);
+  color: var(--bg-surface);
+}
+
+.upcoming-group-meta {
+  margin-left: auto;
+  font-size: 12px;
+  color: var(--text-3);
+  white-space: nowrap;
+}
+
+.upcoming-group.tone-danger  { border-left-color: var(--danger); }
+.upcoming-group.tone-danger  .upcoming-group-bar { background: var(--danger-light);  color: var(--danger); }
+.upcoming-group.tone-danger  .upcoming-group-count { background: var(--danger); }
+.upcoming-group.tone-warning { border-left-color: var(--warning); }
+.upcoming-group.tone-warning .upcoming-group-bar { background: var(--warning-light); color: var(--warning); }
+.upcoming-group.tone-warning .upcoming-group-count { background: var(--warning); }
+
+@media (max-width: 640px) {
+  .upcoming-group-meta { display: none; }
+}
+
+/* La bande d'état d'un véhicule — la réponse à « est-ce que tout va bien ? ».
+
+   Elle était écrite en texte nu au milieu de la carte : juste, mais aussi
+   discrète que le reste. Teintée, elle se voit avant qu'on ait lu. */
+.status-band {
+  /* Deux lignes, pas une.
+
+     La version d'avant alignait tout sur une seule ligne : un « 2 » de 30 px
+     collé à « entretiens en retard » en 15 px, puis un point médian et une
+     précision en gris. Trois corps de texte et deux couleurs sur une même
+     ligne de base — ça se lit comme une étiquette de promotion, pas comme
+     l'état d'un véhicule. La phrase porte son nombre, la précision passe
+     dessous, et une vignette d'icône tient le bloc à gauche. */
+  display: inline-flex;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 14px 10px 10px;
+  border-radius: var(--radius);
+  border: 1px solid var(--border);
+  background: var(--bg-surface);
+}
+
+/* Posée DANS une carte, la bande n'a pas besoin de son propre cadre : deux
+   bordures à quelques pixels l'une de l'autre se voient, et pour rien. La
+   vignette teintée suffit à porter le ton. */
+.status-band.bare {
+  border: 0;
+  background: transparent;
+  padding-left: 0;
+  padding-top: 0;
+}
+
+.status-band-icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 34px;
+  height: 34px;
+  min-width: 34px;
+  border-radius: var(--radius-sm);
+  background: var(--bg-inset);
+  color: var(--text-2);
+}
+
+.status-band-text {
+  font-size: 15px;
+  font-weight: 700;
+  color: var(--text-1);
+  letter-spacing: -0.01em;
+  line-height: 1.25;
+}
+
+.status-band-hint {
+  display: block;
+  font-size: 12.5px;
+  font-weight: 400;
+  color: var(--text-3);
+  margin-top: 1px;
+}
+
+/* Le ton colore la vignette et le liseré, pas le fond entier : un aplat
+   rouge derrière du texte noir se lit comme une erreur d'application. */
+.status-band.tone-danger  { border-color: var(--danger); }
+.status-band.tone-danger  .status-band-icon { background: var(--danger-light);  color: var(--danger); }
+.status-band.tone-warning { border-color: var(--warning); }
+.status-band.tone-warning .status-band-icon { background: var(--warning-light); color: var(--warning); }
+.status-band.tone-success .status-band-icon { background: var(--success-light); color: var(--success); }
+
+/* ============================================
+   BARRES DE RÉPARTITION
+   ============================================
+   Une barre empilée : chaque segment est une part, sa largeur EST la valeur.
+
+   ⚠️ Le rouge et l'orange des états ne se distinguent pas en vision
+   deutéranope — mesuré à ΔE 3,0, très en dessous du seuil de 6 qui autorise
+   encore une couleur seule. La barre ne porte donc JAMAIS l'information à
+   elle seule : l'ordre des segments est fixe, une légende les nomme et les
+   chiffre dans le même ordre, et chaque segment porte son intitulé en
+   infobulle. Retirer la légende casserait la lisibilité pour ~8 % des
+   hommes, sans que rien ne le signale à l'écran.
+   ============================================ */
+.meter {
+  display: flex;
+  /* Six pixels, pas dix : une barre de répartition est une mesure, pas une
+     jauge de chargement. */
+  height: 6px;
+  /* ⚠️ Le rayon est posé sur la BARRE, pas sur ses segments. Arrondir chaque
+     segment donnait trois pastilles flottantes — l'effet bonbon qui fait
+     bon marché. Les extrémités de la mesure s'arrondissent, ses coupes
+     internes restent droites. */
+  border-radius: 3px;
+  overflow: hidden;
+  background: var(--bg-inset);
+  box-shadow: inset 0 0 0 1px var(--border-light);
+}
+
+.meter-seg {
+  height: 100%;
+  min-width: 2px;
+}
+
+/* Le filet de surface entre deux parts : une bordure plutôt qu'un `gap`,
+   pour ne pas laisser voir la piste entre les segments. */
+.meter-seg + .meter-seg { border-left: 2px solid var(--bg-surface); }
+
+.meter-legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 16px;
+  margin-top: 9px;
+  font-size: 12px;
+  color: var(--text-2);
+}
+
+.meter-legend-item { display: inline-flex; align-items: center; gap: 6px; }
+
+/* La pastille de légende porte la couleur ; le texte garde l'encre du
+   thème — un libellé coloré se lit comme un lien ou une alerte. */
+.meter-key {
+  width: 8px;
+  height: 8px;
+  border-radius: 2px;
+  flex-shrink: 0;
+}
+
+.meter-legend-count { font-weight: 700; color: var(--text-1); font-variant-numeric: tabular-nums; }
+
+/* Version compacte, dans une ligne de liste. */
+.meter.sm { height: 5px; border-radius: 2.5px; }

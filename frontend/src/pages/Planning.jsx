@@ -141,8 +141,41 @@ function DayDetailModal({ date, items, onClose }) {
   );
 }
 
+/**
+ * Les échéances dépassées, repliées au-delà de six.
+ *
+ * Elles n'ont pas leur place dans la grille : leur date est derrière nous.
+ */
+function OverdueList({ items, fmt, t }) {
+  const [expanded, setExpanded] = React.useState(false);
+  const shown = expanded ? items : items.slice(0, 6);
+  const hidden = items.length - shown.length;
+
+  return (
+    <div className="rows">
+      {shown.map((item, i) => (
+        <div className="row-item" key={`${item.vehicle_id}-${item.intervention_type}-${i}`}>
+          <div className="min-w-0" style={{ flex: 1 }}>
+            <div className="row-name text-ellipsis">{getShortInterventionName(item.intervention_type)}</div>
+            <div className="row-meta text-ellipsis">{item.vehicle_name}</div>
+          </div>
+          <div className="row-value late">
+            {item.estimated_date ? fmt.date(item.estimated_date) : '—'}
+          </div>
+        </div>
+      ))}
+      {hidden > 0 && (
+        <button className="row-more" onClick={() => setExpanded(true)}>
+          {t('Voir les {count} autres', { count: hidden })}
+        </button>
+      )}
+    </div>
+  );
+}
+
 export default function Planning() {
   const t = useT();
+  const fmt = useFormat();
   const [items, setItems] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
@@ -264,20 +297,33 @@ export default function Planning() {
         subtitle={t('Toutes les échéances de votre parc, mois par mois.')}
       />
 
-      {/* Résumé */}
-      <div className="flex flex-wrap gap-3">
-        {[
-          summary.overdue.length > 0 && { n: summary.overdue.length, label: summary.overdue.length > 1 ? 'en retard' : 'en retard', color: 'var(--danger)', icon: 'alertCircle' },
-          summary.urgent.length > 0 && { n: summary.urgent.length, label: summary.urgent.length > 1 ? 'urgents' : 'urgent', color: 'var(--warning)', icon: 'alert' },
-          { n: summary.monthItems.length, label: 'ce mois', color: 'var(--accent)', icon: 'calendar' },
-        ].filter(Boolean).map(b => (
-          <div key={b.label} className="card flex items-center gap-3" style={{ padding: '10px 14px', borderLeft: `3px solid ${b.color}` }}>
-            <Icon name={b.icon} size={17} style={{ color: b.color }} />
-            <span className="tabular" style={{ color: b.color, fontWeight: 800, fontSize: 19 }}>{b.n}</span>
-            <span style={{ color: 'var(--text-2)', fontSize: 13 }}>{b.label}</span>
-          </div>
-        ))}
-      </div>
+      {/* L'état, en tête ; le détail des dépassées, sous le calendrier. */}
+      {summary.overdue.length > 0 ? (
+        <div className="status-band tone-danger">
+          <span className="status-band-icon"><Icon name="alertCircle" size={18} /></span>
+          <span>
+            <span className="status-band-text">
+              {summary.overdue.length}{' '}
+              {summary.overdue.length > 1 ? t('échéances dépassées') : t('échéance dépassée')}
+            </span>
+            <span className="status-band-hint">{t('Listées sous le calendrier')}</span>
+          </span>
+        </div>
+      ) : (
+        <div className="status-band tone-success">
+          <span className="status-band-icon"><Icon name="checkCircle" size={18} /></span>
+          <span>
+            <span className="status-band-text">{t('Aucune échéance dépassée')}</span>
+          {summary.urgent.length > 0 && (
+            <span className="status-band-hint">
+              {summary.urgent.length > 1
+                ? t('{count} urgentes dans les prochaines semaines', { count: summary.urgent.length })
+                : t('1 urgente dans les prochaines semaines')}
+            </span>
+          )}
+          </span>
+        </div>
+      )}
 
       {/* Calendar header with navigation */}
       <div className="card" style={{ overflow: 'hidden' }}>
@@ -331,6 +377,26 @@ export default function Planning() {
           })}
         </div>
       </div>
+
+      {/* Ce qui est déjà dépassé — et qui n'apparaît nulle part dans la grille.
+
+          Une échéance en retard porte une date PASSÉE : elle se trouve dans un
+          mois qu'on ne regarde plus. La page annonçait donc « 21 en retard »
+          dans une puce, puis montrait un mois vide en plein écran. La liste
+          vient APRÈS le calendrier : celui-ci reste la vue principale, montrant
+          ce qui arrive, et le retard se consulte ensuite. */}
+      {summary.overdue.length > 0 && (
+        <section>
+          <div className="group-head">
+            <span className="dot danger" aria-hidden="true" />
+            <span className="group-title">{t('En retard')}</span>
+            <span className="group-meta">
+              {summary.overdue.length} {summary.overdue.length > 1 ? t('échéances dépassées') : t('échéance dépassée')}
+            </span>
+          </div>
+          <OverdueList items={summary.overdue} fmt={fmt} t={t} />
+        </section>
+      )}
 
       {/* Legend */}
       <div className="flex flex-wrap gap-4" style={{ fontSize: 12.5, color: 'var(--text-2)' }}>

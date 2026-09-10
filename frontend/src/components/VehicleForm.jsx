@@ -948,7 +948,7 @@ export default function VehicleForm({ onSubmit, onCancel }) {
           Le VIN se trouve sur la carte grise (case E) ou sur le pare-brise côté conducteur.
           {' '}Pour activer le décodage par plaque (10 req/mois gratuit), créez un compte sur{' '}
           <a href="https://rapidapi.com/api-plaque-immatriculation-siv-api-plaque-immatriculation-siv-default/api/api-plaque-immatriculation-siv/" target="_blank" rel="noopener noreferrer" className="underline font-medium">RapidAPI</a>
-          {' '}et ajoutez <code style={{ background: 'rgba(247, 184, 75, 0.2)', padding: '0.2rem 0.4rem', borderRadius: '3px' }}>RAPIDAPI_KEY</code> dans vos variables d'environnement.
+          {' '}et ajoutez <code style={{ background: 'var(--warning-light)', padding: '2px 6px', borderRadius: '3px' }}>RAPIDAPI_KEY</code> dans vos variables d'environnement.
         </div>
       )}
 

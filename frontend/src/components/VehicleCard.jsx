@@ -35,23 +35,23 @@ const ALERT_LEVELS = {
   overdue: {
     color: 'var(--danger)',
     fill: 'var(--danger-light)',
-    outline: true,
+    outline: false,
     icon: 'alert',
-    label: (n, t) => t('{count} entretien(s) en retard', { count: n }),
+    label: (n, t) => n > 1 ? t('{count} entretiens en retard', { count: n }) : t('{count} entretien en retard', { count: n }),
   },
   urgent: {
     color: 'var(--warning)',
     fill: 'var(--warning-light)',
     outline: false,
     icon: 'alertCircle',
-    label: (n, t) => t('{count} entretien(s) urgent(s)', { count: n }),
+    label: (n, t) => n > 1 ? t('{count} entretiens urgents', { count: n }) : t('{count} entretien urgent', { count: n }),
   },
   warning: {
     color: 'var(--warning)',
     fill: 'transparent',
     outline: false,
     icon: 'clock',
-    label: (n, t) => t('{count} entretien(s) à surveiller', { count: n }),
+    label: (n, t) => n > 1 ? t('{count} entretiens à surveiller', { count: n }) : t('{count} entretien à surveiller', { count: n }),
   },
   ok: {
     color: 'var(--text-3)',
@@ -102,19 +102,22 @@ export default React.memo(function VehicleCard({ vehicle, onSelect, currentUser 
 
   return (
     <article
-      className="card card-interactive"
+      className="card card-interactive vcard"
       onClick={onSelect}
       onKeyDown={handleKeyDown}
       role="button"
       tabIndex={0}
+      // La mise en page vit dans `.vcard` (index.css) : en colonne sur grand
+      // écran, en rangée sur téléphone. Un `display` inline l'emporterait sur
+      // la media query et empêcherait la bascule.
       style={{
-        padding: 0, overflow: 'hidden', display: 'flex', flexDirection: 'column',
+        padding: 0, overflow: 'hidden',
         ...(level?.outline ? { borderColor: level.color } : null),
       }}
     >
       {/* Bandeau visuel — toujours présent, y compris sans photo, pour que
           toutes les cartes d'une grille aient la même hauteur. */}
-      <div className="photo-container photo-band" style={{ position: 'relative' }}>
+      <div className="photo-container photo-band vcard-photo" style={{ position: 'relative' }}>
         {/* La silhouette reste en fond : VehiclePhoto ne rend rien tant que le
             binaire n'est pas chargé, et rien non plus s'il échoue. Sans elle,
             le bandeau serait vide dans les deux cas. */}
@@ -149,7 +152,7 @@ export default React.memo(function VehicleCard({ vehicle, onSelect, currentUser 
         )}
       </div>
 
-      <div style={{ padding: '14px 16px 16px', display: 'flex', flexDirection: 'column', gap: 12, flex: 1 }}>
+      <div className="vcard-body" style={{ padding: '14px 16px', display: 'flex', flexDirection: 'column', gap: 12, flex: 1 }}>
         <div className="flex items-start gap-3">
           <div className="icon-box sm" aria-hidden="true">
             <Icon name={typeIcon} size={16} />
@@ -188,9 +191,10 @@ export default React.memo(function VehicleCard({ vehicle, onSelect, currentUser 
 
       {level && (
         <div
+          className="vcard-alert"
           style={{
             display: 'flex', alignItems: 'center', gap: 7,
-            padding: '9px 16px',
+            padding: '10px 16px',
             borderTop: '1px solid var(--border)',
             background: level.fill,
             color: level.color,

@@ -274,7 +274,7 @@ export default function FuelStations() {
 											<div className="flex items-center gap-2 mb-1">
 												<h4 className="font-bold" style={{ color: 'var(--text-1)' }}>{station.name}</h4>
 												{station.brand && station.brand !== station.name && (
-													<span className="text-xs px-2 py-1 rounded" style={{ background: 'rgba(108, 138, 247, 0.15)', color: 'var(--text-2)' }}>
+													<span className="text-xs px-2 py-1 rounded" style={{ background: 'var(--accent-light)', color: 'var(--text-2)' }}>
 														{station.brand}
 													</span>
 												)}
@@ -324,8 +324,8 @@ export default function FuelStations() {
 														key={type} 
 														className="p-3 rounded text-center"
 														style={{ 
-															background: available ? 'rgba(34, 197, 94, 0.08)' : 'rgba(107, 114, 128, 0.08)',
-															border: available ? '1px solid rgba(34, 197, 94, 0.2)' : '1px solid rgba(107, 114, 128, 0.2)'
+															background: available ? 'var(--success-light)' : 'var(--bg-inset)',
+															border: '1px solid var(--border)'
 														}}
 													>
 														<div className="text-sm font-bold" style={{ color: 'var(--text-1)' }}>

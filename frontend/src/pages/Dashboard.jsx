@@ -5,11 +5,94 @@ import Icon from '../components/Icon';
 import PageHeader from '../components/PageHeader';
 import VehiclePhoto from '../components/VehiclePhoto';
 import Notice from '../components/Notice';
+import { getInterventionDisplayName } from '../lib/interventionTranslations';
+
+/**
+ * Ce qu'il reste avant l'échéance, en une phrase courte.
+ *
+ * Même règle que dans « À venir » : on annonce la contrainte qui tombera la
+ * première, pas les deux — « dans 8 950 km ou 11 mois » demande au lecteur
+ * de faire le tri lui-même.
+ */
+function remainingLabel(item) {
+  const num = (v) => (v == null || v === 999999 || v === Infinity ? null : v);
+  const days = num(item.days_remaining);
+
+  if (item.status === 'overdue') {
+    if (days != null && days < 0) {
+      const d = Math.abs(Math.round(days));
+      if (d > 365) return `depuis ${Math.floor(d / 365)} an${Math.floor(d / 365) > 1 ? 's' : ''}`;
+      if (d > 30) return `depuis ${Math.floor(d / 30)} mois`;
+      return `depuis ${d} j`;
+    }
+    return 'en retard';
+  }
+
+  if (days == null) return null;
+  const d = Math.round(days);
+  if (d <= 0) return 'aujourd’hui';
+  if (d === 1) return 'demain';
+  if (d > 365) return `dans ${Math.floor(d / 365)} an${Math.floor(d / 365) > 1 ? 's' : ''}`;
+  if (d > 60) return `dans ${Math.round(d / 30)} mois`;
+  return `dans ${d} j`;
+}
+
+/**
+ * Une barre empilée d'états, avec sa légende.
+ *
+ * ⚠️ La légende n'est pas décorative : le rouge et l'orange des états ne se
+ * distinguent pas en vision deutéranope (ΔE 3,0, mesuré). L'ordre des
+ * segments est fixe et la légende les nomme dans le même ordre — c'est elle
+ * qui porte l'information quand la couleur ne le peut pas.
+ */
+function Meter({ segments, legend = true, showValues = true, className = '' }) {
+  const total = segments.reduce((a, s) => a + s.value, 0);
+  if (total === 0) return null;
+
+  const label = segments
+    .filter(s => s.value > 0)
+    .map(s => `${s.value} ${s.label}`)
+    .join(', ');
+
+  return (
+    <div>
+      <div className={`meter ${className}`} role="img" aria-label={label}>
+        {segments.filter(s => s.value > 0).map(s => (
+          <div
+            key={s.key}
+            className="meter-seg"
+            style={{ flex: s.value, background: s.color }}
+            title={`${s.value} ${s.label}`}
+          />
+        ))}
+      </div>
+
+      {legend && (
+        <div className="meter-legend">
+          {segments.filter(s => s.value > 0).map(s => (
+            <span key={s.key} className="meter-legend-item">
+              <span className="meter-key" style={{ background: s.color }} aria-hidden="true" />
+              {/* Le montant est déjà dans l'intitulé d'une part de dépense :
+                  l'écrire deux fois donne « 479 entretien 479 € ». */}
+              {showValues && <span className="meter-legend-count">{s.value}</span>}
+              {s.label}
+            </span>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
 
 export default function Dashboard({ onSelectVehicle, currentUser }) {
   const fmt = useFormat();
   const t = useT();
   const [data, setData] = useState(null);
+  // Le planning global : c'est lui qui porte les échéances, intervention par
+  // intervention. Le tableau de bord ne servait que des décomptes — il disait
+  // « 12 en retard » sans jamais dire lesquels, alors que c'est la question
+  // qui amène quelqu'un ici.
+  const [planning, setPlanning] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
 
@@ -20,8 +103,14 @@ export default function Dashboard({ onSelectVehicle, currentUser }) {
   const fetchDashboard = async () => {
     try {
       setLoading(true);
-      const res = await api.getDashboard();
+      // Deux requêtes en parallèle : le planning n'est pas indispensable à
+      // l'écran, son échec ne doit pas emporter le reste.
+      const [res, plan] = await Promise.all([
+        api.getDashboard(),
+        api.getPlanning().catch(() => null),
+      ]);
       setData(res.data);
+      setPlanning(plan?.data || null);
       setError(null);
     } catch (err) {
       setError(t('Impossible de charger le tableau de bord'));
@@ -61,6 +150,49 @@ export default function Dashboard({ onSelectVehicle, currentUser }) {
   // un, et il faisait passer ce fichier au travers du grep de contrôle des
   // devises documenté au §20.6, qui cherche le nom de la fonction elle-même.
   const mixed = fmt.isMixed(data.cost_by_currency);
+  // Les cinq échéances les plus pressantes, mais **une par véhicule
+  // d'abord** : trié par pure urgence, le panneau affichait cinq lignes du
+  // même véhicule et taisait les deux autres. Le planning arrive déjà trié,
+  // on ne fait que le dérouler en deux passes.
+  const priorityItems = planning?.items || [];
+  const priority = (() => {
+    const seen = new Set();
+    const firstOfEach = [];
+    const others = [];
+    for (const item of priorityItems) {
+      if (seen.has(item.vehicle_id)) others.push(item);
+      else { seen.add(item.vehicle_id); firstOfEach.push(item); }
+    }
+    return [...firstOfEach, ...others].slice(0, 5);
+  })();
+
+  // Les trois états que le reste de l'application emploie déjà — « En
+  // retard », « À prévoir », « À jour ». Urgent et à surveiller sont réunis
+  // sous « À prévoir » : la nuance existe dans la fiche du véhicule, elle
+  // n'apporte rien à l'échelle du parc, et deux oranges côte à côte dans une
+  // barre ne se distinguent pas.
+  const bucketsOf = (items) => {
+    const b = { overdue: 0, soon: 0, ok: 0 };
+    for (const item of items) {
+      if (item.status === 'overdue') b.overdue += 1;
+      else if (item.status === 'urgent' || item.status === 'warning') b.soon += 1;
+      else b.ok += 1;
+    }
+    return b;
+  };
+
+  const segmentsOf = (b) => [
+    { key: 'overdue', value: b.overdue, label: t('en retard'),  color: 'var(--danger)' },
+    { key: 'soon',    value: b.soon,    label: t('à prévoir'),  color: 'var(--warning)' },
+    { key: 'ok',      value: b.ok,      label: t('à jour'),     color: 'var(--success)' },
+  ];
+
+  const fleetSegments = segmentsOf(bucketsOf(priorityItems));
+
+  const byVehicle = {};
+  for (const item of priorityItems) {
+    (byVehicle[item.vehicle_id] = byVehicle[item.vehicle_id] || []).push(item);
+  }
 
   return (
     <div>
@@ -71,130 +203,246 @@ export default function Dashboard({ onSelectVehicle, currentUser }) {
           : t("Vue d'ensemble du garage")}
       />
 
-      {/* KPI Cards Row */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-5">
-        {[
-          { icon: 'car',   label: t('Véhicules'),     value: fmt.num(data.total_vehicles) },
-          // Ventilé, jamais additionné à travers deux devises : « 400 » pour
-          // 200 € et 200 $ est un chiffre faux qu'on ne recompte jamais.
-          { icon: 'euro',  label: t('Coût total'),    value: fmt.totals(data.cost_by_currency),
-            sub: `${t('Entretien')} ${fmt.money(data.total_maintenance_cost)} · ${t('Carburant')} ${fmt.money(data.total_fuel_cost)}` },
-          { icon: 'gauge', label: t('Distance totale'), value: fmt.dist(data.total_mileage) },
-          // « — » et non « 0 € » quand aucun véhicule n'a de prix d'achat :
-          // un parc sans prix saisi n'a pas une valeur de zéro, il n'en a pas.
-          { icon: 'package', label: t("Valeur d'achat"),
-            value: fmt.isMixed(data.fleet_purchase_by_currency) || data.fleet_purchase_price
-              ? fmt.totals(data.fleet_purchase_by_currency)
-              : '—',
-            sub: t("Prix d'achat cumulé du parc") },
-        ].map(kpi => (
-          <div key={kpi.label} className="card" style={{ padding: 16 }}>
-            <div className="flex items-center gap-2" style={{ marginBottom: 8 }}>
-              <Icon name={kpi.icon} size={15} style={{ color: 'var(--text-3)' }} />
-              <span className="card-label" style={{ marginBottom: 0 }}>{kpi.label}</span>
-            </div>
-            <div className="stat-number" style={{ fontSize: 24 }}>{kpi.value}</div>
-            {kpi.sub && <div style={{ fontSize: 12, color: 'var(--text-3)', marginTop: 3 }}>{kpi.sub}</div>}
-          </div>
-        ))}
-      </div>
+      {/* État du parc — une phrase, puis les mesures.
 
-      {/* Alerts Row */}
-      {data.alert_details && data.alert_details.length > 0 && (
-        <div className="card mb-5">
+          Le bloc « Alertes » a disparu : il énumérait, véhicule par véhicule,
+          exactement ce que les lignes juste en dessous répètent, et ce que la
+          liste des véhicules affiche une troisième fois. Le décompte total
+          suffit ici ; le détail est dans la ligne du véhicule concerné. */}
+      {(() => {
+        const alerts = data.alert_details || [];
+        const overdue = alerts.filter(a => a.type === 'overdue').reduce((s, a) => s + a.count, 0);
+        const urgent  = alerts.filter(a => a.type === 'urgent').reduce((s, a) => s + a.count, 0);
+        const touched = new Set(alerts.filter(a => a.type === 'overdue').map(a => a.vehicle_id)).size;
+
+        const state = overdue > 0
+          ? { n: overdue, tone: 'danger', icon: 'alertCircle',
+              txt: overdue > 1 ? t('entretiens en retard') : t('entretien en retard'),
+              hint: touched > 1 ? t('Répartis sur {count} véhicules', { count: touched }) : null }
+          : urgent > 0
+          ? { n: urgent, tone: 'warning', icon: 'alert',
+              txt: urgent > 1 ? t('entretiens urgents') : t('entretien urgent'), hint: null }
+          : { n: null, tone: 'success', icon: 'checkCircle', txt: t('Tout le parc est à jour'), hint: null };
+
+        return (
+          <section className="card mb-6" style={{ padding: '16px 18px' }}>
+            <div className="flex flex-wrap items-center justify-between gap-4">
+            <div className={`status-band tone-${state.tone} bare`}>
+              <span className="status-band-icon"><Icon name={state.icon} size={18} /></span>
+              <span>
+                <span className="status-band-text">
+                  {state.n != null ? `${state.n} ${state.txt}` : state.txt}
+                </span>
+                {state.hint && <span className="status-band-hint">{state.hint}</span>}
+              </span>
+            </div>
+
+            {/* La barre se pose à DROITE de la phrase, pas en dessous : en
+                pleine largeur, un aplat rouge de 1 250 px se lit comme une
+                barre de chargement. Bornée à 380 px et posée à côté de ce
+                qu'elle détaille, c'est une mesure. Elle occupe au passage la
+                moitié droite de la carte, qui était vide. */}
+            {fleetSegments.some(seg => seg.value > 0) && (
+              <div style={{ flex: '1 1 260px', maxWidth: 380 }}>
+                <Meter segments={fleetSegments} />
+              </div>
+            )}
+            </div>
+
+            <div className="metrics mt-4">
+              <div>
+                <div className="metric-l">{t('Véhicules')}</div>
+                <div className="metric-v tabular">{fmt.num(data.total_vehicles)}</div>
+              </div>
+              <div>
+                <div className="metric-l">{t('Distance totale')}</div>
+                <div className="metric-v tabular">{fmt.dist(data.total_mileage)}</div>
+              </div>
+              <div>
+                {/* Ventilé, jamais additionné à travers deux devises : « 400 »
+                    pour 200 € et 200 $ est un chiffre faux qu'on ne recompte
+                    jamais. */}
+                <div className="metric-l">{t('Coût total')}</div>
+                <div className="metric-v tabular">{fmt.totals(data.cost_by_currency)}</div>
+                {(data.total_maintenance_cost > 0 || data.total_fuel_cost > 0) ? (
+                  <div style={{ marginTop: 6, maxWidth: 260 }}>
+                    <Meter
+                      className="sm"
+                      showValues={false}
+                      segments={[
+                        { key: 'maint', value: data.total_maintenance_cost,
+                          label: `${t('entretien')} ${fmt.money(data.total_maintenance_cost)}`,
+                          color: 'var(--accent)' },
+                        { key: 'fuel', value: data.total_fuel_cost,
+                          label: `${t('carburant')} ${fmt.money(data.total_fuel_cost)}`,
+                          color: 'var(--purple)' },
+                      ]}
+                    />
+                  </div>
+                ) : null}
+              </div>
+              <div>
+                {/* « — » et non « 0 € » quand aucun véhicule n'a de prix
+                    d'achat : un parc sans prix saisi n'a pas une valeur de
+                    zéro, il n'en a pas. */}
+                <div className="metric-l">{t("Valeur d'achat")}</div>
+                <div className="metric-v tabular">
+                  {fmt.isMixed(data.fleet_purchase_by_currency) || data.fleet_purchase_price
+                    ? fmt.totals(data.fleet_purchase_by_currency)
+                    : '—'}
+                </div>
+                <div className="metric-s">{t("Prix d'achat cumulé du parc")}</div>
+              </div>
+            </div>
+          </section>
+        );
+      })()}
+
+      {/* Ce qu'il faut faire, et sur quoi.
+
+          Le tableau de bord servait des décomptes — « 12 en retard » — sans
+          jamais dire lesquels ni sur quel véhicule. Il fallait ouvrir chaque
+          fiche pour l'apprendre. Les deux colonnes répondent aux deux
+          questions qu'on se pose en arrivant : par quoi je commence, et
+          comment va chaque véhicule. */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
+
+        <div className="card p-4">
           <h3 className="section-title flex items-center gap-2" style={{ marginBottom: 10 }}>
-            <Icon name="bell" size={16} style={{ color: 'var(--text-3)' }} />
-            {t('Alertes')}
+            <Icon name="clipboard" size={16} style={{ color: 'var(--text-3)' }} />
+            {t('À faire en premier')}
           </h3>
-          <div className="space-y-2">
-            {data.alert_details.map((alert, i) => {
-              const cfg = alert.type === 'overdue'
-                ? { icon: 'alertCircle', label: t('en retard'), color: 'var(--danger)' }
-                : alert.type === 'urgent'
-                ? { icon: 'alert', label: t('urgent'), color: 'var(--warning)' }
-                : { icon: 'clock', label: t('à prévoir'), color: 'var(--accent)' };
+
+          {priority.length === 0 ? (
+            <p className="text-sm" style={{ color: 'var(--text-3)' }}>
+              {t('Aucune échéance à court terme.')}
+            </p>
+          ) : (
+            <div className="rows bare">
+              {priority.map((item, i) => {
+                const late = item.status === 'overdue';
+                const due = item.next_due_mileage
+                  ? fmt.dist(item.next_due_mileage)
+                  : item.estimated_date ? fmt.date(item.estimated_date)
+                  : '—';
+                return (
+                  <div
+                    key={`${item.vehicle_id}-${item.intervention_key || i}`}
+                    className="row-item interactive"
+                    onClick={() => onSelectVehicle(item.vehicle_id)}
+                    role="button" tabIndex={0}
+                    onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onSelectVehicle(item.vehicle_id); } }}
+                  >
+                    <span className={`dot ${late ? 'danger' : item.status === 'urgent' ? 'warning' : ''}`} aria-hidden="true" />
+                    <div className="min-w-0" style={{ flex: 1 }}>
+                      <div className="row-name text-ellipsis">
+                        {getInterventionDisplayName(item.intervention_type)}
+                      </div>
+                      <div className="row-meta text-ellipsis">{item.vehicle_name}</div>
+                    </div>
+                    <div className={`row-value ${late ? 'late' : ''}`}>
+                      {due}
+                      <small>{remainingLabel(item)}</small>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+
+          {priorityItems.length > priority.length && (
+            <p className="field-hint" style={{ marginTop: 10 }}>
+              {t('et {count} autres échéances, dans Planning', { count: priorityItems.length - priority.length })}
+            </p>
+          )}
+        </div>
+
+        <div className="card p-4">
+          <h3 className="section-title flex items-center gap-2" style={{ marginBottom: 10 }}>
+            <Icon name="car" size={16} style={{ color: 'var(--text-3)' }} />
+            {t('Le parc')}
+            <span className="group-meta">
+              {data.vehicles.length} {data.vehicles.length > 1 ? t('véhicules') : t('véhicule')}
+            </span>
+          </h3>
+
+          <div className="rows bare">
+            {data.vehicles.map((v) => {
+              const state = v.overdue_count > 0
+                ? { dot: 'danger',  color: 'var(--danger)',  label: t('{count} en retard', { count: v.overdue_count }) }
+                : v.urgent_count > 0
+                ? { dot: 'warning', color: 'var(--warning)', label: v.urgent_count > 1 ? t('{count} urgents', { count: v.urgent_count }) : t('{count} urgent', { count: v.urgent_count }) }
+                : v.warning_count > 0
+                ? { dot: 'warning', color: 'var(--text-2)',  label: t('{count} à prévoir', { count: v.warning_count }) }
+                : { dot: 'success', color: 'var(--text-3)',  label: t('À jour') };
+
               return (
-                <button
-                  key={i}
-                  className="inset flex items-center justify-between gap-3 w-full text-left"
-                  style={{ padding: '10px 12px', borderLeft: `3px solid ${cfg.color}`, cursor: 'pointer' }}
-                  onClick={() => onSelectVehicle(alert.vehicle_id)}
+                <div
+                  key={v.id}
+                  className="row-item interactive"
+                  onClick={() => onSelectVehicle(v.id)}
+                  role="button" tabIndex={0}
+                  onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onSelectVehicle(v.id); } }}
                 >
-                  <span className="flex items-center gap-2 min-w-0">
-                    <Icon name={cfg.icon} size={16} style={{ color: cfg.color }} />
-                    <span className="font-bold text-sm text-ellipsis" style={{ color: 'var(--text-1)' }}>{alert.vehicle_name}</span>
-                  </span>
-                  <span className="text-xs font-bold" style={{ color: cfg.color, whiteSpace: 'nowrap' }}>
-                    {alert.count} {cfg.label}
-                  </span>
-                </button>
+                  <div className="photo-container photo-thumb flex-shrink-0" style={{ width: 54 }}>
+                    <Icon
+                      name={v.vehicle_type === 'motorcycle' ? 'motorcycle' : 'car'}
+                      size={20} strokeWidth={1.4}
+                      style={{ color: 'var(--border-strong)', position: 'absolute' }}
+                    />
+                    {v.photo_url && (
+                      <VehiclePhoto vehicleId={v.id} version={v.updated_at} alt={v.name} backdrop />
+                    )}
+                  </div>
+
+                  <div className="min-w-0" style={{ flex: 1 }}>
+                    <div className="row-name text-ellipsis">{v.name}</div>
+                    <div className="row-meta text-ellipsis">
+                      {/* Le nom du véhicule est le plus souvent « marque modèle » :
+                          le réécrire juste en dessous n'apprend rien. */}
+                      {[
+                        `${v.brand} ${v.model}`.trim() === (v.name || '').trim()
+                          ? null
+                          : `${v.brand} ${v.model}`,
+                        v.year,
+                        fmt.dist(v.current_mileage),
+                      ].filter(Boolean).join(' · ')}
+                    </div>
+                  </div>
+
+                  <div style={{ width: 132, flexShrink: 0 }}>
+                    <div className="flex items-center gap-2" style={{ justifyContent: 'flex-end' }}>
+                      <span className={`dot ${state.dot}`} aria-hidden="true" />
+                      <span style={{ fontSize: 13, fontWeight: 600, color: state.color, whiteSpace: 'nowrap' }}>
+                        {state.label}
+                      </span>
+                    </div>
+                    {byVehicle[v.id] && (
+                      <div style={{ marginTop: 6 }}>
+                        <Meter
+                          className="sm"
+                          legend={false}
+                          segments={segmentsOf(bucketsOf(byVehicle[v.id]))}
+                        />
+                      </div>
+                    )}
+                  </div>
+                </div>
               );
             })}
           </div>
         </div>
-      )}
-
-      {/* Vehicles Grid */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 mb-5">
-        {data.vehicles.map((v) => {
-          // L'état colore une réglette à gauche, pas tout le contour : quatre
-          // cartes cerclées de rouge et de vert font un damier, pas une liste.
-          const state = v.overdue_count > 0
-            ? { color: 'var(--danger)',  tone: 'danger',  icon: 'alertCircle', label: t('{count} en retard', { count: v.overdue_count }) }
-            : v.urgent_count > 0
-            ? { color: 'var(--warning)', tone: 'warning', icon: 'alert',       label: t('{count} urgent(s)', { count: v.urgent_count }) }
-            : v.warning_count > 0
-            ? { color: 'var(--warning)', tone: 'warning', icon: 'clock',       label: t('{count} à prévoir', { count: v.warning_count }) }
-            : { color: 'var(--success)', tone: 'success', icon: 'checkCircle', label: t('À jour') };
-
-          return (
-            <article
-              key={v.id}
-              className="card card-interactive"
-              style={{ borderLeft: `3px solid ${state.color}` }}
-              onClick={() => onSelectVehicle(v.id)}
-              role="button" tabIndex={0}
-              onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onSelectVehicle(v.id); } }}
-            >
-              <div className="flex items-start gap-3 mb-3">
-                <div className="photo-container photo-thumb flex-shrink-0">
-                  <Icon
-                    name={v.vehicle_type === 'motorcycle' ? 'motorcycle' : 'car'}
-                    size={24} strokeWidth={1.4}
-                    style={{ color: 'var(--border-strong)', position: 'absolute' }}
-                  />
-                  {v.photo_url && (
-                    <VehiclePhoto vehicleId={v.id} version={v.updated_at} alt={v.name} backdrop />
-                  )}
-                </div>
-                <div className="flex-1 min-w-0">
-                  <div className="font-bold text-ellipsis" style={{ color: 'var(--text-1)', fontSize: 15 }}>{v.name}</div>
-                  <div className="text-ellipsis" style={{ color: 'var(--text-3)', fontSize: 13 }}>{v.brand} {v.model} · {v.year}</div>
-                  <div className="tabular" style={{ color: 'var(--text-2)', fontSize: 13, fontWeight: 600 }}>{fmt.dist(v.current_mileage)}</div>
-                </div>
-                <span className={`icon-box sm ${state.tone}`} title={state.label}>
-                  <Icon name={state.icon} size={15} />
-                </span>
-              </div>
-              <div className="grid grid-cols-3 gap-2 text-center">
-                {[
-                  { label: t('Dépenses'),     value: fmt.totals(v.cost_by_currency), color: 'var(--text-1)' },
-                  { label: t("Prix d'achat"), value: fmt.money(v.purchase_price, v.purchase_price_currency), color: 'var(--text-1)' },
-                  { label: t('État'),         value: state.label,            color: state.color },
-                ].map(cell => (
-                  <div key={cell.label} className="inset" style={{ padding: '9px 6px' }}>
-                    <div className="tabular text-sm font-bold text-ellipsis" style={{ color: cell.color }}>{cell.value}</div>
-                    <div style={{ fontSize: 11.5, color: 'var(--text-3)' }}>{cell.label}</div>
-                  </div>
-                ))}
-              </div>
-            </article>
-          );
-        })}
       </div>
 
-      {/* Bottom row: Recent Activity + Charts — items-stretch pour aligner les hauteurs */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 items-stretch">
+      {/* Les deux colonnes du bas.
+
+          `items-start` laissait chaque carte à sa hauteur naturelle : celle
+          des graphiques descendait 110 px plus bas que celle de l'activité,
+          et le bas de la page finissait en marche d'escalier — c'est ce qui
+          « dépassait ». Les cartes s'étirent donc à la même hauteur. Rien ne
+          s'étire à l'intérieur : les graphiques restent en haut de leur
+          carte, sinon on retrouve le vide de 400 px corrigé plus tôt. */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
 
         {/* Recent Activity */}
         <div className="card p-4">
@@ -205,27 +453,24 @@ export default function Dashboard({ onSelectVehicle, currentUser }) {
           {data.recent_activity.length === 0 ? (
             <p className="text-sm" style={{ color: 'var(--text-3)' }}>{t('Aucune activité')}</p>
           ) : (
-            <div className="space-y-2">
+            <div className="rows bare">
               {data.recent_activity.map((a) => (
-                <button
+                <div
                   key={a.id}
-                  className="inset flex items-center justify-between gap-3 w-full text-left"
-                  style={{ padding: '8px 10px', cursor: 'pointer' }}
+                  className="row-item interactive"
                   onClick={() => onSelectVehicle(a.vehicle_id)}
+                  role="button" tabIndex={0}
+                  onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onSelectVehicle(a.vehicle_id); } }}
                 >
-                  <div>
-                    <span className="text-sm font-medium" style={{ color: 'var(--text-1)' }}>{a.intervention_type}</span>
-                    <span className="text-xs ml-2" style={{ color: 'var(--text-3)' }}>— {a.vehicle_name}</span>
+                  <div className="min-w-0" style={{ flex: 1 }}>
+                    <div className="row-name text-ellipsis">{a.intervention_type}</div>
+                    <div className="row-meta text-ellipsis">{a.vehicle_name}</div>
                   </div>
-                  <div className="flex items-center gap-3">
-                    {a.cost_paid != null && (
-                      <span className="text-xs font-semibold" style={{ color: 'var(--text-2)' }}>{fmt.money(a.cost_paid, a.currency)}</span>
-                    )}
-                    <span className="text-xs" style={{ color: 'var(--text-3)' }}>
-                      {fmt.date(a.execution_date)}
-                    </span>
+                  <div className="row-value" style={{ color: 'var(--text-2)' }}>
+                    {a.cost_paid != null ? fmt.money(a.cost_paid, a.currency) : ''}
+                    <small>{fmt.date(a.execution_date)}</small>
                   </div>
-                </button>
+                </div>
               ))}
             </div>
           )}
@@ -246,6 +491,10 @@ export default function Dashboard({ onSelectVehicle, currentUser }) {
 // ─────────────────────────────────────────────────────────────────────────────
 
 const MONTH_LABELS = ['Jan', 'Fév', 'Mar', 'Avr', 'Mai', 'Jun', 'Jul', 'Aoû', 'Sep', 'Oct', 'Nov', 'Déc'];
+// Sous l'axe, une abréviation ; dans une phrase, le mois s'écrit en entier —
+// « mois le plus cher : Aoû » se lit comme une coquille.
+const MONTH_NAMES_FULL = ['janvier', 'février', 'mars', 'avril', 'mai', 'juin',
+  'juillet', 'août', 'septembre', 'octobre', 'novembre', 'décembre'];
 
 function CostCharts({ monthlyCosts, mixed }) {
   const t = useT();
@@ -273,6 +522,7 @@ function CostCharts({ monthlyCosts, mixed }) {
   // Données mensuelles pour l'année sélectionnée — 12 mois fixes
   const monthlyData = MONTH_LABELS.map((label, i) => ({
     label,
+    fullLabel: MONTH_NAMES_FULL[i],
     cost: byYearMonth[selectedYear]?.[i] || 0,
   }));
 
@@ -282,21 +532,18 @@ function CostCharts({ monthlyCosts, mixed }) {
     cost: Object.values(byYearMonth[year] || {}).reduce((a, b) => a + b, 0),
   }));
 
+  const yearTotal = monthlyData.reduce((a, b) => a + b.cost, 0);
+  const peak = monthlyData.reduce((m, d) => (d.cost > m.cost ? d : m), monthlyData[0]);
+
   const maxMonthly = Math.max(...monthlyData.map(d => d.cost), 1);
   const maxAnnual = Math.max(...annualData.map(d => d.cost), 1);
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', flex: 1, gap: '1.25rem' }}>
+    <div style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
       {/* Une barre est une somme, et une somme ne traverse pas deux devises.
           Les ventiler ferait deux barres par mois et casserait la lecture ;
           on additionne donc, et on le dit — même arbitrage que pour les
           répartitions par catégorie de la fiche véhicule. */}
-      {mixed && (
-        <Notice tone="warning" title={t('Plusieurs devises dans cet historique')}>
-          {t('Les graphiques additionnent des montants saisis dans des devises différentes. Les totaux ci-dessus, eux, restent ventilés.')}
-        </Notice>
-      )}
-
       {/* Graphique mensuel */}
       <div>
         <div className="flex items-center justify-between mb-3">
@@ -319,26 +566,41 @@ function CostCharts({ monthlyCosts, mixed }) {
             </div>
           )}
         </div>
+        {yearTotal > 0 && (
+          <p className="field-hint" style={{ marginTop: -4, marginBottom: 10 }}>
+            {fmt.money(yearTotal)} {t('sur l’année')} · {fmt.money(yearTotal / 12)}{t('/mois')} {t('en moyenne')}
+            {peak && peak.cost > 0 && ` · ${t('mois le plus cher')} : ${t(peak.fullLabel)} (${fmt.money(peak.cost)})`}
+          </p>
+        )}
         <BarChart data={monthlyData} max={maxMonthly} money={fmt.money} height={160} />
       </div>
 
       {/* Séparateur */}
       <div style={{ borderTop: '1px solid var(--border)' }} />
 
-      {/* Graphique annuel — titre en haut, graphique en bas */}
-      <div style={{ flex: 1, display: 'flex', flexDirection: 'column' }}>
+      {/* Graphique annuel */}
+      <div>
         <h3 className="section-title flex items-center gap-2" style={{ marginBottom: 10 }}>
           <Icon name="trendUp" size={16} style={{ color: 'var(--text-3)' }} />
           {t('Dépenses annuelles')}
         </h3>
-        <div style={{ flex: 1, display: 'flex', flexDirection: 'column', justifyContent: 'flex-end' }}>
+        <div>
           {annualData.length === 0 ? (
             <p className="text-sm" style={{ color: 'var(--text-3)' }}>{t('Aucune donnée')}</p>
           ) : (
-            <BarChart data={annualData} max={maxAnnual} money={fmt.money} height={120} accentOpacity={0.75} minBarWidth={36} />
+            <BarChart data={annualData} max={maxAnnual} money={fmt.money} height={120} accentOpacity={0.75} />
           )}
         </div>
       </div>
+
+      {/* Une barre est une somme, et une somme ne traverse pas deux devises.
+          Les ventiler ferait deux barres par mois et casserait la lecture ;
+          on additionne donc, et on le dit. */}
+      {mixed && (
+        <Notice tone="warning">
+          {t('Ces graphiques additionnent des montants saisis dans des devises différentes. Les totaux du haut de page, eux, restent ventilés.')}
+        </Notice>
+      )}
     </div>
   );
 }
@@ -385,9 +647,42 @@ function BarChart({ data, max, money, height = 160, accentOpacity = 0.6, minBarW
         </div>
       )}
 
+      {/* Grille chiffrée.
+
+          Le graphique n'avait ni ligne de base ni échelle : on voyait des
+          barres, on ne lisait aucune valeur sans les survoler — et sur un
+          téléphone, il n'y a pas de survol. Deux repères (maximum et moitié)
+          suffisent à donner l'ordre de grandeur au repos. */}
+      <div style={{ position: 'absolute', inset: `28px 0 ${useScroll ? 0 : 0}px 0`, pointerEvents: 'none' }}>
+        {[1, 0.5, 0].map(ratio => (
+          <div
+            key={ratio}
+            style={{
+              position: 'absolute',
+              left: 0, right: 0,
+              top: `${(1 - ratio) * height}px`,
+              borderTop: `1px ${ratio === 0 ? 'solid' : 'dashed'} var(--border)`,
+            }}
+          >
+            {ratio > 0 && !useScroll && (
+              <span
+                style={{
+                  position: 'absolute', right: 0, top: -14,
+                  fontSize: 10, color: 'var(--text-3)',
+                  background: 'var(--bg-surface)', padding: '0 3px',
+                }}
+              >
+                {money(Math.round(max * ratio))}
+              </span>
+            )}
+          </div>
+        ))}
+      </div>
+
       {/* Barres */}
       <div
         style={{
+          position: 'relative',
           display: 'flex',
           alignItems: 'flex-end',
           gap: '4px',
@@ -416,6 +711,9 @@ function BarChart({ data, max, money, height = 160, accentOpacity = 0.6, minBarW
               <div
                 style={{
                   width: '100%',
+                  // Deux barres dans une carte large deviendraient deux pavés
+                  // de 300 px : une barre reste une barre.
+                  maxWidth: 72,
                   height: `${barH}px`,
                   background: 'var(--accent)',
                   opacity: isActive ? 1 : accentOpacity,

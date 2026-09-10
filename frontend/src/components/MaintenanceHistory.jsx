@@ -193,7 +193,7 @@ export default function MaintenanceHistory({ vehicleId, vehicleType, motorizatio
                         </p>
                         <p className="text-xs mt-0.5" style={{ color: 'var(--text-3)' }}>
                           {editSubInterventions.length > 0
-                            ? `${editSubInterventions.length} élément(s) sélectionné(s)`
+                            ? `${editSubInterventions.length} ${editSubInterventions.length > 1 ? 'éléments sélectionnés' : 'élément sélectionné'}`
                             : t('Aucun élément sélectionné')}
                         </p>
                       </div>
