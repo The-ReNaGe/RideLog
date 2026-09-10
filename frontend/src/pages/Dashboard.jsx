@@ -84,22 +84,21 @@ export default function Dashboard({ onSelectVehicle, currentUser }) {
         const touched = new Set(alerts.filter(a => a.type === 'overdue').map(a => a.vehicle_id)).size;
 
         const state = overdue > 0
-          ? { n: overdue, color: 'var(--danger)',
+          ? { n: overdue, tone: 'danger', icon: 'alertCircle',
               txt: overdue > 1 ? t('entretiens en retard') : t('entretien en retard'),
-              hint: touched > 1 ? t('· sur {count} véhicules', { count: touched }) : null }
+              hint: touched > 1 ? t('sur {count} véhicules', { count: touched }) : null }
           : urgent > 0
-          ? { n: urgent, color: 'var(--warning)',
+          ? { n: urgent, tone: 'warning', icon: 'alert',
               txt: urgent > 1 ? t('entretiens urgents') : t('entretien urgent'), hint: null }
-          : { n: null, color: 'var(--success)', txt: t('Tout le parc est à jour'), hint: null };
+          : { n: null, tone: 'success', icon: 'checkCircle', txt: t('Tout le parc est à jour'), hint: null };
 
         return (
           <section className="mb-6">
-            <div className="headline">
-              {state.n != null && <span className="headline-n" style={{ color: state.color }}>{state.n}</span>}
-              <span className="headline-t" style={state.n == null ? { color: state.color, fontWeight: 700 } : undefined}>
-                {state.txt}
-              </span>
-              {state.hint && <span className="headline-s">{state.hint}</span>}
+            <div className={`status-band tone-${state.tone}`}>
+              <Icon name={state.icon} size={18} />
+              {state.n != null && <span className="headline-n">{state.n}</span>}
+              <span className="status-band-text">{state.txt}</span>
+              {state.hint && <span className="status-band-hint">{state.hint}</span>}
             </div>
 
             <div className="metrics mt-4">
@@ -346,7 +345,7 @@ function CostCharts({ monthlyCosts, mixed }) {
           {annualData.length === 0 ? (
             <p className="text-sm" style={{ color: 'var(--text-3)' }}>{t('Aucune donnée')}</p>
           ) : (
-            <BarChart data={annualData} max={maxAnnual} money={fmt.money} height={120} accentOpacity={0.75} minBarWidth={36} />
+            <BarChart data={annualData} max={maxAnnual} money={fmt.money} height={120} accentOpacity={0.75} />
           )}
         </div>
       </div>
@@ -460,6 +459,9 @@ function BarChart({ data, max, money, height = 160, accentOpacity = 0.6, minBarW
               <div
                 style={{
                   width: '100%',
+                  // Deux barres dans une carte large deviendraient deux pavés
+                  // de 300 px : une barre reste une barre.
+                  maxWidth: 72,
                   height: `${barH}px`,
                   background: 'var(--accent)',
                   opacity: isActive ? 1 : accentOpacity,
