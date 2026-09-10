@@ -5,71 +5,13 @@ import Icon from './Icon';
 import { useFormat } from '../lib/preferencesContext';
 import CountryBadge from './CountryBadge';
 
-const STATUS = {
-  overdue: { label: 'En retard',    badge: 'badge-danger',  color: 'var(--danger)' },
-  urgent:  { label: 'Urgent',       badge: 'badge-warning', color: 'var(--warning)' },
-  warning: { label: 'À surveiller', badge: 'badge-warning', color: 'var(--warning)' },
-  ok:      { label: 'À jour',       badge: 'badge-success', color: 'var(--success)' },
-};
-
-const statusOf = (s) => STATUS[s] || STATUS.ok;
-
-/** Pastille d'état : la couleur porte l'information, le mot la confirme. */
-function StatusBadge({ status }) {
-  const st = statusOf(status);
-  return (
-    <span className={`badge ${st.badge}`}>
-      <span
-        aria-hidden="true"
-        style={{ width: 6, height: 6, borderRadius: 999, background: 'currentColor', display: 'inline-block' }}
-      />
-      {st.label}
-    </span>
-  );
-}
-
-const OVERDUE = Symbol('overdue');
-
 // `fmt` est passé plutôt que capturé : c'est une fonction pure, hors
-// composant, donc hors de portée des hooks — même convention que
-// `formatDistance` juste en dessous.
+// composant, donc hors de portée des hooks.
 function formatDueDate(value, fmt) {
   if (!value) return 'sans échéance';
   const date = new Date(value);
   if (Number.isNaN(date.getTime())) return 'sans échéance';
   return fmt.date(date);
-}
-
-// `fmt` vient de useFormat() : les sentinelles et le cas « en retard » sont
-// traités AVANT toute conversion, sinon 999999 deviendrait « 621 371 mi ».
-function formatDistance(km, fmt) {
-  if (km === 999999 || km === Infinity) return '—';
-  if (km < 0) return OVERDUE;
-  return fmt.dist(km);
-}
-
-function formatDays(days) {
-  if (days === 999999 || days === Infinity) return '—';
-  if (days < 0) return OVERDUE;
-  if (days > 365) return `${Math.floor(days / 365)} an${Math.floor(days / 365) > 1 ? 's' : ''}`;
-  if (days > 30) return `${Math.floor(days / 30)} mois`;
-  return `${days} j`;
-}
-
-/** Une colonne de l'encart de chiffres. */
-function Stat({ label, value, color }) {
-  const overdue = value === OVERDUE;
-  return (
-    <div style={{ padding: '0 10px', textAlign: 'center', width: 104 }}>
-      <div className="card-label" style={{ marginBottom: 2 }}>{label}</div>
-      <div
-        className="tabular"
-        style={{ fontSize: 15, fontWeight: 700, color: overdue ? 'var(--danger)' : (color || 'var(--text-1)') }}
-      >
-        {overdue ? 'En retard' : value}
-      </div>
-    </div>
-  );
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -558,6 +500,189 @@ function DisabledSection({ vehicleId, items, canEdit, onRefresh }) {
 // Composant principal
 // ─────────────────────────────────────────────────────────────────────────────
 
+// ─────────────────────────────────────────────────────────────────────────────
+// La liste des échéances — des lignes, pas des cartes
+// ─────────────────────────────────────────────────────────────────────────────
+
+/**
+ * Ce qu'il reste avant l'échéance, en une phrase courte.
+ *
+ * L'ancienne mise en page consacrait trois colonnes encadrées à cette
+ * information (« DISTANCE : En retard », « TEMPS : En retard », « COÛT EST. »),
+ * ce qui faisait écrire « En retard » trois fois par ligne, en plus de la
+ * pastille. Une ligne discrète sous l'échéance suffit.
+ */
+function remainingLabel(item, fmt) {
+  const num = (v) => (v == null || v === 999999 || v === Infinity ? null : v);
+  const km = num(item.km_remaining);
+  const days = num(item.days_remaining);
+
+  if (item.status === 'overdue') {
+    if (days != null && days < 0) {
+      const d = Math.abs(Math.round(days));
+      if (d > 365) return `depuis ${Math.floor(d / 365)} an${Math.floor(d / 365) > 1 ? 's' : ''}`;
+      if (d > 30) return `depuis ${Math.floor(d / 30)} mois`;
+      return `depuis ${d} j`;
+    }
+    if (km != null && km < 0) return `dépassé de ${fmt.dist(Math.abs(km))}`;
+    return 'en retard';
+  }
+
+  if (km != null && days != null) {
+    // On annonce la contrainte qui tombera la première, pas les deux :
+    // « dans 24 600 km ou 8 mois » demande au lecteur de faire le tri.
+    return km / (item.km_interval || 1) <= days / ((item.months_interval || 12) * 30)
+      ? `dans ${fmt.dist(km)}`
+      : formatIn(days);
+  }
+  if (km != null) return `dans ${fmt.dist(km)}`;
+  if (days != null) return formatIn(days);
+  return null;
+}
+
+function formatIn(days) {
+  const d = Math.round(days);
+  if (d <= 0) return 'aujourd’hui';
+  if (d === 1) return 'demain';
+  if (d > 365) return `dans ${Math.floor(d / 365)} an${Math.floor(d / 365) > 1 ? 's' : ''}`;
+  if (d > 30) return `dans ${Math.floor(d / 30)} mois`;
+  return `dans ${d} j`;
+}
+
+/** Une échéance : nom et périodicité à gauche, échéance et coût à droite. */
+function UpcomingRow({ item, fmt, canEdit, onEdit }) {
+  const hasKm = item.km_interval != null;
+  const hasMonths = item.months_interval != null;
+  const intervalLabel = [
+    hasKm ? fmt.dist(item.km_interval) : null,
+    hasMonths ? `${item.months_interval} mois` : null,
+  ].filter(Boolean).join(' ou ');
+
+  const periodicity = hasKm || hasMonths
+    ? `Tous les ${intervalLabel}`
+    : item.condition_based ? 'Selon l’usage'
+    : isInspection(item.intervention_key) ? 'Calendrier réglementaire'
+    : 'Aucun critère d’intervalle actif';
+
+  // ⚠️ Ces fourchettes viennent du catalogue (maintenance_intervals.json),
+  // qui porte des tarifs FRANÇAIS. Elles sont écrites avec le symbole de
+  // l'instance sans conversion — un ordre de grandeur, pas un devis, et
+  // c'est la raison du CountryBadge posé à côté du contrôle technique.
+  const costLabel = item.estimated_cost_min && item.estimated_cost_max
+    ? (item.estimated_cost_min === item.estimated_cost_max
+        ? fmt.money(item.estimated_cost_min)
+        : `${fmt.money(item.estimated_cost_min)} – ${fmt.money(item.estimated_cost_max)}`)
+    : null;
+
+  // Un entretien personnalisé porte le libellé saisi par l'utilisateur : le
+  // passer au dictionnaire de traduction le renommerait au premier homonyme.
+  const title = item.is_custom
+    ? item.intervention_type
+    : getInterventionDisplayName(item.intervention_type);
+
+  // Le contrôle technique est éditable lui aussi : sa périodicité peut être
+  // fixée à la main (véhicule de collection, autre pays).
+  const editable = canEdit && Boolean(item.intervention_key);
+
+  const due = item.next_due_mileage
+    ? fmt.dist(item.next_due_mileage)
+    : item.next_due_date ? formatDueDate(item.next_due_date, fmt)
+    : item.condition_based ? 'Selon l’usage'
+    : '—';
+
+  return (
+    <div className="row-item">
+      <div className="min-w-0" style={{ flex: 1 }}>
+        <div className="flex items-center gap-2 flex-wrap">
+          <span className="row-name">{title}</span>
+          {isInspection(item.intervention_key) && (
+            <CountryBadge reason="Le calendrier du contrôle technique est fixé par la réglementation du pays de l'instance." />
+          )}
+          {item.is_custom ? (
+            <span className="badge badge-info" title="Entretien ajouté pour ce véhicule">Ajouté</span>
+          ) : item.has_override && (
+            <span className="badge badge-info" title="Intervalle personnalisé pour ce véhicule">Personnalisé</span>
+          )}
+        </div>
+        <div className="row-meta">
+          {periodicity}
+          {item.never_recorded && ' · jamais enregistré'}
+        </div>
+      </div>
+
+      <div className={`row-value ${item.status === 'overdue' ? 'late' : ''}`}>
+        {due}
+        {remainingLabel(item, fmt) && <small>{remainingLabel(item, fmt)}</small>}
+      </div>
+
+      {costLabel && (
+        <div
+          className="tabular hidden sm:block"
+          style={{ fontSize: 13, color: 'var(--text-2)', width: 108, textAlign: 'right', whiteSpace: 'nowrap' }}
+        >
+          {costLabel}
+        </div>
+      )}
+
+      {editable ? (
+        <button
+          onClick={() => onEdit(item)}
+          className="btn-icon"
+          title="Modifier l'intervalle"
+          aria-label={`Modifier l'intervalle de ${title}`}
+          style={{ color: item.has_override ? 'var(--accent)' : undefined }}
+        >
+          <Icon name="pencil" size={15} />
+        </button>
+      ) : <span style={{ width: 32 }} aria-hidden="true" />}
+    </div>
+  );
+}
+
+/** Un groupe d'échéances, replié au-delà de sa limite. */
+function Group({ group, fmt, canEdit, onEdit }) {
+  const [expanded, setExpanded] = useState(false);
+  const hidden = group.items.length - group.limit;
+  const shown = expanded ? group.items : group.items.slice(0, group.limit);
+
+  // Le total estimé du groupe : c'est la question qui suit « combien en
+  // retard ? », et elle n'avait aucune réponse à cet endroit.
+  const min = group.items.reduce((s, i) => s + (i.estimated_cost_min || 0), 0);
+  const max = group.items.reduce((s, i) => s + (i.estimated_cost_max || 0), 0);
+
+  return (
+    <section>
+      <div className="group-head">
+        <span className={`dot ${group.dot || ''}`} aria-hidden="true" />
+        <span className="group-title" style={group.quiet ? { color: 'var(--text-2)' } : undefined}>
+          {group.title}
+        </span>
+        <span className="group-meta">
+          {group.items.length} intervention{group.items.length > 1 ? 's' : ''}
+          {max > 0 && ` · ${fmt.money(min)} à ${fmt.money(max)} estimés`}
+        </span>
+      </div>
+
+      <div className={`rows ${group.quiet ? 'quiet' : ''}`}>
+        {shown.map((item, idx) => (
+          <UpcomingRow
+            key={item.intervention_key || idx}
+            item={item}
+            fmt={fmt}
+            canEdit={canEdit}
+            onEdit={onEdit}
+          />
+        ))}
+        {hidden > 0 && !expanded && (
+          <button className="row-more" onClick={() => setExpanded(true)}>
+            Voir les {hidden} autres
+          </button>
+        )}
+      </div>
+    </section>
+  );
+}
+
 export default React.memo(function UpcomingMaintenance({ data, vehicleId, onRefresh, canEdit = true }) {
   const fmt = useFormat();
   const { upcoming } = data;
@@ -625,131 +750,47 @@ export default React.memo(function UpcomingMaintenance({ data, vehicleId, onRefr
     );
   }
 
+  // Trois groupes, du dépassé au lointain. Vingt cartes cerclées de rouge
+  // faisaient un damier où plus rien ne ressortait ; trois groupes disent
+  // d'un coup d'œil combien de choses réclament une action MAINTENANT.
+  const groups = [
+    {
+      key: 'overdue',
+      title: 'En retard',
+      dot: 'danger',
+      items: upcoming.filter(i => i.status === 'overdue'),
+      limit: 6,
+    },
+    {
+      key: 'soon',
+      title: 'À prévoir',
+      dot: 'warning',
+      items: upcoming.filter(i => i.status === 'urgent' || i.status === 'warning'),
+      limit: 6,
+    },
+    {
+      key: 'later',
+      title: 'Plus tard',
+      dot: null,
+      quiet: true,
+      items: upcoming.filter(i => !['overdue', 'urgent', 'warning'].includes(i.status)),
+      limit: 4,
+    },
+  ].filter(g => g.items.length > 0);
+
   return (
     <>
       {addButton}
-      <div className="space-y-3">
-        {upcoming.map((item, idx) => {
-          const st = statusOf(item.status);
-
-          const hasKm = item.km_interval !== null && item.km_interval !== undefined;
-          const hasMonths = item.months_interval !== null && item.months_interval !== undefined;
-          const intervalLabel = [
-            hasKm ? fmt.dist(item.km_interval) : null,
-            hasMonths ? `${item.months_interval} mois` : null,
-          ].filter(Boolean).join(' ou ');
-
-          const costMin = item.estimated_cost_min;
-          const costMax = item.estimated_cost_max;
-          // ⚠️ Ces fourchettes viennent du catalogue (maintenance_intervals.json),
-          // qui porte des tarifs FRANÇAIS. Elles sont écrites avec le symbole de
-          // l'instance sans conversion — c'est un ordre de grandeur, pas un devis,
-          // et c'est la raison du CountryBadge posé à côté. Un second pays
-          // apportera ses propres tarifs plutôt qu'un taux de change.
-          const costLabel = costMin && costMax
-            ? (costMin === costMax ? fmt.money(costMin) : `${fmt.money(costMin)} – ${fmt.money(costMax)}`)
-            : '—';
-
-          // Le contrôle technique est éditable lui aussi : sa périodicité peut
-          // être fixée à la main (véhicule de collection, autre pays), à défaut
-          // de quoi le calendrier réglementaire français s'applique.
-          const editable = canEdit && Boolean(item.intervention_key);
-
-          // Un entretien personnalisé porte le libellé saisi par l'utilisateur :
-          // le passer au dictionnaire de traduction le renommerait au premier
-          // homonyme approchant.
-          const title = item.is_custom
-            ? item.intervention_type
-            : getInterventionDisplayName(item.intervention_type);
-
-          return (
-            <article
-              key={idx}
-              className="card"
-              style={{ padding: 0, overflow: 'hidden', borderLeft: `3px solid ${st.color}` }}
-            >
-              <div className="flex flex-wrap items-start justify-between gap-4" style={{ padding: '14px 16px' }}>
-                <div className="min-w-0" style={{ flex: '1 1 300px' }}>
-                  <div className="flex items-center gap-2 flex-wrap">
-                    <h4 style={{ color: 'var(--text-1)' }}>{title}</h4>
-                    {isInspection(item.intervention_key) && (
-                      <CountryBadge reason="Le calendrier du contrôle technique est fixé par la réglementation du pays de l'instance." />
-                    )}
-                    <StatusBadge status={item.status} />
-                    {item.is_custom ? (
-                      <span className="badge badge-info" title="Entretien ajouté pour ce véhicule">
-                        <Icon name="plus" size={11} strokeWidth={2.2} />
-                        Ajouté
-                      </span>
-                    ) : item.has_override && (
-                      <span className="badge badge-info" title="Intervalle personnalisé pour ce véhicule">
-                        <Icon name="pencil" size={11} strokeWidth={2.2} />
-                        Personnalisé
-                      </span>
-                    )}
-                  </div>
-
-                  <p style={{ fontSize: 13, color: 'var(--text-2)', marginTop: 3 }}>
-                    {hasKm || hasMonths
-                      ? `Tous les ${intervalLabel}`
-                      : item.condition_based ? 'Selon l’usage'
-                      : isInspection(item.intervention_key) ? 'Calendrier réglementaire'
-                      : 'Aucun critère d’intervalle actif'}
-                  </p>
-
-                  {item.never_recorded && (
-                    <p className="flex items-center gap-1.5" style={{ fontSize: 12.5, color: 'var(--text-3)', marginTop: 3 }}>
-                      <Icon name="info" size={13} />
-                      Jamais enregistré — échéance estimée depuis l'année du véhicule
-                    </p>
-                  )}
-                </div>
-
-                <div className="flex items-center gap-2">
-                  <div className="inset flex items-center self-start" style={{ padding: '8px 0' }}>
-                    {!item.condition_based && (
-                      <>
-                        <Stat label="Distance" value={formatDistance(item.km_remaining, fmt)} />
-                        <span style={{ width: 1, alignSelf: 'stretch', background: 'var(--border)' }} />
-                        <Stat label="Temps" value={formatDays(item.days_remaining)} />
-                        <span style={{ width: 1, alignSelf: 'stretch', background: 'var(--border)' }} />
-                      </>
-                    )}
-                    <Stat label="Coût est." value={costLabel} color="var(--success)" />
-                  </div>
-
-                  {/* Bouton édition intervalle — masqué sur un véhicule
-                      partagé qu'on ne possède pas */}
-                  {editable && (
-                    <button
-                      onClick={() => setEditingItem(item)}
-                      className="btn-icon"
-                      title="Modifier l'intervalle"
-                      aria-label={`Modifier l'intervalle de ${title}`}
-                      style={{ color: item.has_override ? 'var(--accent)' : undefined }}
-                    >
-                      <Icon name="pencil" size={16} />
-                    </button>
-                  )}
-                </div>
-              </div>
-
-              {!item.condition_based && (item.next_due_mileage || item.next_due_date) && (
-                <div style={{ padding: '8px 16px', background: 'var(--bg-inset)', borderTop: '1px solid var(--border-light)' }}>
-                  <p className="flex items-center gap-1.5" style={{ fontSize: 12.5, color: 'var(--text-3)' }}>
-                    <Icon name="calendar" size={13} />
-                    Prochaine échéance :{' '}
-                    {item.next_due_mileage ? fmt.dist(item.next_due_mileage) : ''}
-                    {item.next_due_mileage && item.next_due_date ? ' · ' : ''}
-                    {item.next_due_date
-                      ? formatDueDate(item.next_due_date, fmt)
-                      : (item.next_due_mileage ? '' : 'sans échéance')}
-                  </p>
-                </div>
-              )}
-            </article>
-          );
-        })}
+      <div className="space-y-6">
+        {groups.map(group => (
+          <Group
+            key={group.key}
+            group={group}
+            fmt={fmt}
+            canEdit={canEdit}
+            onEdit={setEditingItem}
+          />
+        ))}
       </div>
 
       {disabledSection}
