@@ -324,8 +324,8 @@ export default function FuelStations() {
 														key={type} 
 														className="p-3 rounded text-center"
 														style={{ 
-															background: available ? 'rgba(34, 197, 94, 0.08)' : 'rgba(107, 114, 128, 0.08)',
-															border: available ? '1px solid rgba(34, 197, 94, 0.2)' : '1px solid rgba(107, 114, 128, 0.2)'
+															background: available ? 'var(--success-light)' : 'var(--bg-inset)',
+															border: '1px solid var(--border)'
 														}}
 													>
 														<div className="text-sm font-bold" style={{ color: 'var(--text-1)' }}>

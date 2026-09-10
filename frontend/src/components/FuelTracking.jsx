@@ -120,8 +120,8 @@ function MiniLineChart({ points, valueKey, color, unit, formatValue, avgValue })
 				))}
 				{pts.length > 0 && (
 					<>
-						<text x={pts[0].x} y={height - 2} textAnchor="start" fontSize={9} fill="var(--text-3)">{pts[0].date}</text>
-						<text x={pts[pts.length - 1].x} y={height - 2} textAnchor="end" fontSize={9} fill="var(--text-3)">{pts[pts.length - 1].date}</text>
+						<text x={pts[0].x} y={height - 2} textAnchor="start" fontSize={9} fill="var(--text-3)">{u.date(pts[0].date)}</text>
+						<text x={pts[pts.length - 1].x} y={height - 2} textAnchor="end" fontSize={9} fill="var(--text-3)">{u.date(pts[pts.length - 1].date)}</text>
 					</>
 				)}
 				{/* Hover tooltip in SVG */}
@@ -143,7 +143,7 @@ function MiniLineChart({ points, valueKey, color, unit, formatValue, avgValue })
 							x={Math.max(2, Math.min(pts[hover].x - 45, width - 92)) + 45}
 							y={Math.max(2, pts[hover].y - 38) + 23}
 							textAnchor="middle" fontSize={8} fill="var(--text-3)">
-							{pts[hover].date}{pts[hover].distance ? ` · ${u.dist(pts[hover].distance)}` : ''}
+							{u.date(pts[hover].date)}{pts[hover].distance ? ` · ${u.dist(pts[hover].distance)}` : ''}
 						</text>
 					</g>
 				)}
@@ -324,10 +324,10 @@ export default function FuelTracking({ vehicleId, onFuelAdded, canEdit = true })
 	return (
 		<div className="space-y-5">
 			{error && (
-				<div className="p-3 rounded text-sm" style={{ background: 'rgba(239, 68, 68, 0.1)', border: '1px solid rgba(239, 68, 68, 0.2)', color: 'var(--danger)' }}>{error}</div>
+				<div className="p-3 rounded text-sm" style={{ background: 'var(--danger-light)', border: '1px solid var(--border)', color: 'var(--danger)' }}>{error}</div>
 			)}
 			{success && (
-				<div className="p-3 rounded text-sm" style={{ background: 'rgba(34, 197, 94, 0.1)', border: '1px solid rgba(34, 197, 94, 0.2)', color: 'var(--success)' }}>{success}</div>
+				<div className="p-3 rounded text-sm" style={{ background: 'var(--success-light)', border: '1px solid var(--border)', color: 'var(--success)' }}>{success}</div>
 			)}
 
 			{/* Add / Edit fuel form */}
@@ -404,67 +404,43 @@ export default function FuelTracking({ vehicleId, onFuelAdded, canEdit = true })
 				</Notice>
 			)}
 
-			{/* Stats cards */}
-			{stats && stats.entries > 0 && (
-				<div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
-					<div className="card p-4 text-center">
-						<div style={{ fontSize: 11, color: 'var(--text-3)', textTransform: 'uppercase', fontWeight: 600, letterSpacing: 0.5, marginBottom: 4 }}>Dépensé</div>
-						<div style={{ fontSize: 22, fontWeight: 700, color: 'var(--accent)' }}>{fmt.totals(stats.cost_by_currency)}</div>
-					</div>
-					<div className="card p-4 text-center">
-						<div style={{ fontSize: 11, color: 'var(--text-3)', textTransform: 'uppercase', fontWeight: 600, letterSpacing: 0.5, marginBottom: 4 }}>Pleins</div>
-						<div style={{ fontSize: 22, fontWeight: 700, color: 'var(--text-1)' }}>{stats.entries}</div>
-					</div>
-					<div className="card p-4 text-center">
-						<div style={{ fontSize: 11, color: 'var(--text-3)', textTransform: 'uppercase', fontWeight: 600, letterSpacing: 0.5, marginBottom: 4 }}>Conso moy.</div>
-						<div style={{ fontSize: 22, fontWeight: 700, color: stats.avg_consumption_l_100 ? 'var(--success)' : 'var(--text-3)' }}>
-							{stats.avg_consumption_l_100 ? fmt.cons(stats.avg_consumption_l_100, { withUnit: false }) : '—'}
-							{stats.avg_consumption_l_100 && <span style={{ fontSize: 12, fontWeight: 400 }}> {fmt.consUnit}</span>}
-						</div>
-					</div>
-					<div className="card p-4 text-center">
-						<div style={{ fontSize: 11, color: 'var(--text-3)', textTransform: 'uppercase', fontWeight: 600, letterSpacing: 0.5, marginBottom: 4 }}>Coût /100 {fmt.distUnit}</div>
-						<div style={{ fontSize: 22, fontWeight: 700, color: stats.avg_cost_100km ? 'var(--warning)' : 'var(--text-3)' }}>
-							{stats.avg_cost_100km ? fmt.num(fmt.costPerDist(stats.avg_cost_100km), { maximumFractionDigits: 1 }) : '—'}
-							{stats.avg_cost_100km && <span style={{ fontSize: 12, fontWeight: 400 }}> {fmt.currencySymbol}</span>}
-						</div>
-					</div>
-					{stats.avg_distance_per_tank && (
-					<div className="card p-4 text-center">
-						<div style={{ fontSize: 11, color: 'var(--text-3)', textTransform: 'uppercase', fontWeight: 600, letterSpacing: 0.5, marginBottom: 4 }}>Autonomie moy.</div>
-						<div style={{ fontSize: 22, fontWeight: 700, color: 'var(--text-1)' }}>
-							{fmt.dist(stats.avg_distance_per_tank, { withUnit: false })}
-							<span style={{ fontSize: 12, fontWeight: 400 }}> {fmt.distUnit}</span>
-						</div>
-					</div>
-					)}
-					{stats.monthly_avg_cost && (
-					<div className="card p-4 text-center">
-						<div style={{ fontSize: 11, color: 'var(--text-3)', textTransform: 'uppercase', fontWeight: 600, letterSpacing: 0.5, marginBottom: 4 }}>Moy. /mois</div>
-						<div style={{ fontSize: 22, fontWeight: 700, color: 'var(--accent)' }}>
-							{fmt.num(stats.monthly_avg_cost, { maximumFractionDigits: 0 })}
-							<span style={{ fontSize: 12, fontWeight: 400 }}> {fmt.currencySymbol}</span>
-						</div>
-					</div>
-					)}
-				</div>
-			)}
+			{/* Les mesures du carburant.
 
-			{/* Monthly spending banner */}
-			{stats && (stats.current_month_cost || stats.monthly_avg_cost) && (
-				<div className="card p-4" style={{ borderLeft: '3px solid var(--accent)', display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
-					<Icon name="chart" size={17} style={{ color: 'var(--text-3)' }} />
+			    Six encadrés, six valeurs, et cinq couleurs différentes : bleu pour
+			    le total, vert pour la consommation, orange pour le coût aux 100.
+			    Aucune ne disait un état — elles décoraient des chiffres, et l'écran
+			    virait à l'arc-en-ciel que le système de design dit avoir écarté.
+			    Une ligne de mesures, sans couleur. Le bandeau « Dépensé ce mois »
+			    qui suivait disparaît aussi : il répétait deux valeurs déjà là. */}
+			{stats && stats.entries > 0 && (
+				<div className="metrics" style={{ borderTop: 'none', paddingTop: 0 }}>
 					<div>
-						{stats.current_month_cost ? (
-							<div style={{ fontSize: 13, color: 'var(--text-1)', fontWeight: 600 }}>
-								{t('Dépensé ce mois :')} {fmt.money(stats.current_month_cost)}
-							</div>
+						<div className="metric-l">{t('Dépensé')}</div>
+						<div className="metric-v tabular">{fmt.totals(stats.cost_by_currency)}</div>
+						<div className="metric-s">
+							{stats.entries} {stats.entries > 1 ? t('pleins') : t('plein')}
+							{stats.monthly_avg_cost ? ` · ${fmt.money(stats.monthly_avg_cost)}${t('/mois')} ${t('en moyenne')}` : ''}
+						</div>
+					</div>
+					<div>
+						<div className="metric-l">{t('Consommation moyenne')}</div>
+						<div className="metric-v tabular">
+							{stats.avg_consumption_l_100 ? fmt.cons(stats.avg_consumption_l_100) : '—'}
+						</div>
+						{stats.avg_distance_per_tank ? (
+							<div className="metric-s">{t('Autonomie')} {fmt.dist(stats.avg_distance_per_tank)}</div>
 						) : null}
-						{stats.monthly_avg_cost && (
-							<div style={{ fontSize: 12, color: 'var(--text-3)' }}>
-								{t('Moyenne mensuelle :')} {fmt.money(stats.monthly_avg_cost)}{t('/mois')}
-							</div>
-						)}
+					</div>
+					<div>
+						<div className="metric-l">{t('Coût')} /100 {fmt.distUnit}</div>
+						<div className="metric-v tabular">
+							{stats.avg_cost_100km
+								? `${fmt.num(fmt.costPerDist(stats.avg_cost_100km), { maximumFractionDigits: 1 })} ${fmt.currencySymbol}`
+								: '—'}
+						</div>
+						{stats.current_month_cost ? (
+							<div className="metric-s">{t('Dépensé ce mois :')} {fmt.money(stats.current_month_cost)}</div>
+						) : null}
 					</div>
 				</div>
 			)}
@@ -484,7 +460,7 @@ export default function FuelTracking({ vehicleId, onFuelAdded, canEdit = true })
 					{/* Monthly liters chart */}
 					<div className="card p-5">
 						<h4 className="card-label">Litres par mois</h4>
-						<BarChart data={monthlyData.filter(d => d.total_liters > 0)} valueKey="total_liters" color="var(--success)" unit=" L"
+						<BarChart data={monthlyData.filter(d => d.total_liters > 0)} valueKey="total_liters" color="var(--accent)" unit=" L"
 							formatValue={v => v.toFixed(1)} />
 					</div>
 
@@ -492,7 +468,7 @@ export default function FuelTracking({ vehicleId, onFuelAdded, canEdit = true })
 					<div className="card p-5">
 						<h4 className="card-label">Évolution de la consommation ({fmt.consUnit})</h4>
 						{consumptionPoints.length >= 2 ? (
-							<MiniLineChart points={consumptionPoints} valueKey="consumption_l_100" color="var(--success)" unit=""
+							<MiniLineChart points={consumptionPoints} valueKey="consumption_l_100" color="var(--accent)" unit=""
 								formatValue={v => v.toFixed(1)} avgValue={stats.avg_consumption_l_100} />
 						) : (
 							<p className="text-sm" style={{ color: 'var(--text-3)' }}>Renseignez le prix au litre pour suivre la consommation</p>
@@ -502,7 +478,7 @@ export default function FuelTracking({ vehicleId, onFuelAdded, canEdit = true })
 					{/* Cost per 100km trend */}
 					<div className="card p-5">
 						<h4 className="card-label">{t('Évolution du coût')} ({fmt.currencySymbol} / 100 {fmt.distUnit})</h4>
-						<MiniLineChart points={chartPoints} valueKey="cost_100km" color="var(--warning)" unit={fmt.currencySymbol}
+						<MiniLineChart points={chartPoints} valueKey="cost_100km" color="var(--accent)" unit={fmt.currencySymbol}
 							formatValue={v => v.toFixed(1)} avgValue={stats.avg_cost_100km} />
 					</div>
 				</div>
@@ -514,14 +490,14 @@ export default function FuelTracking({ vehicleId, onFuelAdded, canEdit = true })
 					<h4 className="card-label">Prix moyen par station</h4>
 					<div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
 						{stats.station_stats.map((s, i) => (
-							<div key={i} style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '8px 12px', background: i === 0 ? 'rgba(34, 197, 94, 0.06)' : 'transparent', borderRadius: 6, border: '1px solid var(--border)' }}>
+							<div key={i} style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '8px 12px', background: 'transparent', borderRadius: 6, border: '1px solid var(--border)' }}>
 								<div style={{ flex: 1 }}>
 									<div style={{ fontSize: 13, fontWeight: 600, color: 'var(--text-1)' }}>{s.station}</div>
 									<div style={{ fontSize: 11, color: 'var(--text-3)' }}>{s.visits} visite{s.visits > 1 ? 's' : ''} · {s.total_liters.toFixed(1)} L · {fmt.money(s.total_cost)}</div>
 								</div>
 								{s.avg_price_per_liter && (
 									<div style={{ textAlign: 'right' }}>
-										<div style={{ fontSize: 16, fontWeight: 700, color: i === 0 ? 'var(--success)' : 'var(--text-1)' }}>{s.avg_price_per_liter.toFixed(3)} {fmt.currencySymbol}/L</div>
+										<div style={{ fontSize: 16, fontWeight: 700, color: 'var(--text-1)' }}>{s.avg_price_per_liter.toFixed(3)} {fmt.currencySymbol}/L</div>
 									</div>
 								)}
 							</div>
