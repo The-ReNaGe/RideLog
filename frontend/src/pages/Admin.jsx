@@ -255,6 +255,38 @@ export default function Admin({ currentUser }) {
 
       {error && <Notice tone="danger" className="mb-4">{error}</Notice>}
 
+      {/* La réponse à « y a-t-il quelque chose à faire ici ? ».
+          Une demande de réinitialisation attend une action d'un humain : elle
+          se signale, le reste se compte. */}
+      {!loading && users.length > 0 && (() => {
+        const pending = users.filter(u => u.password_reset_requested_at).length;
+        const admins = users.filter(u => u.is_admin).length;
+        return (
+          <div className="flex flex-wrap items-center gap-3 mb-5">
+            {pending > 0 ? (
+              <span className="status-band tone-warning">
+                <Icon name="bell" size={18} />
+                <span className="headline-n">{pending}</span>
+                <span className="status-band-text">
+                  {pending > 1 ? t('mots de passe à réinitialiser') : t('mot de passe à réinitialiser')}
+                </span>
+              </span>
+            ) : (
+              <span className="status-band tone-success">
+                <Icon name="checkCircle" size={18} />
+                <span className="status-band-text" style={{ color: 'currentColor' }}>
+                  {t('Aucune demande en attente')}
+                </span>
+              </span>
+            )}
+            <span className="group-meta">
+              {users.length} {users.length > 1 ? t('comptes') : t('compte')}
+              {admins > 0 && ` · ${admins} ${admins > 1 ? t('administrateurs') : t('administrateur')}`}
+            </span>
+          </div>
+        );
+      })()}
+
       <div className="card mb-5 flex items-center justify-between gap-3 flex-wrap">
         <div className="flex items-start gap-3">
           <div>
@@ -450,6 +482,15 @@ export default function Admin({ currentUser }) {
                   <tr key={user.id}>
                     <td>
                       <div className="flex items-center gap-2 flex-wrap">
+                        <span
+                          className="avatar sm"
+                          aria-hidden="true"
+                          style={isServiceAccount
+                            ? { background: 'var(--purple-light)', color: 'var(--purple)' }
+                            : undefined}
+                        >
+                          {(user.display_name || user.username).charAt(0).toUpperCase()}
+                        </span>
                         <span style={{ color: 'var(--text-1)', fontWeight: 600 }}>@{user.username}</span>
                         {user.id === currentUser.id && (
                           <span className="text-xs" style={{ color: 'var(--text-3)' }}>{t('(vous)')}</span>
