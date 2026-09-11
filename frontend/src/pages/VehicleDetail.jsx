@@ -868,7 +868,11 @@ export default function VehicleDetail({ vehicleId, onBack, currentUser }) {
                           <div className="flex flex-wrap gap-x-3 gap-y-0.5 text-xs" style={{ color: 'var(--text-3)' }}>
                             <span className="inline-flex items-center gap-1"><Icon name="calendar" size={12} />{fmt.date(m.execution_date)}</span>
                             <span className="inline-flex items-center gap-1"><Icon name="gauge" size={12} />{fmt.dist(m.mileage_at_intervention)}</span>
-                            {m.cost_paid != null && <span className="inline-flex items-center gap-1" style={{ color: 'var(--success)', fontWeight: 600 }}><Icon name="euro" size={12} />{fmt.money(m.cost_paid, m.currency, 2)}</span>}
+                            {/* Pas d'icône devant le montant : `fmt.money` écrit déjà le symbole
+                                de la devise de CETTE ligne. L'icône « euro » qui se trouvait ici
+                                était figée, et affichait donc un € devant une intervention payée
+                                en dollars. */}
+                            {m.cost_paid != null && <span className="inline-flex items-center gap-1" style={{ color: 'var(--success)', fontWeight: 600 }}>{fmt.money(m.cost_paid, m.currency, 2)}</span>}
                           </div>
                           {m.notes && <p className="text-xs mt-1" style={{ color: 'var(--text-2)' }}>{m.notes}</p>}
                           {m.has_invoice && (
