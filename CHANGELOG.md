@@ -1,5 +1,19 @@
 # Changelog
 
+## [2.5.0](https://github.com/The-ReNaGe/RideLog/compare/v2.4.3...v2.5.0) (2026-09-11)
+
+
+### Features
+
+* **carnet:** un récapitulatif PDF à remettre lors d'une vente ([4cd49f5](https://github.com/The-ReNaGe/RideLog/commit/4cd49f5d80a9e89e48b9f0e213c9f92888453df2))
+* **véhicule:** enregistre la plaque au lieu de la jeter après le décodage ([48bc582](https://github.com/The-ReNaGe/RideLog/commit/48bc582d0dcea07f46d675553d437c618ea013db))
+
+
+### Bug Fixes
+
+* **fiche-véhicule:** retire l'icône euro posée devant un montant en dollars ([f745860](https://github.com/The-ReNaGe/RideLog/commit/f7458603fd465b1ec33d496ea09267ed5b8e6723))
+* **récapitulatif:** renvoie la devise de chaque ligne, pas seulement celle du total ([04b1ff6](https://github.com/The-ReNaGe/RideLog/commit/04b1ff68f4005807556e43b9dc3e701bdd14084e))
+
 ## [2.4.3](https://github.com/The-ReNaGe/RideLog/compare/v2.4.2...v2.4.3) (2026-09-10)
 
 
