@@ -458,11 +458,20 @@ export default function APIDocumentation() {
   -H "Authorization: Bearer <YOUR_TOKEN>"`}
         />
 
+        <h4 className="section-title mb-3" style={{ fontSize: '0.95rem' }}>Carnet d'entretien PDF</h4>
+        <ApiEndpoint
+          method="GET"
+          path="/vehicles/{vehicle_id}/recap/booklet.pdf"
+          description="Récapitulatif chronologique des interventions, mis en page pour être remis lors d'une vente. Sans les factures — celles-ci sont dans l'archive ZIP."
+          example={`curl -X GET http://localhost:8000/vehicles/1/recap/booklet.pdf \\
+  -H "Authorization: Bearer <YOUR_TOKEN>" --output carnet.pdf`}
+        />
+
         <h4 className="section-title mb-3" style={{ fontSize: '0.95rem' }}>Télécharger ZIP</h4>
         <ApiEndpoint
           method="GET"
           path="/vehicles/{vehicle_id}/recap/download"
-          description="Télécharge un ZIP contenant le CSV et toutes les factures du véhicule."
+          description="Télécharge un ZIP contenant le carnet PDF, le tableau CSV et toutes les factures du véhicule."
           example={`curl -X GET http://localhost:8000/vehicles/1/recap/download \\
   -H "Authorization: Bearer <YOUR_TOKEN>" --output recap.zip`}
         />

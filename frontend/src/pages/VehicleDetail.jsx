@@ -672,12 +672,24 @@ export default function VehicleDetail({ vehicleId, onBack, currentUser }) {
                     </div>
                   </div>
                   <div className="flex gap-2 flex-wrap">
+                    {/* Deux sorties, deux usages : le carnet se remet à un
+                        acheteur, l'archive se garde. Le carnet passe devant,
+                        c'est celle qu'on vient chercher au moment de vendre. */}
+                    <button
+                      onClick={() => { const n = (recap.vehicle_name || 'vehicule').replace(/\s+/g, '_'); api.downloadFile(`/vehicles/${vehicleId}/recap/booklet.pdf`, `carnet_entretien_${n}.pdf`); }}
+                      className="btn btn-primary btn-sm"
+                      title="Récapitulatif chronologique des interventions, à remettre lors d'une vente"
+                    >
+                      <Icon name="file" size={15} />
+                      Carnet d'entretien (PDF)
+                    </button>
                     <button
                       onClick={() => { const n = (recap.vehicle_name || 'vehicule').replace(/\s+/g, '_'); api.downloadFile(`/vehicles/${vehicleId}/recap/download`, `suivi_${n}.zip`); }}
-                      className="btn btn-primary btn-sm"
+                      className="btn btn-secondary btn-sm"
+                      title="Le carnet, le tableau CSV et toutes les factures jointes"
                     >
                       <Icon name="download" size={15} />
-                      Télécharger l'archive
+                      Archive complète
                     </button>
                     <button onClick={loadRecap} className="btn btn-secondary btn-sm" title="Recharger">
                       <Icon name="refresh" size={15} />
