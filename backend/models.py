@@ -135,6 +135,11 @@ class Vehicle(Base):
     model = Column(String(100), nullable=False)
     year = Column(Integer, nullable=False)
     registration_date = Column(DateTime, nullable=True)  # Date de mise en circulation
+    # Plaque d'immatriculation, normalisée par la région (migration 015).
+    # NULL = non renseignée. C'est la seule donnée qui rattache la fiche à un
+    # véhicule physique — le carnet d'entretien (§6.7) s'en sert pour que
+    # l'acheteur sache que le document décrit bien la machine qu'il regarde.
+    license_plate = Column(String(20), nullable=True)
     motorization = Column(String(50), nullable=False)  # essence/diesel/hybrid/electric/thermal
     displacement = Column(Integer, nullable=True)  # cc: mandatory for moto, optional for car
     range_category = Column(String(50), nullable=False)  # accessible/generalist/premium
@@ -175,6 +180,7 @@ class Vehicle(Base):
             "model": self.model,
             "year": self.year,
             "registration_date": self.registration_date.isoformat() if self.registration_date else None,
+            "license_plate": self.license_plate,
             "motorization": self.motorization,
             "displacement": self.displacement,
             "range_category": self.range_category,

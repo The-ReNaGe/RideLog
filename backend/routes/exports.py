@@ -12,7 +12,8 @@ from io import StringIO, BytesIO
 import zipfile
 from pathlib import Path
 from currency import totals_by_currency
-from settings_store import get_active_currency
+from settings_store import get_active_currency, effective_preferences
+from pdf_report import build_maintenance_booklet
 
 router = APIRouter(prefix="/vehicles", tags=["exports"])
 
@@ -91,6 +92,11 @@ def get_maintenance_recap(
             "execution_date": m.execution_date.isoformat(),
             "mileage_at_intervention": m.mileage_at_intervention,
             "cost_paid": m.cost_paid,
+            # La devise de CETTE ligne. Sans elle, le front n'a que le réglage
+            # d'instance : un entretien payé 74 $ se réaffichait « 74,00 € »
+            # dans l'onglet Récapitulatif, pendant que le total juste en
+            # dessous disait « 179 $ » — le même écran se contredisait (§20.7).
+            "currency": m.currency,
             "notes": m.notes,
             "maintenance_category": m.maintenance_category or "scheduled",
             "other_description": m.other_description,
@@ -117,6 +123,59 @@ def get_maintenance_recap(
         "documents_count": sum(len(m.invoices or []) for m in maintenances),
         "maintenances": items,
     }
+
+
+def _booklet_pdf(vehicle, db: Session, user: User) -> bytes:
+    """Le carnet d'entretien d'un véhicule, en octets.
+
+    Partagé par la route PDF et l'archive ZIP : le carnet voyage dans les deux,
+    et deux constructions distinctes finiraient par diverger — l'acheteur
+    aurait alors deux récapitulatifs du même véhicule qui ne disent pas la
+    même chose.
+
+    L'historique est trié **par date croissante**, à l'inverse de l'écran :
+    un carnet se lit dans le sens où les entretiens ont eu lieu.
+    """
+    maintenances = (
+        db.query(Maintenance)
+        .filter(Maintenance.vehicle_id == vehicle.id)
+        .order_by(Maintenance.execution_date)
+        .all()
+    )
+    currency = get_active_currency(db)
+    return build_maintenance_booklet(
+        vehicle,
+        maintenances,
+        units=effective_preferences(db, user)["units"],
+        currency=currency,
+        totals_by_currency=totals_by_currency(maintenances, "cost_paid", currency),
+    )
+
+
+def _file_stem(vehicle) -> str:
+    """Un nom de fichier lisible et sans surprise pour un système de fichiers."""
+    raw = f"{vehicle.brand}_{vehicle.model}"
+    return re.sub(r"[^A-Za-z0-9_-]+", "_", raw.replace(" ", "_")).strip("_") or "vehicule"
+
+
+@router.get("/{vehicle_id}/recap/booklet.pdf")
+def download_maintenance_booklet(
+    vehicle_id: int,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """Le carnet d'entretien à remettre lors d'une vente — voir `pdf_report.py`."""
+    vehicle = get_readable_vehicle(vehicle_id, current_user, db)
+    pdf = _booklet_pdf(vehicle, db, current_user)
+    filename = (
+        f"carnet_entretien_{_file_stem(vehicle)}_"
+        f"{datetime.now(timezone.utc).strftime('%Y%m%d')}.pdf"
+    )
+    return StreamingResponse(
+        BytesIO(pdf),
+        media_type="application/pdf",
+        headers={"Content-Disposition": f'attachment; filename="{filename}"'},
+    )
 
 
 @router.get("/{vehicle_id}/recap/download")
@@ -146,13 +205,26 @@ def download_maintenance_recap_zip(
         date_str = maintenance.execution_date.strftime("%d-%m-%Y")
         return f"{intervention_name} - {date_str}"
 
+    zip_currency = get_active_currency(db)
+
     buf = BytesIO()
     with zipfile.ZipFile(buf, "w", zipfile.ZIP_DEFLATED) as zf:
+        # Le carnet récapitulatif, à côté des pièces qu'il dénombre. Sorti
+        # séparément aussi (`/recap/booklet.pdf`) : on remet souvent le
+        # tableau seul, sans les factures.
+        zf.writestr(
+            f"carnet_entretien_{_file_stem(vehicle)}.pdf",
+            _booklet_pdf(vehicle, db, current_user),
+        )
+
         # CSV summary
         csv_buf = StringIO()
         writer = csv.DictWriter(
             csv_buf,
-            fieldnames=["Date", "Catégorie", "Intervention", "Kilométrage", "Coût (€)", "Notes", "Document"],
+            # « Coût » et « Devise » séparés : chaque montant porte la devise de
+            # sa saisie (§20.7), un en-tête « Coût (€) » en figerait une pour
+            # tout l'historique et mentirait dès la première ligne en dollars.
+            fieldnames=["Date", "Catégorie", "Intervention", "Kilométrage", "Coût", "Devise", "Notes", "Document"],
         )
         writer.writeheader()
         for m in maintenances:
@@ -175,7 +247,8 @@ def download_maintenance_recap_zip(
                 "Catégorie": category_display,
                 "Intervention": intervention_display,
                 "Kilométrage": m.mileage_at_intervention,
-                "Coût (€)": f"{m.cost_paid:.2f}" if m.cost_paid else "",
+                "Coût": f"{m.cost_paid:.2f}" if m.cost_paid else "",
+                "Devise": (m.currency or zip_currency) if m.cost_paid else "",
                 "Notes": m.notes or "",
                 "Document": invoice_display,
             })
@@ -197,8 +270,7 @@ def download_maintenance_recap_zip(
                         zf.write(str(fp), arc_name)
 
     buf.seek(0)
-    vehicle_label = f"{vehicle.brand}_{vehicle.model}".replace(" ", "_")
-    filename = f"suivi_{vehicle_label}_{datetime.now(timezone.utc).strftime('%Y%m%d')}.zip"
+    filename = f"suivi_{_file_stem(vehicle)}_{datetime.now(timezone.utc).strftime('%Y%m%d')}.zip"
     return StreamingResponse(
         buf,
         media_type="application/zip",

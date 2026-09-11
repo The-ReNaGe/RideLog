@@ -39,6 +39,11 @@ export default function VehicleForm({ onSubmit, onCancel }) {
     // '' = suit le pays de l'instance. C'est le défaut, et il convient à un
     // parc entièrement immatriculé dans le pays de l'instance.
     country: '',
+    // Facultative. Elle n'était jusqu'ici qu'un moyen de décodage, saisie puis
+    // jetée ; c'est pourtant la seule donnée qui rattache la fiche à un
+    // véhicule physique, et le carnet d'entretien remis à un acheteur s'en
+    // sert pour dire qu'il décrit bien CE véhicule.
+    license_plate: '',
   });
   const [vin, setVin] = useState('');
   const [licensePlate, setLicensePlate] = useState('');
@@ -278,6 +283,9 @@ export default function VehicleForm({ onSubmit, onCancel }) {
       displacement: plateDecodedData.displacement || prev.displacement,
       vehicle_type: plateDecodedData.vehicle_type || prev.vehicle_type,
       registration_date: plateDecodedData.registration_date || prev.registration_date,
+      // La plaque qui a servi au décodage est conservée : c'est bien celle du
+      // véhicule, la rejeter obligerait à la retaper juste en dessous.
+      license_plate: plateDecodedData.license_plate || licensePlate || prev.license_plate,
       name: prev.name || [plateDecodedData.brand, plateDecodedData.model].filter(Boolean).join(' '),
     }));
     setBrandSearch(plateDecodedData.brand || '');
@@ -339,6 +347,8 @@ export default function VehicleForm({ onSubmit, onCancel }) {
         current_mileage: fmt.toStorage(formData.current_mileage) || 0,
         // '' signifie « suit l'instance » : on envoie null, pas une chaîne vide.
         country: formData.country || null,
+        // Idem : vide = non renseignée. Le backend normalise selon le pays.
+        license_plate: formData.license_plate || null,
         service_interval_km: formData.service_interval_km ? fmt.toStorage(parseInt(formData.service_interval_km)) : null,
         service_interval_months: formData.service_interval_months ? parseInt(formData.service_interval_months) : null,
       };
@@ -657,6 +667,25 @@ export default function VehicleForm({ onSubmit, onCancel }) {
             required
             
           />
+        </div>
+
+        <div>
+          <label className="block text-sm font-medium mb-1">
+            Immatriculation
+            <CountryBadge reason="Le format de plaque dépend du pays du véhicule." />
+          </label>
+          <input
+            type="text"
+            name="license_plate"
+            value={formData.license_plate}
+            onChange={handleChange}
+            placeholder={plateExample ? `Exemple : ${plateExample}` : 'Plaque'}
+            maxLength="12"
+            className="uppercase font-mono tracking-wider"
+          />
+          <p className="field-hint">
+            Facultative. Elle identifie le véhicule sur le carnet d'entretien remis lors d'une vente.
+          </p>
         </div>
 
         <div>

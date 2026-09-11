@@ -154,6 +154,7 @@ backend/
 ├── schemas.py                 # Schémas Pydantic (validation entrées/sorties)
 ├── security.py                # JWT, bcrypt, rate limiting, middlewares auth
 ├── maintenance_calculator.py  # ★ LOGIQUE MÉTIER PRINCIPALE ★
+├── pdf_report.py              # ★ Carnet d'entretien PDF — document de vente, §6.7 ★
 ├── reminder_scheduler.py      # Scheduler background (rappels webhook)
 ├── settings_store.py          # Réglages d'instance persistés : pays et devise — §20.3, §20.7
 ├── currency.py                # ★ Devises : catalogue, marquage, conversion explicite — §20.7 ★
@@ -188,7 +189,7 @@ backend/
     ├── vehicle_status.py  # Compteurs d'alerte par véhicule, joints à GET /vehicles (voir §23.9)
     ├── maintenances.py    # CRUD maintenances, factures, "À venir", overrides
     ├── dashboard.py       # Statistiques agrégées du parc
-    ├── exports.py         # Export ZIP, estimation valeur, carte HA YAML
+    ├── exports.py         # Carnet PDF, export ZIP, estimation valeur, carte HA YAML
     ├── fuels.py           # CRUD carburant, statistiques conso
     ├── fuel_stations.py   # Recherche stations par ville (OSM + prix-carburants)
     ├── regions.py         # Pays de l'instance : lecture (JWT) et choix (admin) — voir §20.3
@@ -471,6 +472,30 @@ _ha_integration_enabled: bool = True  # défaut au démarrage
 | Voiture | `car` | Cylindrée optionnelle, motorisation (essence/diesel/hybride/électrique) |
 | Moto | `motorcycle` | Cylindrée obligatoire, `service_interval_km/months` configurable |
 
+### Plaque d'immatriculation (`license_plate`)
+
+Facultative, `NULL` par défaut — tout le parc antérieur à la migration 015 en
+est dépourvu, et rien ne change pour lui.
+
+> ⚠️ **Elle n'était jusqu'ici qu'un moyen, pas une donnée.** Saisie dans le
+> formulaire, envoyée au service de décodage de la région, puis **jetée**. Or
+> c'est la seule information qui rattache une fiche à un véhicule physique :
+> sans elle, le carnet d'entretien remis à un acheteur (§6.7) décrit « une
+> Triumph Daytona de 2020 », pas *la sienne*.
+
+**Normalisée à l'écriture**, une fois, par la région du **véhicule** (pas celle
+de l'instance — un véhicule immatriculé ailleurs n'a pas le format local).
+`_normalized_plate()` dans `routes/vehicles.py`. Une saisie que la région ne
+reconnaît pas est **refusée en 400**, jamais conservée telle quelle : une
+plaque fausse imprimée sur un document de vente est pire que pas de plaque.
+
+Aucun `pattern` dans `schemas.py` : le format dépend du pays, et le graver
+dans le schéma le rendrait franco-spécifique (§20.1).
+
+Convention du `PUT`, identique à celle de `country` : champ absent = ne pas
+toucher, chaîne vide = effacer. D'où le `?? ''` et non `|| null` côté
+frontend, qui rendrait la plaque ineffaçable.
+
 ### Motorisation (`motorization`)
 
 Valeurs possibles : `essence`, `diesel`, `hybride`, `electrique`, `thermal`
@@ -663,7 +688,8 @@ Calcul réglementaire du contrôle technique :
 | GET | `/api/vehicles/{vid}/recommendations` | Recommandations |
 | GET | `/api/vehicles/{vid}/cost-forecast` | Prévision de coûts (min/max par catégorie) |
 | GET | `/api/vehicles/{vid}/recap` | Récapitulatif complet (coûts, interventions, documents) |
-| GET | `/api/vehicles/{vid}/recap/download` | Export ZIP (CSV + factures) |
+| GET | `/api/vehicles/{vid}/recap/booklet.pdf` | ★ Carnet d'entretien PDF — document de vente (§6.7) ★ |
+| GET | `/api/vehicles/{vid}/recap/download` | Export ZIP (carnet PDF + CSV + factures) |
 | GET | `/api/vehicles/{vid}/interval-overrides` | Lister tous les overrides du véhicule |
 | PUT | `/api/vehicles/{vid}/interval-overrides/{key}` | Créer ou mettre à jour un override (upsert) |
 | DELETE | `/api/vehicles/{vid}/interval-overrides/{key}` | Supprimer → retour aux valeurs par défaut |
@@ -695,6 +721,74 @@ Le champ kilométrage est affiché comme optionnel dans `MaintenanceForm.jsx` av
      - valve_clearance.km_interval = 2 × 10000 = 20000 (ou override si défini)
      - next_due = 20600 + 20000 = 40600 km
 ```
+
+### 6.7 Le carnet d'entretien — le document qu'on remet à un acheteur
+
+`backend/pdf_report.py` + `GET /api/vehicles/{vid}/recap/booklet.pdf`.
+
+**Deux sorties, deux questions.** L'archive ZIP rassemble les justificatifs :
+elle *prouve*. Le carnet *récapitule* — une ligne par intervention, par date
+croissante, sur deux ou trois pages qu'un acheteur lit debout dans un parking.
+Remplacer l'un par l'autre laisserait soit un acheteur devant quarante PDF à
+recouper, soit un vendeur avec un tableau que rien n'appuie. Le carnet voyage
+donc **aussi dans le ZIP**, à côté des pièces qu'il dénombre, et les deux
+passent par le même `_booklet_pdf()` — deux constructions finiraient par
+diverger, et l'acheteur aurait deux récapitulatifs du même véhicule qui ne
+disent pas la même chose.
+
+> ⚠️ **Le document doit rester austère, et léger à imprimer.** Il sert à
+> convaincre quelqu'un qui ne connaît ni le vendeur ni RideLog. Couvert
+> d'aplats de couleur, d'émojis et de coins arrondis, il se lit comme une
+> capture d'écran d'application ; réglé en noir sur blanc, avec un filet sous
+> l'en-tête et une pagination « 2/3 », il se lit comme un relevé. Même
+> information, pas la même crédibilité. Les règles du §23 ne s'appliquent pas
+> ici : c'est un imprimé, pas un écran.
+
+Trois choses ont été **retirées après coup**, et il ne faut pas les remettre :
+
+| Retiré | Pourquoi |
+|---|---|
+| **La photo du véhicule** | Elle donnait au document un air d'annonce plutôt que de relevé, et faisait passer le fichier de 4 ko à 270 ko — un carnet se transfère et s'imprime. `_photo_flowable()` a été supprimée avec elle. |
+| **Les aplats gris** (bandeau de synthèse, en-tête de tableau) | Le document sort sur l'imprimante du vendeur, souvent en noir et blanc : un aplat étendu vide une cartouche pour un gain de lisibilité nul. Deux filets séparent aussi bien. |
+| **La mention légale de pied de page** | Quatre lignes de précautions sur un document d'une page disent au lecteur qu'on se méfie de son propre document. C'est aussi ce qui a fait renommer la colonne « Just. » en **« Factures »** : l'en-tête n'a plus de note pour l'expliquer, il doit se suffire. |
+
+**L'ordre est chronologique croissant**, à l'inverse de l'écran d'historique :
+un carnet se lit dans le sens où les entretiens ont eu lieu.
+
+> ⚠️ **`vehicle.name` n'apparaît nulle part sur le document.** C'est le surnom
+> que le propriétaire donne à sa fiche — « Ma Ducati », « La familiale » :
+> utile pour s'y retrouver dans son garage, hors sujet sur un document remis à
+> un tiers, et de nature à faire passer le carnet pour une capture d'écran.
+> Le véhicule est nommé par sa **plaque** (§5) quand elle existe, sinon par sa
+> marque et son modèle — en tête du bloc d'identification comme en pied de
+> page. Verrouillé par `test_the_booklet_never_prints_the_nickname_given_in_the_app`.
+
+**Ce que le document affirme** : ce que le propriétaire a consigné, rien de
+plus. La colonne « Factures » compte les justificatifs archivés — le seul
+appui vérifiable qu'il offre, et la raison pour laquelle il accompagne
+l'archive.
+
+Trois pièges déjà rencontrés, à ne pas défaire :
+
+| | |
+|---|---|
+| **Les notes passent par `_escape()`** | reportlab interprète un mini-langage de balises dans ses paragraphes. Une note « pneus \<avant & arrière\> » faisait échouer toute la mise en page — le vendeur perdait son document à cause d'un chevron. |
+| **La pagination « 2/3 » impose un canevas différé** | Au moment où la page 2 est peinte, le total n'existe pas. `_numbered_canvas()` retient chaque page et les rejoue à la fermeture. « Page 2 » seul n'apprend pas à l'acheteur qu'il lui manque une feuille. |
+| **La somme des largeurs de colonnes doit valoir `CONTENT_WIDTH`** | 174 mm en A4. Au-delà, le tableau déborde de la feuille sans qu'aucune erreur ne le signale. |
+| **Les sous-interventions sont une liste à puces, pas une phrase** | Jointes par des points médians, les neuf postes d'un entretien annuel donnaient un pavé de huit lignes coupées n'importe où — on n'y distinguait plus « Remplacement filtre à air » de « Remplacement filtre à huile ». Une puce par poste tient dans la même hauteur et se parcourt d'un regard. Le style `bullet` a `leftIndent` > `bulletIndent` : sans cet écart, les lignes de repli repassent sous le tiret et le pavé revient. |
+
+Le carnet respecte les **unités** du compte qui l'exporte
+(`effective_preferences`, §20.6) et la **devise de chaque ligne** (§20.7) —
+un total à deux devises est ventilé, jamais additionné sous un seul symbole.
+Le formatage français est refait ici : `fmt` est un hook React, il n'existe
+pas côté backend.
+
+Le CSV du ZIP porte désormais deux colonnes, **« Coût » et « Devise »**. Un
+en-tête « Coût (€) » figeait une devise pour tout l'historique et mentait dès
+la première ligne saisie en dollars.
+
+**Dépendance** : `reportlab` (roue `py3-none-any`, donc aucune compilation en
+arm64 — voir §21.4).
 
 ### 6.6 Pour modifier
 
@@ -1120,7 +1214,7 @@ api.getMaintenanceRecap(vehicleId),  // ← chargé d'emblée pour les KPI cards
 | Table | Clés | Description |
 |-------|------|-------------|
 | `users` | id, username (unique) | Comptes utilisateurs (is_admin, is_integration_account) |
-| `vehicles` | id, user_id (FK) | Véhicules du parc. `country` = pays d'immatriculation, NULL = suit l'instance (voir §20.7) |
+| `vehicles` | id, user_id (FK) | Véhicules du parc. `country` = pays d'immatriculation, NULL = suit l'instance (voir §20.7). `license_plate` = plaque normalisée par la région, NULL = non renseignée |
 | `maintenances` | id, vehicle_id (FK), intervention_key | Historique d'entretien. `intervention_key` fait foi pour les calculs ; `intervention_type` n'est qu'un libellé d'affichage (voir §20). `currency` = devise de saisie, NULL = suit l'instance (§20.7) |
 | `maintenance_invoices` | id, maintenance_id (FK) | Factures jointes |
 | `fuel_logs` | id, vehicle_id (FK) | Pleins de carburant. `currency` comme ci-dessus |
@@ -1233,6 +1327,13 @@ Le test de parité les a révélées immédiatement — elles préexistaient tou
 
 - `routes/exports.py` → endpoint `recap/download`
 - Modifier la construction du CSV et/ou ajouter des fichiers au ZIP
+
+### Ajouter une colonne au carnet d'entretien PDF
+
+- `pdf_report.py` → `_history_table()` : l'en-tête, la cellule **et** `widths`,
+  dont la somme doit rester égale à `CONTENT_WIDTH` (174 mm en A4 marges
+  comprises). Un total supérieur déborde sans erreur.
+- Tout texte venu de la base passe par `_escape()` — voir §6.7.
 
 ### Modifier les templates de cartes HA
 
@@ -1765,6 +1866,7 @@ python -m pytest tests/ -v
 | `test_ha_init.py` | `/auth/ha-init` — la clé passe par l'en-tête `X-HA-Init-Key`, le paramètre d'URL reste accepté mais journalise un avertissement qui ne contient pas la clé, une clé fausse est refusée puis plafonnée par IP, un succès remet le compteur à zéro, l'intégration désactivée prime sur une clé valide, et l'absence de clé serveur rend 503 et non 403. Voir §4. |
 | `test_regions_settings.py` | Choix du pays (`settings_store.py`, `routes/regions.py`) — France par défaut, refus d'un pays inconnu, écriture réservée à un admin, persistance **en base** et non en mémoire, et repli sur `FR` quand la base garde un pays que le code ne connaît plus (retour arrière, §21.5). |
 | `test_maintenance_routes.py` | Enregistrement d'un entretien via `TestClient` — la clé technique est stockée, deux libellés d'une même intervention partagent une clé, un libellé inconnu n'échoue pas, et l'entretien enregistré ressort bien rattaché à son échéance. |
+| `test_maintenance_booklet.py` | Carnet d'entretien PDF (`pdf_report.py`, route `recap/booklet.pdf`) — c'est bien un PDF, l'ordre est chronologique croissant, un historique à deux devises n'est jamais additionné sous un symbole unique, le contrôle d'accès passe par `access.py` (véhicule d'autrui indiscernable d'un véhicule absent), le carnet est présent dans l'archive ZIP, le CSV nomme sa devise, un historique vide et une note contenant des chevrons ne cassent rien. Côté identité : la plaque est imprimée et normalisée (« ab123cd » → « AB-123-CD »), une plaque illisible est refusée en 400 plutôt que stockée telle quelle, un véhicule sans plaque omet la ligne, et le surnom `vehicle.name` n'apparaît jamais. Le texte est extrait du flux PDF, sans lecteur PDF en dépendance. |
 | `test_vehicle_status.py` | État d'entretien joint à `GET /vehicles` — présence des compteurs, accord avec `/upcoming`, et surtout : un véhicule **partagé par le groupe famille** porte le sien aussi (voir §23.9). |
 | `test_auth_integration.py` | Routes `/auth/*` et `/admin/users/*` via `TestClient` sur une DB SQLite temporaire — register/login, changement de mot de passe, reset admin, mot de passe temporaire (`must_change_password`), demande de reset anti-énumération, et non-énumération des identifiants à l'inscription (voir §4). |
 
@@ -2175,6 +2277,30 @@ grep -rn "fmt.money(" frontend/src --include="*.jsx" | grep -v "currency\|money(
 
 Tout montant venu d'une ligne enregistrée doit passer sa devise en second
 argument — sans quoi il se met à suivre le réglage d'instance et ment (§20.7).
+
+> ⚠️ **Le grep côté front ne voit rien si le backend n'envoie pas la devise.**
+> `/recap` construisait ses lignes **à la main** et n'y mettait pas
+> `m.currency`. Le frontend, lui, était correct — il appelait bien
+> `fmt.money(m.cost_paid, m.currency, 2)` — mais recevait `undefined` et
+> retombait donc sur le réglage d'instance. Résultat sur une instance en euros
+> dont les lignes sont marquées en dollars : l'onglet Récapitulatif affichait
+> « 74,00 € » sur un entretien payé 74 $, avec juste en dessous un total
+> « 179 $ ». **Le même écran se contredisait**, et aucun des deux greps ne
+> pouvait le signaler.
+>
+> La règle : **tout payload construit à la main qui expose un montant de ligne
+> expose sa devise à côté.** `to_dict()` la porte déjà ; ce sont les dicts
+> écrits à la main qui l'oublient. `dashboard.py` (activité récente) et
+> `exports.py` (récap) sont les deux concernés à ce jour. Verrouillé par
+> `test_each_recap_line_carries_its_own_currency`.
+
+> ⚠️ **Un montant juste peut être démenti par ce qui l'accompagne.** La fiche
+> véhicule posait une icône `<Icon name="euro" />` devant le coût d'une
+> intervention, dans sa version mobile. Le nombre, lui, passait bien
+> `m.currency` : l'utilisateur lisait donc « € 74,00 $ » sur un entretien payé
+> en dollars. Aucun des deux greps ci-dessus ne le voyait, et le tracé a été
+> **retiré du jeu d'icônes** pour que le réflexe ne revienne pas : le symbole
+> d'une devise vient du montant, jamais d'une icône. N'en rajoutez pas.
 
 **Ce qui reste légitimement sans devise de ligne**, et qu'il faut savoir
 reconnaître pour ne pas « corriger » à tort :

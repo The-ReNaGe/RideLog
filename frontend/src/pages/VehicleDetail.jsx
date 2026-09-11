@@ -149,6 +149,7 @@ export default function VehicleDetail({ vehicleId, onBack, currentUser }) {
   const handleEditStart = () => {
     setEditedVehicle({
       name: vehicle.name,
+      license_plate: vehicle.license_plate || '',
       year: vehicle.year,
       registration_date: vehicle.registration_date ? vehicle.registration_date.split('T')[0] : '',
       // Édité dans l'unité de l'utilisateur, reconverti à l'enregistrement.
@@ -165,6 +166,10 @@ export default function VehicleDetail({ vehicleId, onBack, currentUser }) {
       setEditSaving(true);
       await api.updateVehicle(vehicleId, {
         name: editedVehicle.name,
+        // Chaîne vide = effacer la plaque ; c'est la convention du backend,
+        // et elle doit rester distincte de « champ absent ». D'où le `?? ''`
+        // plutôt qu'un `|| null` qui empêcherait de l'effacer.
+        license_plate: editedVehicle.license_plate ?? '',
         year: editedVehicle.year ? parseInt(editedVehicle.year, 10) : null,
         registration_date: editedVehicle.registration_date || null,
         current_mileage: editedVehicle.current_mileage ? fmt.toStorage(parseInt(editedVehicle.current_mileage, 10)) : 0,
@@ -258,6 +263,7 @@ export default function VehicleDetail({ vehicleId, onBack, currentUser }) {
             <div className="space-y-3 text-sm">
               {[
                 { label: 'Nom du véhicule', key: 'name', type: 'text' },
+                { label: 'Immatriculation', key: 'license_plate', type: 'text' },
                 { label: 'Année', key: 'year', type: 'number', min: '1900', max: '2100' },
                 { label: 'Date de mise en circulation', key: 'registration_date', type: 'date' },
                 { label: `Distance au compteur (${fmt.distUnit})`, key: 'current_mileage', type: 'number', min: '0' },
@@ -666,12 +672,24 @@ export default function VehicleDetail({ vehicleId, onBack, currentUser }) {
                     </div>
                   </div>
                   <div className="flex gap-2 flex-wrap">
+                    {/* Deux sorties, deux usages : le carnet se remet à un
+                        acheteur, l'archive se garde. Le carnet passe devant,
+                        c'est celle qu'on vient chercher au moment de vendre. */}
+                    <button
+                      onClick={() => { const n = (recap.vehicle_name || 'vehicule').replace(/\s+/g, '_'); api.downloadFile(`/vehicles/${vehicleId}/recap/booklet.pdf`, `carnet_entretien_${n}.pdf`); }}
+                      className="btn btn-primary btn-sm"
+                      title="Récapitulatif chronologique des interventions, à remettre lors d'une vente"
+                    >
+                      <Icon name="file" size={15} />
+                      Carnet d'entretien (PDF)
+                    </button>
                     <button
                       onClick={() => { const n = (recap.vehicle_name || 'vehicule').replace(/\s+/g, '_'); api.downloadFile(`/vehicles/${vehicleId}/recap/download`, `suivi_${n}.zip`); }}
-                      className="btn btn-primary btn-sm"
+                      className="btn btn-secondary btn-sm"
+                      title="Le carnet, le tableau CSV et toutes les factures jointes"
                     >
                       <Icon name="download" size={15} />
-                      Télécharger l'archive
+                      Archive complète
                     </button>
                     <button onClick={loadRecap} className="btn btn-secondary btn-sm" title="Recharger">
                       <Icon name="refresh" size={15} />
@@ -850,7 +868,11 @@ export default function VehicleDetail({ vehicleId, onBack, currentUser }) {
                           <div className="flex flex-wrap gap-x-3 gap-y-0.5 text-xs" style={{ color: 'var(--text-3)' }}>
                             <span className="inline-flex items-center gap-1"><Icon name="calendar" size={12} />{fmt.date(m.execution_date)}</span>
                             <span className="inline-flex items-center gap-1"><Icon name="gauge" size={12} />{fmt.dist(m.mileage_at_intervention)}</span>
-                            {m.cost_paid != null && <span className="inline-flex items-center gap-1" style={{ color: 'var(--success)', fontWeight: 600 }}><Icon name="euro" size={12} />{fmt.money(m.cost_paid, m.currency, 2)}</span>}
+                            {/* Pas d'icône devant le montant : `fmt.money` écrit déjà le symbole
+                                de la devise de CETTE ligne. L'icône « euro » qui se trouvait ici
+                                était figée, et affichait donc un € devant une intervention payée
+                                en dollars. */}
+                            {m.cost_paid != null && <span className="inline-flex items-center gap-1" style={{ color: 'var(--success)', fontWeight: 600 }}>{fmt.money(m.cost_paid, m.currency, 2)}</span>}
                           </div>
                           {m.notes && <p className="text-xs mt-1" style={{ color: 'var(--text-2)' }}>{m.notes}</p>}
                           {m.has_invoice && (

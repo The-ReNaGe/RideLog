@@ -143,6 +143,32 @@ def test_a_single_currency_total_is_the_ordinary_case(client, open_registration)
     assert recap["cost_by_currency"] == {"EUR": 200.0}
 
 
+def test_each_recap_line_carries_its_own_currency(client, open_registration):
+    """Un total juste ne suffit pas si les lignes au-dessus mentent.
+
+    L'onglet Récapitulatif affichait « 74,00 € » sur un entretien payé en
+    dollars, pendant que le total juste en dessous disait « 179 $ » : le même
+    écran se contredisait. La cause n'était pas le formatage — `fmt.money`
+    reçoit bien une devise de ligne — mais le fait que `/recap` ne l'envoyait
+    pas du tout, laissant le front retomber sur le réglage d'instance.
+
+    C'est la raison pour laquelle ce test regarde le **contenu du payload** et
+    non le total : le total, lui, était déjà juste.
+    """
+    headers = admin_headers(client)
+    vehicle_id = make_vehicle(client, headers)["id"]
+
+    add_maintenance(client, headers, vehicle_id, 200)
+    switch_currency(client, headers, "USD")
+    add_maintenance(client, headers, vehicle_id, 300, date="2024-06-01T00:00:00")
+    switch_currency(client, headers, "EUR")  # on revient, sans convertir
+
+    recap = client.get(f"/api/vehicles/{vehicle_id}/recap", headers=headers).json()
+    by_cost = {m["cost_paid"]: m["currency"] for m in recap["maintenances"]}
+
+    assert by_cost == {200.0: "EUR", 300.0: "USD"}
+
+
 # ── La conversion ──────────────────────────────────────────────────────────
 
 def test_a_dry_run_announces_without_touching_anything(client, open_registration):
