@@ -92,6 +92,11 @@ def get_maintenance_recap(
             "execution_date": m.execution_date.isoformat(),
             "mileage_at_intervention": m.mileage_at_intervention,
             "cost_paid": m.cost_paid,
+            # La devise de CETTE ligne. Sans elle, le front n'a que le réglage
+            # d'instance : un entretien payé 74 $ se réaffichait « 74,00 € »
+            # dans l'onglet Récapitulatif, pendant que le total juste en
+            # dessous disait « 179 $ » — le même écran se contredisait (§20.7).
+            "currency": m.currency,
             "notes": m.notes,
             "maintenance_category": m.maintenance_category or "scheduled",
             "other_description": m.other_description,
