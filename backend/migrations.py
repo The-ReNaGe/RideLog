@@ -610,6 +610,21 @@ def _m014_amount_currency(conn: Connection) -> None:
     add_column_if_missing(conn, "vehicles", "currency", "VARCHAR(3)")
 
 
+def _m015_vehicle_license_plate(conn: Connection) -> None:
+    """La plaque d'immatriculation du véhicule.
+
+    Elle n'était jusqu'ici que le **moyen** d'un décodage : saisie dans le
+    formulaire, envoyée au service de la région, puis jetée une fois les
+    caractéristiques récupérées. Or c'est la seule donnée qui rattache la
+    fiche à un véhicule physique — sans elle, le carnet d'entretien remis à un
+    acheteur (§6.7) décrit « une Triumph Daytona de 2020 », pas *la sienne*.
+
+    NULL = non renseignée, et c'est le cas de tout le parc existant : la
+    colonne est purement additive, aucune fiche ne change de comportement.
+    """
+    add_column_if_missing(conn, "vehicles", "license_plate", "VARCHAR(20)")
+
+
 MIGRATIONS: list[Migration] = [
     Migration(
         1, "maintenance_category",
@@ -701,6 +716,11 @@ MIGRATIONS: list[Migration] = [
             and has_all_columns(c, "fuel_logs", "currency")
             and has_all_columns(c, "vehicles", "currency")
         ),
+    ),
+    Migration(
+        15, "vehicle_license_plate",
+        _m015_vehicle_license_plate,
+        lambda c: has_all_columns(c, "vehicles", "license_plate"),
     ),
 ]
 

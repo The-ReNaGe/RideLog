@@ -149,6 +149,7 @@ export default function VehicleDetail({ vehicleId, onBack, currentUser }) {
   const handleEditStart = () => {
     setEditedVehicle({
       name: vehicle.name,
+      license_plate: vehicle.license_plate || '',
       year: vehicle.year,
       registration_date: vehicle.registration_date ? vehicle.registration_date.split('T')[0] : '',
       // Édité dans l'unité de l'utilisateur, reconverti à l'enregistrement.
@@ -165,6 +166,10 @@ export default function VehicleDetail({ vehicleId, onBack, currentUser }) {
       setEditSaving(true);
       await api.updateVehicle(vehicleId, {
         name: editedVehicle.name,
+        // Chaîne vide = effacer la plaque ; c'est la convention du backend,
+        // et elle doit rester distincte de « champ absent ». D'où le `?? ''`
+        // plutôt qu'un `|| null` qui empêcherait de l'effacer.
+        license_plate: editedVehicle.license_plate ?? '',
         year: editedVehicle.year ? parseInt(editedVehicle.year, 10) : null,
         registration_date: editedVehicle.registration_date || null,
         current_mileage: editedVehicle.current_mileage ? fmt.toStorage(parseInt(editedVehicle.current_mileage, 10)) : 0,
@@ -258,6 +263,7 @@ export default function VehicleDetail({ vehicleId, onBack, currentUser }) {
             <div className="space-y-3 text-sm">
               {[
                 { label: 'Nom du véhicule', key: 'name', type: 'text' },
+                { label: 'Immatriculation', key: 'license_plate', type: 'text' },
                 { label: 'Année', key: 'year', type: 'number', min: '1900', max: '2100' },
                 { label: 'Date de mise en circulation', key: 'registration_date', type: 'date' },
                 { label: `Distance au compteur (${fmt.distUnit})`, key: 'current_mileage', type: 'number', min: '0' },

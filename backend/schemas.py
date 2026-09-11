@@ -26,6 +26,11 @@ class VehicleCreate(BaseModel):
     # Pays d'immatriculation. Absent ou vide = suit le pays de l'instance,
     # ce qui est le cas courant d'un parc immatriculé sur place.
     country: Optional[str] = Field(None, max_length=5)
+    # Plaque d'immatriculation. Facultative, et normalisée par la région à
+    # l'écriture (routes/vehicles.py) — pas ici : le format dépend du pays, et
+    # un `pattern` gravé dans le schéma redeviendrait franco-spécifique
+    # (§20.1). Vide ou absente = non renseignée.
+    license_plate: Optional[str] = Field(None, max_length=20)
 
 
 class VehicleUpdate(BaseModel):
@@ -42,6 +47,8 @@ class VehicleUpdate(BaseModel):
     # vide = remettre le véhicule sous le pays de l'instance. D'où l'absence de
     # min_length, qui interdirait ce second cas.
     country: Optional[str] = Field(None, max_length=5)
+    # None = champ absent (ne pas toucher) ; chaîne vide = effacer la plaque.
+    license_plate: Optional[str] = Field(None, max_length=20)
 
     @field_validator('registration_date', mode='before')
     @classmethod

@@ -23,8 +23,36 @@ from routes.access import (
 from schemas import VehicleCreate, VehicleUpdate
 from maintenance_calculator import MaintenanceCalculator, build_last_maintenances_dict
 from routes.vehicle_status import alert_counts_for
-from regions import format_model_text, is_known_region, list_regions
+from regions import format_model_text, get_region, is_known_region, list_regions
 from settings_store import get_active_currency, get_active_region, get_active_region_code
+
+def _normalized_plate(value: str | None, db: Session, country: str | None) -> str | None:
+    """La plaque telle que son PAYS l'écrit, ou None si le champ est vide.
+
+    Normalisée à l'écriture, une fois, plutôt qu'à chaque affichage : « ab123cd »
+    et « AB-123-CD » désignent le même véhicule, et deux fiches qui les portent
+    séparément se compareraient mal — sur un carnet remis à un acheteur, la
+    plaque doit s'écrire comme sur la carte grise.
+
+    C'est la région du **véhicule** qui normalise, pas celle de l'instance : un
+    véhicule immatriculé ailleurs n'a pas le format local (§20.7).
+
+    Une saisie que la région ne reconnaît pas est **refusée** plutôt que
+    conservée telle quelle. Absorber le format ferait imprimer une plaque
+    fausse sur un document de vente, ce qui est pire que pas de plaque du tout.
+    """
+    raw = (value or "").strip()
+    if not raw:
+        return None
+    region = get_region(country) if country else get_active_region(db)
+    normalized = region.normalize_plate(raw)
+    if not normalized:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Format de plaque invalide. Exemple attendu : {region.plate_example}",
+        )
+    return normalized
+
 
 def _validated_country(value: str | None) -> str | None:
     """Le pays d'immatriculation d'un véhicule, ou None pour « suit l'instance ».
@@ -210,6 +238,9 @@ def create_vehicle(
         is_private=data.is_private,
         # Vide ou absent → NULL, c'est-à-dire « suit le pays de l'instance ».
         country=_validated_country(data.country),
+        license_plate=_normalized_plate(
+            data.license_plate, db, _validated_country(data.country)
+        ),
         user_id=current_user.id
     )
     db.add(vehicle)
@@ -493,6 +524,14 @@ def update_vehicle(
     # ne pourrait plus jamais revenir au défaut.
     if data.country is not None:
         vehicle.country = _validated_country(data.country)
+    # Même convention que `country` : absent = ne pas toucher, chaîne vide =
+    # effacer. La normalisation se fait sur le pays déjà appliqué ci-dessus,
+    # pour qu'un changement de pays et de plaque dans le même appel accorde
+    # les deux.
+    if data.license_plate is not None:
+        vehicle.license_plate = _normalized_plate(
+            data.license_plate, db, vehicle.country
+        )
     if data.current_mileage is not None and data.current_mileage != vehicle.current_mileage:
         if data.current_mileage < vehicle.current_mileage:
             max_maintenance_km = db.query(
