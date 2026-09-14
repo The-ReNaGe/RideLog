@@ -1,5 +1,19 @@
 FROM python:3.11-slim
 
+# Mises à jour de sécurité Debian AVANT tout le reste. L'image de base est un
+# tag mobile reconstruit régulièrement, mais entre deux reconstructions ses
+# paquets système prennent du retard : le scan Trivy nocturne a trouvé trois
+# CVE critiques dans perl-base (paquet essentiel, on ne peut pas le retirer)
+# alors que Debian avait déjà publié le correctif. `apt-get upgrade` les
+# applique au moment où NOUS construisons. La liste des paquets est effacée
+# ensuite pour ne pas alourdir l'image.
+# ARG et non ENV : la valeur ne doit vivre que pendant la construction, pas
+# dans l'image finale.
+ARG DEBIAN_FRONTEND=noninteractive
+RUN apt-get update \
+    && apt-get upgrade -y --no-install-recommends \
+    && rm -rf /var/lib/apt/lists/*
+
 WORKDIR /app
 
 # Install dependencies first (cacheable layer)
