@@ -7,6 +7,7 @@ import RevisionChecklistModal from './RevisionChecklistModal';
 import Icon from './Icon';
 import { useFormat, useT } from '../lib/preferencesContext';
 import CategoryTag from './CategoryTag';
+import PerformerTag from './PerformerTag';
 import {
   REVISION_TRIGGERS,
   SUBITEM_TRIGGERS,
@@ -58,6 +59,7 @@ export default function MaintenanceHistory({ vehicleId, vehicleType, motorizatio
       mileage_at_intervention: fmt.distValue(maintenance.mileage_at_intervention),
       cost_paid: maintenance.cost_paid || '',
       notes: maintenance.notes || '',
+      performed_by: maintenance.performed_by || '',
     });
     setNewInvoiceFiles([]);
     setEditSubInterventions(maintenance.sub_interventions || []);
@@ -76,6 +78,8 @@ export default function MaintenanceHistory({ vehicleId, vehicleType, motorizatio
         fd.append('mileage_at_intervention', String(fmt.toStorage(parseInt(editForm.mileage_at_intervention))));
         fd.append('cost_paid', editForm.cost_paid ? String(parseFloat(editForm.cost_paid)) : '');
         fd.append('notes', editForm.notes);
+        // Toujours envoyé, même vide : vide = revenir à « non renseigné ».
+        fd.append('performed_by', editForm.performed_by || '');
         newInvoiceFiles.forEach(f => fd.append('invoice_files', f));
         if (hasSubInterventions) {
           fd.append('sub_interventions', JSON.stringify(editSubInterventions));
@@ -87,6 +91,7 @@ export default function MaintenanceHistory({ vehicleId, vehicleType, motorizatio
           mileage_at_intervention: fmt.toStorage(parseInt(editForm.mileage_at_intervention)),
           cost_paid: editForm.cost_paid ? parseFloat(editForm.cost_paid) : null,
           notes: editForm.notes,
+          performed_by: editForm.performed_by || '',
         };
         if (hasSubInterventions) {
           payload.sub_interventions = editSubInterventions;
@@ -181,6 +186,18 @@ export default function MaintenanceHistory({ vehicleId, vehicleType, motorizatio
                       style={{ width: '100%', boxSizing: 'border-box' }}
                     />
                   </div>
+                  <div>
+                    <label className="field-label">{t('Réalisé par')}</label>
+                    <select
+                      value={editForm.performed_by}
+                      onChange={e => setEditForm({ ...editForm, performed_by: e.target.value })}
+                      style={{ width: '100%', boxSizing: 'border-box' }}
+                    >
+                      <option value="">{t('Non renseigné')}</option>
+                      <option value="pro">{t('Un professionnel')}</option>
+                      <option value="self">{t('Moi-même')}</option>
+                    </select>
+                  </div>
                 </div>
 
                 {/* Détail révision / freins / pneus via popup */}
@@ -270,6 +287,7 @@ export default function MaintenanceHistory({ vehicleId, vehicleType, motorizatio
                         {getInterventionDisplayName(displayType)}
                       </h4>
                       <CategoryTag category={maintenance.maintenance_category} />
+                      <PerformerTag performedBy={maintenance.performed_by} />
                     </div>
                     <div className="flex flex-wrap gap-x-2 gap-y-0.5 text-xs" style={{ color: 'var(--text-3)' }}>
                       <span>

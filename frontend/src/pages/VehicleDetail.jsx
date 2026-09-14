@@ -7,6 +7,7 @@ import FuelTracking from '../components/FuelTracking';
 import VehiclePhoto from '../components/VehiclePhoto';
 import Icon from '../components/Icon';
 import CategoryTag, { getCategory } from '../components/CategoryTag';
+import PerformerTag from '../components/PerformerTag';
 import Notice from '../components/Notice';
 import PrivateVehicleField from '../components/PrivateVehicleField';
 import { useFormat, useT } from '../lib/preferencesContext';
@@ -785,7 +786,12 @@ export default function VehicleDetail({ vehicleId, onBack, currentUser }) {
                           return (
                             <tr key={m.id} style={{ borderBottom: '1px solid var(--border)' }}>
                               <td className="py-2.5 pr-4 whitespace-nowrap" style={{ color: 'var(--text-1)' }}>{fmt.date(m.execution_date)}</td>
-                              <td className="py-2.5 pr-4"><CategoryTag category={cat} /></td>
+                              <td className="py-2.5 pr-4">
+                                <div className="flex flex-wrap gap-1">
+                                  <CategoryTag category={cat} />
+                                  <PerformerTag performedBy={m.performed_by} />
+                                </div>
+                              </td>
                               <td className="py-2.5 pr-4 font-medium" style={{ color: 'var(--text-1)' }}>
                                 {dt}
                                 {m.sub_interventions && m.sub_interventions.length > 0 && (
@@ -846,7 +852,10 @@ export default function VehicleDetail({ vehicleId, onBack, currentUser }) {
                         <div key={m.id} className="card p-3" style={{ borderLeft: `3px solid ${cat.color}` }}>
                           <div className="flex items-start justify-between gap-2 mb-1">
                             <span className="font-semibold text-sm" style={{ color: 'var(--text-1)' }}>{dt}</span>
-                            <CategoryTag category={cat} />
+                            <div className="flex flex-wrap gap-1 justify-end">
+                              <CategoryTag category={cat} />
+                              <PerformerTag performedBy={m.performed_by} />
+                            </div>
                           </div>
                           {m.sub_interventions && m.sub_interventions.length > 0 && (
                             <div className="flex flex-wrap gap-1 mt-1 mb-1">
