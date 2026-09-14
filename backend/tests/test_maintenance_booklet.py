@@ -108,14 +108,23 @@ def _pdf_text(payload: bytes) -> str:
     sur la feuille — et, comme l'ordre de peinture suit l'ordre du document,
     pour vérifier un tri. Les caractères non ASCII sont échappés en octal dans
     le flux, selon l'encodage WinAnsi des polices de base.
+
+    On ne lit QUE les flux de contenu (`stream … endstream`). La première
+    version cherchait `(…) Tj` sur tout le fichier : la regex accrochait la
+    parenthèse de `/Author (RideLog)` dans le dictionnaire Info et avalait
+    tout jusqu'au premier `Tj`, métadonnées comprises. Un test qui vérifiait
+    l'absence de « 400 » a alors échoué en CI à 14:00:27 UTC — parce que
+    `/CreationDate (D:20260914140027…)` contient « 400 ». Un test qui dépend
+    de l'heure à laquelle il tourne n'est pas un test.
     """
     pieces = []
-    for raw in re.findall(rb"\((.*?)\)\s*Tj", payload, re.S):
-        unescaped = re.sub(
-            rb"\\([0-7]{3})", lambda m: bytes([int(m.group(1), 8)]), raw
-        )
-        unescaped = re.sub(rb"\\([()\\\\])", lambda m: m.group(1), unescaped)
-        pieces.append(unescaped.decode("cp1252", errors="replace"))
+    for stream in re.findall(rb"stream\r?\n(.*?)endstream", payload, re.S):
+        for raw in re.findall(rb"\((.*?)\)\s*Tj", stream, re.S):
+            unescaped = re.sub(
+                rb"\\([0-7]{3})", lambda m: bytes([int(m.group(1), 8)]), raw
+            )
+            unescaped = re.sub(rb"\\([()\\\\])", lambda m: m.group(1), unescaped)
+            pieces.append(unescaped.decode("cp1252", errors="replace"))
     return " ".join(pieces)
 
 
@@ -220,8 +229,8 @@ def test_a_two_currency_history_is_never_summed_into_one_symbol(client, headers,
     db_session.commit()
 
     text = _pdf_text(_booklet(client, headers, vehicle_id).content)
-    assert "€" in text and "$" in text
-    assert "400" not in text
+    assert "200,00 €" in text and "200,00 $" in text
+    assert "400,00" not in text
 
 
 def test_a_vehicle_of_someone_else_yields_the_same_404_as_a_missing_one(
@@ -312,3 +321,13 @@ def test_the_csv_carries_who_performed_it_in_full_words(client, headers, vehicle
     lines = csv_text.splitlines()
     assert "Réalisé par" in lines[0]
     assert "Professionnel" in lines[1]
+
+
+def test_the_text_helper_reads_only_the_painted_content(client, headers, vehicle_id):
+    """Garde-fou de l'assistant lui-même : les métadonnées du PDF (auteur,
+    date de création) ne doivent pas se retrouver dans le texte extrait, sinon
+    un test d'absence dépend de l'heure à laquelle il tourne."""
+    text = _pdf_text(_booklet(client, headers, vehicle_id).content)
+    assert "CreationDate" not in text
+    assert "ReportLab" not in text
+    assert "Carnet d'entretien" in text
