@@ -133,8 +133,10 @@ class WebhookCreate(BaseModel):
     url: str = Field(..., min_length=10, max_length=500)
     webhook_type: str = Field(
         "discord",
-        pattern=r"^discord$",
+        pattern=r"^(discord|ntfy)$",
     )
+    # ntfy seulement : jeton d'accès d'un sujet protégé. Ignoré pour Discord.
+    auth_token: Optional[str] = Field(None, max_length=255)
 
 class WebhookToggle(BaseModel):
     is_active: bool

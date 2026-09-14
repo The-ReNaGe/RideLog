@@ -13,6 +13,7 @@ import logging
 import secrets
 from datetime import datetime, timezone
 from typing import Optional
+from urllib.parse import urlparse
 
 import httpx
 from fastapi import APIRouter, Depends, HTTPException, status
@@ -44,6 +45,27 @@ STATUS_COLORS_DISCORD = {
     "warning": 0xFFAA00,       # amber
     "reminder": 0x3399FF,      # blue
     "ok": 0x22CC44,            # green
+}
+
+# ntfy : la priorité décide de la façon dont le téléphone sonne (5 = alarme
+# qui passe outre le mode silencieux, 3 = notification ordinaire, 1 = muette).
+# Elle suit les trois paliers de rappel du scheduler — un entretien en retard
+# mérite de vibrer, un premier rappel à trois mois non.
+NTFY_PRIORITY = {
+    "overdue": 5,
+    "urgent": 4,
+    "warning": 3,
+    "reminder": 3,
+    "ok": 2,
+}
+
+# Tags ntfy : un nom d'émoji connu s'affiche en icône devant le titre.
+NTFY_TAGS = {
+    "overdue": ["rotating_light"],
+    "urgent": ["warning"],
+    "warning": ["bell"],
+    "reminder": ["bell"],
+    "ok": ["white_check_mark"],
 }
 
 
@@ -99,10 +121,18 @@ async def create_webhook(
     # Générer un token_secret unique (64 caractères, très sécurisé)
     token_secret = f"sk_live_{secrets.token_urlsafe(48)}"
     
+    if data.webhook_type == "ntfy":
+        # Refuser tout de suite une URL sans sujet : l'erreur arriverait sinon
+        # au premier rappel, des semaines plus tard, dans un log que personne
+        # ne lit.
+        _split_ntfy_url(data.url)
+
     webhook = Webhook(
         user_id=current_user.id,
         url=data.url,
         webhook_type=data.webhook_type,
+        # Le jeton ne concerne que ntfy ; pour Discord il serait stocké pour rien.
+        auth_token=(data.auth_token or "").strip() or None if data.webhook_type == "ntfy" else None,
         token_secret=token_secret,
         is_active=True,
     )
@@ -254,12 +284,21 @@ async def test_webhook(
     )
 
     try:
-        await _send_webhook_request(webhook, title, msg)
+        await _send_webhook_request(webhook, title, msg, "reminder")
         logger.info("Test webhook sent successfully for webhook %d", webhook_id)
         return {
             "success": True,
             "message": "Notification de test envoyée avec succès"
         }
+    except httpx.HTTPStatusError as e:
+        # Le statut suffit à l'utilisateur : 403 = sujet protégé, jeton
+        # absent ou faux ; 404 = webhook Discord supprimé. Le message brut
+        # d'httpx y ajoutait un lien MDN et l'URL, du bruit.
+        logger.warning("Test webhook failed for %d: %s", webhook_id, e)
+        raise HTTPException(
+            status_code=status.HTTP_502_BAD_GATEWAY,
+            detail=f"Échec de l'envoi : le service a répondu {e.response.status_code} {e.response.reason_phrase}",
+        )
     except Exception as e:
         logger.warning("Test webhook failed for %d: %s", webhook_id, e)
         raise HTTPException(
@@ -381,6 +420,54 @@ def _build_message(
     return "\n".join(parts)
 
 
+def _split_ntfy_url(url: str) -> tuple[str, str]:
+    """« https://ntfy.sh/ridelog » → (« https://ntfy.sh », « ridelog »).
+
+    On publie par l'API JSON, à la racine du serveur, plutôt qu'en POST sur
+    l'URL du sujet : le titre y voyagerait dans un en-tête HTTP, où « Révision »
+    n'est pas transportable sans encodage RFC 2047. En JSON, l'UTF-8 passe.
+    Un serveur servi sous un sous-chemin (« https://home/ntfy/sujet ») garde
+    ce chemin dans la base.
+    """
+    parsed = urlparse(url.strip())
+    path = parsed.path.rstrip("/")
+    prefix, _, topic = path.rpartition("/")
+    if parsed.scheme not in ("http", "https") or not parsed.netloc or not topic:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="URL ntfy attendue sous la forme https://serveur/sujet",
+        )
+    return f"{parsed.scheme}://{parsed.netloc}{prefix}", topic
+
+
+def _ntfy_request(webhook: Webhook, title: str, msg: str, status: str) -> tuple[str, dict, dict]:
+    """(url, json, headers) de la publication ntfy — isolé pour être testable sans réseau."""
+    base, topic = _split_ntfy_url(webhook.url)
+    headers = {}
+    if webhook.auth_token:
+        headers["Authorization"] = f"Bearer {webhook.auth_token}"
+    return base, {
+        "topic": topic,
+        "title": title,
+        "message": msg,
+        "priority": NTFY_PRIORITY.get(status, 3),
+        "tags": NTFY_TAGS.get(status, ["wrench"]),
+    }, headers
+
+
+def _discord_request(webhook: Webhook, title: str, msg: str, status: str) -> tuple[str, dict, dict]:
+    color = STATUS_COLORS_DISCORD.get(status, 0x888888)
+    return webhook.url, {
+        "embeds": [{
+            "title": "🔧 Maintenance",
+            "description": msg,
+            "color": color,
+            "footer": {"text": "RideLog"},
+            "timestamp": datetime.now(timezone.utc).isoformat(),
+        }],
+    }, {}
+
+
 async def _send_webhook_request(
     webhook: Webhook,
     title: str,
@@ -388,16 +475,14 @@ async def _send_webhook_request(
     status: str = "ok"
 ):
     """Envoie une requête HTTP au webhook basé sur son type."""
+    if webhook.webhook_type == "ntfy":
+        url, payload, headers = _ntfy_request(webhook, title, msg, status)
+    else:
+        url, payload, headers = _discord_request(webhook, title, msg, status)
+
     async with httpx.AsyncClient(timeout=10.0) as client:
-        # Discord uniquement
-        color = STATUS_COLORS_DISCORD.get(status, 0x888888)
-        label = STATUS_LABELS.get(status, status)
-        await client.post(webhook.url, json={
-            "embeds": [{
-                "title": f"🔧 Maintenance",
-                "description": msg,
-                "color": color,
-                "footer": {"text": "RideLog"},
-                "timestamp": datetime.now(timezone.utc).isoformat(),
-            }],
-        })
+        response = await client.post(url, json=payload, headers=headers)
+        # Sans cette ligne, un webhook Discord supprimé (404) ou un sujet ntfy
+        # protégé (403) comptaient comme « envoyé » : le bouton Tester disait
+        # « succès », et les rappels partaient dans le vide sans une trace.
+        response.raise_for_status()
