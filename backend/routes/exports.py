@@ -63,7 +63,8 @@ def get_maintenance_recap(
     maintenances = (
         db.query(Maintenance)
         .filter(Maintenance.vehicle_id == vehicle_id)
-        .order_by(Maintenance.execution_date.desc())
+        # Même tiebreaker que GET /maintenances : à date égale, la dernière saisie en tête.
+        .order_by(Maintenance.execution_date.desc(), Maintenance.id.desc())
         .all()
     )
 
@@ -140,7 +141,8 @@ def _booklet_pdf(vehicle, db: Session, user: User) -> bytes:
     maintenances = (
         db.query(Maintenance)
         .filter(Maintenance.vehicle_id == vehicle.id)
-        .order_by(Maintenance.execution_date)
+        # Chronologique croissant (§6.7), `id` départageant un même jour.
+        .order_by(Maintenance.execution_date, Maintenance.id)
         .all()
     )
     currency = get_active_currency(db)
@@ -191,7 +193,7 @@ def download_maintenance_recap_zip(
     maintenances = (
         db.query(Maintenance)
         .filter(Maintenance.vehicle_id == vehicle_id)
-        .order_by(Maintenance.execution_date)
+        .order_by(Maintenance.execution_date, Maintenance.id)
         .all()
     )
 

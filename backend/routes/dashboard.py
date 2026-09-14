@@ -143,7 +143,7 @@ def get_dashboard(
         })
 
     # Recent activity (last 10 maintenances)
-    recent = sorted(all_maintenances, key=lambda m: m.execution_date, reverse=True)[:10]
+    recent = sorted(all_maintenances, key=lambda m: (m.execution_date, m.id), reverse=True)[:10]
     recent_activity = []
     for m in recent:
         v = next((v for v in vehicles if v.id == m.vehicle_id), None)

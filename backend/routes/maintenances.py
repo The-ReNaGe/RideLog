@@ -263,8 +263,12 @@ def get_maintenances(
 ):
     require_readable_vehicle(vehicle_id, current_user, db)
 
+    # `id` en second critère : deux interventions saisies le même jour n'ont
+    # pas d'ordre sans lui, et SQLite les rend dans l'ordre d'insertion — la
+    # dernière enregistrée passait SOUS la précédente, comme si la liste
+    # n'était pas triée.
     maintenances = db.query(Maintenance).filter(Maintenance.vehicle_id == vehicle_id).order_by(
-        Maintenance.execution_date.desc()
+        Maintenance.execution_date.desc(), Maintenance.id.desc()
     ).all()
     payload = []
     for maintenance in maintenances:

@@ -151,3 +151,14 @@ def test_who_performed_it_travels_through_the_multipart_form_too(client, headers
     )
     assert res.status_code in (200, 201), res.text
     assert res.json()["performed_by"] == "pro"
+
+
+def test_two_maintenances_on_the_same_day_list_the_latest_recorded_first(client, headers, vehicle_id):
+    """Sans second critère de tri, SQLite rend un même jour dans l'ordre
+    d'insertion : la dernière saisie passait sous la précédente, et la liste
+    paraissait non triée."""
+    first = _record(client, headers, vehicle_id, "Contrôle jeu aux soupapes").json()
+    second = _record(client, headers, vehicle_id, "Synchronisation injection").json()
+
+    listed = client.get(f"/api/vehicles/{vehicle_id}/maintenances", headers=headers).json()
+    assert [m["id"] for m in listed[:2]] == [second["id"], first["id"]]
