@@ -72,6 +72,7 @@ export default function MaintenanceForm({
     cost_paid: '',
     notes: '',
     maintenance_category: 'scheduled',
+    performed_by: '',
     other_title: '',
   });
   const [invoiceFiles, setInvoiceFiles] = useState([]);
@@ -162,6 +163,7 @@ export default function MaintenanceForm({
         payload.append('mileage_at_intervention', String(fmt.toStorage(parseInt(formData.mileage_at_intervention))));
       }
       payload.append('maintenance_category', formData.maintenance_category);
+      if (formData.performed_by) payload.append('performed_by', formData.performed_by);
       if (formData.other_title && formData.intervention_type === 'Autre') {
         payload.append('other_description', formData.other_title);
       }
@@ -303,7 +305,7 @@ export default function MaintenanceForm({
             />
           </div>
 
-          <div className="md:col-span-2">
+          <div>
             <label className="block text-sm font-medium mb-1">{t("Catégorie d'intervention")}*</label>
             <select
               name="maintenance_category"
@@ -314,6 +316,23 @@ export default function MaintenanceForm({
               <option value="scheduled">{t('Entretien')}</option>
               <option value="repair">{t('Réparation / panne')}</option>
               <option value="modification">{t('Modification du véhicule')}</option>
+            </select>
+          </div>
+
+          {/* Facultatif, et « non renseigné » est une vraie option : on ne
+              force pas un choix sur une facture de 2019. Le carnet de vente
+              imprime cette case telle quelle (§6.7). */}
+          <div>
+            <label className="block text-sm font-medium mb-1">{t('Réalisé par')}</label>
+            <select
+              name="performed_by"
+              value={formData.performed_by}
+              onChange={handleChange}
+              className="w-full mb-3"
+            >
+              <option value="">{t('Non renseigné')}</option>
+              <option value="pro">{t('Un professionnel')}</option>
+              <option value="self">{t('Moi-même')}</option>
             </select>
           </div>
         </div>

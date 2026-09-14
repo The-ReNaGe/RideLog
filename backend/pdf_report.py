@@ -84,6 +84,12 @@ CATEGORY_LABELS = {
     "modification": "Modification",
 }
 
+# Qui a réalisé l'intervention. Libellés complets pour le CSV ; le carnet
+# abrège « Professionnel » en « Pro » — la colonne fait 18 mm, et « Soi-même »
+# y tient déjà de justesse.
+PERFORMED_BY_LABELS = {"pro": "Professionnel", "self": "Soi-même"}
+PERFORMED_BY_SHORT = {"pro": "Pro", "self": "Soi-même"}
+
 MOTORIZATION_LABELS = {
     "essence": "Essence",
     "diesel": "Diesel",
@@ -308,7 +314,7 @@ def _detail_flowables(maintenance, styles) -> list:
 def _history_table(maintenances, styles, units: str, fallback_currency: str) -> Table:
     # La somme des largeurs vaut CONTENT_WIDTH (174 mm) — au-delà, le tableau
     # déborde de la feuille sans qu'aucune erreur ne le signale.
-    widths = [19 * mm, 20 * mm, 20 * mm, 36 * mm, 46 * mm, 19 * mm, 14 * mm]
+    widths = [19 * mm, 20 * mm, 18 * mm, 32 * mm, 34 * mm, 18 * mm, 19 * mm, 14 * mm]
     # « Factures » plutôt que « Just. » : la mention de pied qui expliquait
     # l'abréviation a été retirée, un en-tête doit donc se suffire.
     # Les trois colonnes de chiffres sont alignées à droite, en-tête compris,
@@ -317,8 +323,8 @@ def _history_table(maintenances, styles, units: str, fallback_currency: str) -> 
         Paragraph(label, styles["head_right"] if right else styles["head"])
         for label, right in (
             ("Date", False), ("Compteur", True), ("Catégorie", False),
-            ("Intervention", False), ("Détail", False), ("Coût", True),
-            ("Factures", True),
+            ("Intervention", False), ("Détail", False), ("Par", False),
+            ("Coût", True), ("Factures", True),
         )
     ]
     data = [header]
@@ -341,6 +347,9 @@ def _history_table(maintenances, styles, units: str, fallback_currency: str) -> 
                 ),
                 Paragraph(_escape(label), styles["cell_bold"]),
                 _detail_flowables(m, styles),
+                # « — » plutôt qu'une case vide : une colonne à trous se lit
+                # comme un oubli de mise en page, un tiret comme une réponse.
+                Paragraph(PERFORMED_BY_SHORT.get(m.performed_by, "—"), styles["cell"]),
                 Paragraph(_money(m.cost_paid, m.currency, fallback_currency), styles["cell_right"]),
                 Paragraph(str(invoices) if invoices else "—", styles["cell_right"]),
             ]

@@ -293,6 +293,12 @@ class Maintenance(Base):
     maintenance_category = Column(String(50), default="scheduled", nullable=False)  # scheduled, repair
     other_description = Column(String(200), nullable=True)  # Custom title for 'Autre' intervention type
     sub_interventions = Column(JSON, nullable=True)  # Liste des interventions détaillées (checklist révision)
+    # Qui a fait le travail : "pro" (garage, concessionnaire) ou "self" (le
+    # propriétaire). NULL = non renseigné — tout l'historique antérieur à la
+    # migration 016, et un choix qu'on ne force pas : « je ne sais plus » est
+    # une réponse honnête sur une facture de 2019. C'est la question qu'un
+    # acheteur pose en premier devant un carnet (§6.7).
+    performed_by = Column(String(10), nullable=True)
     created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
 
     vehicle = relationship("Vehicle", back_populates="maintenances")
@@ -312,6 +318,7 @@ class Maintenance(Base):
             "maintenance_category": self.maintenance_category,
             "other_description": self.other_description,
             "sub_interventions": self.sub_interventions,
+            "performed_by": self.performed_by,
             "invoices": [inv.to_dict() for inv in self.invoices],
             "created_at": self.created_at.isoformat(),
         }

@@ -37,6 +37,26 @@ ALLOWED_INVOICE_MIME_TYPES = {
 }
 MAX_INVOICE_SIZE_BYTES = 10 * 1024 * 1024
 
+# Qui a fait le travail. Deux valeurs et pas de texte libre : c'est une case
+# que le carnet d'entretien (§6.7) imprime telle quelle dans une colonne de
+# 18 mm, et qu'un acheteur doit pouvoir comparer d'une ligne à l'autre.
+PERFORMED_BY_VALUES = {"pro", "self"}
+
+
+def _parse_performed_by(raw) -> Optional[str]:
+    """Normalise la valeur reçue ; "" et None = non renseigné, autre = 400."""
+    if raw is None:
+        return None
+    value = str(raw).strip().lower()
+    if not value:
+        return None
+    if value not in PERFORMED_BY_VALUES:
+        raise HTTPException(
+            status_code=400,
+            detail="performed_by doit valoir 'pro', 'self', ou rester vide",
+        )
+    return value
+
 
 def _load_overrides(vehicle_id: int, db: Session) -> dict:
     rows = db.query(VehicleMaintenanceOverride).filter(
@@ -243,8 +263,12 @@ def get_maintenances(
 ):
     require_readable_vehicle(vehicle_id, current_user, db)
 
+    # `id` en second critère : deux interventions saisies le même jour n'ont
+    # pas d'ordre sans lui, et SQLite les rend dans l'ordre d'insertion — la
+    # dernière enregistrée passait SOUS la précédente, comme si la liste
+    # n'était pas triée.
     maintenances = db.query(Maintenance).filter(Maintenance.vehicle_id == vehicle_id).order_by(
-        Maintenance.execution_date.desc()
+        Maintenance.execution_date.desc(), Maintenance.id.desc()
     ).all()
     payload = []
     for maintenance in maintenances:
@@ -286,6 +310,7 @@ async def create_maintenance(
             "maintenance_category": form.get("maintenance_category", "scheduled"),
             "other_description": form.get("other_description"),
             "sub_interventions": sub_interventions,
+            "performed_by": form.get("performed_by"),
         }
         invoice_files = form.getlist("invoice_files") if "invoice_files" in form else []
     else:
@@ -329,6 +354,7 @@ async def create_maintenance(
         maintenance_category=data.get("maintenance_category", "scheduled"),
         other_description=data.get("other_description"),
         sub_interventions=data.get("sub_interventions"),
+        performed_by=_parse_performed_by(data.get("performed_by")),
     )
     db.add(maintenance)
     db.flush()
@@ -392,6 +418,9 @@ async def update_maintenance(
             "cost_paid": form.get("cost_paid"),
             "notes": form.get("notes"),
         }
+        # Absent du formulaire = ne pas toucher (même convention que le JSON).
+        if "performed_by" in form:
+            data["performed_by"] = form.get("performed_by")
         raw_sub_interventions = form.get("sub_interventions")
         if raw_sub_interventions:
             try:
@@ -432,6 +461,10 @@ async def update_maintenance(
 
     if "sub_interventions" in data:
         maintenance.sub_interventions = data.get("sub_interventions")
+
+    # Champ absent = ne pas toucher, vide = effacer (revenir à « non renseigné »).
+    if "performed_by" in data:
+        maintenance.performed_by = _parse_performed_by(data.get("performed_by"))
 
     if invoice_files:
         for file in invoice_files:

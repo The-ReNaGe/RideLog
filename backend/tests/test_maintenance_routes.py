@@ -88,3 +88,77 @@ def test_recorded_maintenance_is_matched_to_its_upcoming_item(client, headers, v
         if item["intervention_key"] == "valve_clearance"
     )
     assert valve["never_recorded"] is False
+
+
+# ── Qui a fait le travail ─────────────────────────────────────────────────
+
+
+def test_a_maintenance_records_who_performed_it(client, headers, vehicle_id):
+    res = _record(client, headers, vehicle_id, "Révision fourche", performed_by="pro")
+    assert res.status_code in (200, 201), res.text
+    assert res.json()["performed_by"] == "pro"
+
+    listed = client.get(f"/api/vehicles/{vehicle_id}/maintenances", headers=headers).json()
+    assert listed[0]["performed_by"] == "pro"
+
+
+def test_who_performed_it_is_optional_and_defaults_to_unknown(client, headers, vehicle_id):
+    """« Je ne sais plus » est une réponse honnête sur une facture de 2019 :
+    le champ ne se force pas, et vide veut dire vide — pas « soi-même »."""
+    res = _record(client, headers, vehicle_id, "Révision fourche")
+    assert res.json()["performed_by"] is None
+
+    res = _record(client, headers, vehicle_id, "Révision fourche", performed_by="")
+    assert res.json()["performed_by"] is None
+
+
+def test_an_unknown_performer_value_is_refused(client, headers, vehicle_id):
+    """Deux valeurs, pas de texte libre : le carnet imprime cette case dans
+    une colonne de 18 mm, et un acheteur doit pouvoir la comparer d'une ligne
+    à l'autre."""
+    res = _record(client, headers, vehicle_id, "Révision fourche", performed_by="mon cousin")
+    assert res.status_code == 400
+
+
+def test_who_performed_it_can_be_changed_or_cleared_afterwards(client, headers, vehicle_id):
+    created = _record(client, headers, vehicle_id, "Révision fourche", performed_by="self").json()
+    url = f"/api/vehicles/{vehicle_id}/maintenances/{created['id']}"
+
+    # Un PUT qui ne parle pas du champ ne le touche pas.
+    res = client.put(url, headers=headers, json={"notes": "rien à voir"})
+    assert res.json()["performed_by"] == "self"
+
+    res = client.put(url, headers=headers, json={"performed_by": "pro"})
+    assert res.json()["performed_by"] == "pro"
+
+    # Vide = revenir à « non renseigné ».
+    res = client.put(url, headers=headers, json={"performed_by": ""})
+    assert res.json()["performed_by"] is None
+
+
+def test_who_performed_it_travels_through_the_multipart_form_too(client, headers, vehicle_id):
+    """Le formulaire de l'interface envoie du multipart (factures jointes) :
+    le champ doit passer par ce chemin comme par le JSON."""
+    res = client.post(
+        f"/api/vehicles/{vehicle_id}/maintenances", headers=headers,
+        data={
+            "intervention_type": "Révision fourche",
+            "execution_date": "2026-01-15T10:00:00",
+            "mileage_at_intervention": "20500",
+            "performed_by": "pro",
+        },
+        files={"invoice_files": ("", b"")},
+    )
+    assert res.status_code in (200, 201), res.text
+    assert res.json()["performed_by"] == "pro"
+
+
+def test_two_maintenances_on_the_same_day_list_the_latest_recorded_first(client, headers, vehicle_id):
+    """Sans second critère de tri, SQLite rend un même jour dans l'ordre
+    d'insertion : la dernière saisie passait sous la précédente, et la liste
+    paraissait non triée."""
+    first = _record(client, headers, vehicle_id, "Contrôle jeu aux soupapes").json()
+    second = _record(client, headers, vehicle_id, "Synchronisation injection").json()
+
+    listed = client.get(f"/api/vehicles/{vehicle_id}/maintenances", headers=headers).json()
+    assert [m["id"] for m in listed[:2]] == [second["id"], first["id"]]

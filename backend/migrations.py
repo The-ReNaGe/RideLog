@@ -625,6 +625,17 @@ def _m015_vehicle_license_plate(conn: Connection) -> None:
     add_column_if_missing(conn, "vehicles", "license_plate", "VARCHAR(20)")
 
 
+def _m016_maintenance_performed_by(conn: Connection) -> None:
+    """Qui a réalisé l'intervention : un professionnel ou le propriétaire.
+
+    « Entretien concessionnaire » ou « fait maison » est la première question
+    d'un acheteur devant un carnet — et la seule que le document (§6.7) ne
+    savait pas poser. Purement additive : NULL = non renseigné, valeur de
+    tout l'historique existant, qu'on ne réécrit pas à la devinette.
+    """
+    add_column_if_missing(conn, "maintenances", "performed_by", "VARCHAR(10)")
+
+
 MIGRATIONS: list[Migration] = [
     Migration(
         1, "maintenance_category",
@@ -721,6 +732,11 @@ MIGRATIONS: list[Migration] = [
         15, "vehicle_license_plate",
         _m015_vehicle_license_plate,
         lambda c: has_all_columns(c, "vehicles", "license_plate"),
+    ),
+    Migration(
+        16, "maintenance_performed_by",
+        _m016_maintenance_performed_by,
+        lambda c: has_all_columns(c, "maintenances", "performed_by"),
     ),
 ]
 

@@ -281,3 +281,34 @@ def test_a_note_containing_markup_is_not_taken_for_formatting(client, headers, v
     _record(client, headers, vehicle_id, "Remplacement pneus",
             "2024-03-04T10:00:00", 12000, notes="pneus <avant & arrière>")
     assert _booklet(client, headers, vehicle_id).content.startswith(b"%PDF")
+
+
+def test_the_booklet_says_who_performed_each_intervention(client, headers, vehicle_id):
+    """La première question d'un acheteur devant un carnet : entretien
+    concessionnaire ou fait maison ? Une ligne non renseignée porte un tiret,
+    pas une case vide — une colonne à trous se lit comme un oubli."""
+    _record(client, headers, vehicle_id, "Révision fourche",
+            "2024-03-04T10:00:00", 12000, performed_by="pro")
+    _record(client, headers, vehicle_id, "Remplacement liquide de frein",
+            "2025-03-04T10:00:00", 18000, performed_by="self")
+    _record(client, headers, vehicle_id, "Liquide de refroidissement",
+            "2026-03-04T10:00:00", 24000)
+
+    text = _pdf_text(_booklet(client, headers, vehicle_id).content)
+    assert "Par" in text
+    assert "Pro" in text
+    assert "Soi-même" in text
+    assert text.index("Pro") < text.index("Soi-même")
+
+
+def test_the_csv_carries_who_performed_it_in_full_words(client, headers, vehicle_id):
+    _record(client, headers, vehicle_id, "Révision fourche",
+            "2024-03-04T10:00:00", 12000, performed_by="pro")
+
+    res = client.get(f"/api/vehicles/{vehicle_id}/recap/download", headers=headers)
+    csv_text = zipfile.ZipFile(BytesIO(res.content)).read(
+        "recapitulatif_entretiens.csv"
+    ).decode("utf-8")
+    lines = csv_text.splitlines()
+    assert "Réalisé par" in lines[0]
+    assert "Professionnel" in lines[1]

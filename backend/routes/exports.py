@@ -13,7 +13,7 @@ import zipfile
 from pathlib import Path
 from currency import totals_by_currency
 from settings_store import get_active_currency, effective_preferences
-from pdf_report import build_maintenance_booklet
+from pdf_report import build_maintenance_booklet, PERFORMED_BY_LABELS
 
 router = APIRouter(prefix="/vehicles", tags=["exports"])
 
@@ -63,7 +63,8 @@ def get_maintenance_recap(
     maintenances = (
         db.query(Maintenance)
         .filter(Maintenance.vehicle_id == vehicle_id)
-        .order_by(Maintenance.execution_date.desc())
+        # Même tiebreaker que GET /maintenances : à date égale, la dernière saisie en tête.
+        .order_by(Maintenance.execution_date.desc(), Maintenance.id.desc())
         .all()
     )
 
@@ -100,6 +101,7 @@ def get_maintenance_recap(
             "notes": m.notes,
             "maintenance_category": m.maintenance_category or "scheduled",
             "other_description": m.other_description,
+            "performed_by": m.performed_by,
             "has_invoice": len(m.invoices or []) > 0,
             "invoice_count": len(m.invoices or []),
             "invoices": invoice_details,
@@ -139,7 +141,8 @@ def _booklet_pdf(vehicle, db: Session, user: User) -> bytes:
     maintenances = (
         db.query(Maintenance)
         .filter(Maintenance.vehicle_id == vehicle.id)
-        .order_by(Maintenance.execution_date)
+        # Chronologique croissant (§6.7), `id` départageant un même jour.
+        .order_by(Maintenance.execution_date, Maintenance.id)
         .all()
     )
     currency = get_active_currency(db)
@@ -190,7 +193,7 @@ def download_maintenance_recap_zip(
     maintenances = (
         db.query(Maintenance)
         .filter(Maintenance.vehicle_id == vehicle_id)
-        .order_by(Maintenance.execution_date)
+        .order_by(Maintenance.execution_date, Maintenance.id)
         .all()
     )
 
@@ -224,7 +227,7 @@ def download_maintenance_recap_zip(
             # « Coût » et « Devise » séparés : chaque montant porte la devise de
             # sa saisie (§20.7), un en-tête « Coût (€) » en figerait une pour
             # tout l'historique et mentirait dès la première ligne en dollars.
-            fieldnames=["Date", "Catégorie", "Intervention", "Kilométrage", "Coût", "Devise", "Notes", "Document"],
+            fieldnames=["Date", "Catégorie", "Intervention", "Réalisé par", "Kilométrage", "Coût", "Devise", "Notes", "Document"],
         )
         writer.writeheader()
         for m in maintenances:
@@ -246,6 +249,7 @@ def download_maintenance_recap_zip(
                 "Date": m.execution_date.strftime("%Y-%m-%d"),
                 "Catégorie": category_display,
                 "Intervention": intervention_display,
+                "Réalisé par": PERFORMED_BY_LABELS.get(m.performed_by, ""),
                 "Kilométrage": m.mileage_at_intervention,
                 "Coût": f"{m.cost_paid:.2f}" if m.cost_paid else "",
                 "Devise": (m.currency or zip_currency) if m.cost_paid else "",
