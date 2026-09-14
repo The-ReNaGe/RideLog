@@ -1,5 +1,16 @@
 # Changelog
 
+## [2.7.0](https://github.com/The-ReNaGe/RideLog/compare/v2.6.0...v2.7.0) (2026-09-14)
+
+
+### Features
+
+* **notifications:** envoie aussi les rappels sur Gotify ([ba4be12](https://github.com/The-ReNaGe/RideLog/commit/ba4be1232e0c83ce9aed5d6c43190d744ce3e8c8))
+* **notifications:** envoie les rappels sur ntfy, en push sur le téléphone ([3ac24b3](https://github.com/The-ReNaGe/RideLog/commit/3ac24b305fbabb761f96cb140da2726583fe5013))
+* **notifications:** rappels en push sur le téléphone, ntfy et Gotify aux côtés de Discord ([228ee18](https://github.com/The-ReNaGe/RideLog/commit/228ee18ea833c824c42f20c427ba34a8b82375a2))
+* **paramètres:** Gotify dans le choix du service de notification ([05e4b46](https://github.com/The-ReNaGe/RideLog/commit/05e4b468c1b43dd919dd170fd3303bbd02deae2e))
+* **paramètres:** l'onglet Discord devient Notifications, avec le choix du service ([8f3af9f](https://github.com/The-ReNaGe/RideLog/commit/8f3af9f4a1c83ae894b2d52649f48254c5fd6483))
+
 ## [2.6.0](https://github.com/The-ReNaGe/RideLog/compare/v2.5.0...v2.6.0) (2026-09-14)
 
 
