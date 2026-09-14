@@ -774,7 +774,7 @@ Trois pièges déjà rencontrés, à ne pas défaire :
 |---|---|
 | **Les notes passent par `_escape()`** | reportlab interprète un mini-langage de balises dans ses paragraphes. Une note « pneus \<avant & arrière\> » faisait échouer toute la mise en page — le vendeur perdait son document à cause d'un chevron. |
 | **La pagination « 2/3 » impose un canevas différé** | Au moment où la page 2 est peinte, le total n'existe pas. `_numbered_canvas()` retient chaque page et les rejoue à la fermeture. « Page 2 » seul n'apprend pas à l'acheteur qu'il lui manque une feuille. |
-| **La somme des largeurs de colonnes doit valoir `CONTENT_WIDTH`** | 174 mm en A4. Au-delà, le tableau déborde de la feuille sans qu'aucune erreur ne le signale. |
+| **La somme des largeurs de colonnes doit valoir `CONTENT_WIDTH`** | 174 mm en A4. Au-delà, le tableau déborde de la feuille sans qu'aucune erreur ne le signale. Et une colonne trop étroite pour son mot le plus long ne déborde pas non plus : reportlab le **scinde** (« Soi-mêm / e »), voir §6.8. |
 | **Les sous-interventions sont une liste à puces, pas une phrase** | Jointes par des points médians, les neuf postes d'un entretien annuel donnaient un pavé de huit lignes coupées n'importe où — on n'y distinguait plus « Remplacement filtre à air » de « Remplacement filtre à huile ». Une puce par poste tient dans la même hauteur et se parcourt d'un regard. Le style `bullet` a `leftIndent` > `bulletIndent` : sans cet écart, les lignes de repli repassent sous le tiret et le pavé revient. |
 
 Le carnet respecte les **unités** du compte qui l'exporte
@@ -789,6 +789,43 @@ la première ligne saisie en dollars.
 
 **Dépendance** : `reportlab` (roue `py3-none-any`, donc aucune compilation en
 arm64 — voir §21.4).
+
+### 6.8 Qui a fait le travail — `performed_by` (migration 016)
+
+`maintenances.performed_by` : `pro` (garage, concessionnaire), `self` (le
+propriétaire), ou **NULL = non renseigné**. C'est la première question qu'un
+acheteur pose devant un carnet — « entretien concessionnaire ou fait maison ? »
+— et la seule que le document (§6.7) ne savait pas poser.
+
+Trois choix qui ne sont pas des détails :
+
+| | |
+|---|---|
+| **Deux valeurs, pas de texte libre** | Le carnet imprime la case telle quelle dans une colonne de 18 mm, et un acheteur doit pouvoir la comparer d'une ligne à l'autre. Une valeur inconnue est refusée en **400** (`_parse_performed_by()`, `routes/maintenances.py`), jamais rangée sous un défaut. |
+| **NULL est une vraie réponse** | « Je ne sais plus » est honnête sur une facture de 2019. Le formulaire propose « Non renseigné » en premier et rien n'est pré-coché ; tout l'historique antérieur à la migration reste NULL — on ne réécrit pas le passé à la devinette. Dans l'interface, `PerformerTag` **ne rend rien** dans ce cas ; dans le carnet, la case porte un tiret — une colonne à trous se lit comme un oubli de mise en page, un tiret comme une réponse. |
+| **Convention du `PUT`** | Champ absent = ne pas toucher, chaîne vide = effacer (revenir à NULL). C'est celle de `country` et de `license_plate` (§5). L'éditeur de l'historique envoie donc **toujours** le champ, même vide. |
+
+**Où il apparaît** : `MaintenanceForm` (sélecteur, à côté de la catégorie),
+`MaintenanceHistory` (badge neutre + sélecteur en édition), l'onglet
+Récapitulatif de `VehicleDetail` (badge), le carnet PDF (colonne « Par »,
+« Pro » / « Soi-même »), le CSV du ZIP (colonne « Réalisé par », en toutes
+lettres). Les deux tables de libellés vivent dans `pdf_report.py`
+(`PERFORMED_BY_LABELS` / `PERFORMED_BY_SHORT`) ; le frontend a la sienne dans
+`PerformerTag.jsx`.
+
+> **Le badge est neutre, volontairement.** Ce n'est ni un état ni une alerte,
+> et `CategoryTag` porte déjà la seule couleur de la ligne (§23.2). Une
+> seconde couleur ferait deux badges à égalité et aucune hiérarchie.
+
+> **La colonne « Par » fait 18 mm, pas 14.** À 8,5 pt, « Soi-même » mesure
+> 13,7 mm ; avec les 2,8 mm de marges internes, une colonne de 16 mm le
+> coupait en « Soi-mêm / e » — reportlab scinde un mot trop long au lieu de
+> déborder, et rien ne le signale. Les 4 mm ont été pris sur « Détail » et
+> « Intervention », et la somme vaut toujours `CONTENT_WIDTH`.
+
+Tests : bloc « Qui a fait le travail » de `tests/test_maintenance_routes.py`
+(JSON, multipart, PUT, refus d'une valeur libre) et les deux derniers tests
+de `tests/test_maintenance_booklet.py` (colonne du carnet, CSV).
 
 ### 6.6 Pour modifier
 
@@ -1116,6 +1153,7 @@ frontend/src/
     ├── Notice.jsx                   # Encart d'explication/résultat (tons info, success, warning, danger, neutral)
     ├── PageHeader.jsx               # En-tête de page : titre, précision, actions
     ├── CategoryTag.jsx              # Catégorie d'intervention (entretien / réparation / modification)
+    ├── PerformerTag.jsx             # Qui a fait le travail (professionnel / soi-même) — voir §6.8
     ├── VehicleCard.jsx              # Carte véhicule (React.memo)
     ├── VehiclePhoto.jsx             # ★ Photo véhicule — charge le binaire via Axios (JWT) et l'affiche en object URL ★
     ├── VehicleForm.jsx              # Formulaire création/édition véhicule
@@ -1215,7 +1253,7 @@ api.getMaintenanceRecap(vehicleId),  // ← chargé d'emblée pour les KPI cards
 |-------|------|-------------|
 | `users` | id, username (unique) | Comptes utilisateurs (is_admin, is_integration_account) |
 | `vehicles` | id, user_id (FK) | Véhicules du parc. `country` = pays d'immatriculation, NULL = suit l'instance (voir §20.7). `license_plate` = plaque normalisée par la région, NULL = non renseignée |
-| `maintenances` | id, vehicle_id (FK), intervention_key | Historique d'entretien. `intervention_key` fait foi pour les calculs ; `intervention_type` n'est qu'un libellé d'affichage (voir §20). `currency` = devise de saisie, NULL = suit l'instance (§20.7) |
+| `maintenances` | id, vehicle_id (FK), intervention_key | Historique d'entretien. `intervention_key` fait foi pour les calculs ; `intervention_type` n'est qu'un libellé d'affichage (voir §20). `currency` = devise de saisie, NULL = suit l'instance (§20.7). `performed_by` = `pro` / `self` / NULL (§6.8) |
 | `maintenance_invoices` | id, maintenance_id (FK) | Factures jointes |
 | `fuel_logs` | id, vehicle_id (FK) | Pleins de carburant. `currency` comme ci-dessus |
 | `webhooks` | id, user_id (FK) | Webhooks Discord configurés |
@@ -1865,8 +1903,8 @@ python -m pytest tests/ -v
 | `test_currency.py` | Devise d'un montant et conversion (`currency.py`, `routes/regions.py`) — un montant garde la devise de sa saisie même après un changement de réglage, une ligne non marquée est figée sur la devise sortante, un total à deux devises est ventilé et non additionné, l'aperçu ne touche rien, la conversion recalcule et ré-estampille, une troisième devise est laissée intacte, et seul un admin peut convertir. |
 | `test_ha_init.py` | `/auth/ha-init` — la clé passe par l'en-tête `X-HA-Init-Key`, le paramètre d'URL reste accepté mais journalise un avertissement qui ne contient pas la clé, une clé fausse est refusée puis plafonnée par IP, un succès remet le compteur à zéro, l'intégration désactivée prime sur une clé valide, et l'absence de clé serveur rend 503 et non 403. Voir §4. |
 | `test_regions_settings.py` | Choix du pays (`settings_store.py`, `routes/regions.py`) — France par défaut, refus d'un pays inconnu, écriture réservée à un admin, persistance **en base** et non en mémoire, et repli sur `FR` quand la base garde un pays que le code ne connaît plus (retour arrière, §21.5). |
-| `test_maintenance_routes.py` | Enregistrement d'un entretien via `TestClient` — la clé technique est stockée, deux libellés d'une même intervention partagent une clé, un libellé inconnu n'échoue pas, et l'entretien enregistré ressort bien rattaché à son échéance. |
-| `test_maintenance_booklet.py` | Carnet d'entretien PDF (`pdf_report.py`, route `recap/booklet.pdf`) — c'est bien un PDF, l'ordre est chronologique croissant, un historique à deux devises n'est jamais additionné sous un symbole unique, le contrôle d'accès passe par `access.py` (véhicule d'autrui indiscernable d'un véhicule absent), le carnet est présent dans l'archive ZIP, le CSV nomme sa devise, un historique vide et une note contenant des chevrons ne cassent rien. Côté identité : la plaque est imprimée et normalisée (« ab123cd » → « AB-123-CD »), une plaque illisible est refusée en 400 plutôt que stockée telle quelle, un véhicule sans plaque omet la ligne, et le surnom `vehicle.name` n'apparaît jamais. Le texte est extrait du flux PDF, sans lecteur PDF en dépendance. |
+| `test_maintenance_routes.py` | Enregistrement d'un entretien via `TestClient` — la clé technique est stockée, deux libellés d'une même intervention partagent une clé, un libellé inconnu n'échoue pas, et l'entretien enregistré ressort bien rattaché à son échéance. Plus `performed_by` (§6.8) : stocké, facultatif, refusé hors `pro`/`self`, modifiable et effaçable, transmis en multipart. |
+| `test_maintenance_booklet.py` | Carnet d'entretien PDF (`pdf_report.py`, route `recap/booklet.pdf`) — c'est bien un PDF, l'ordre est chronologique croissant, un historique à deux devises n'est jamais additionné sous un symbole unique, le contrôle d'accès passe par `access.py` (véhicule d'autrui indiscernable d'un véhicule absent), le carnet est présent dans l'archive ZIP, le CSV nomme sa devise, un historique vide et une note contenant des chevrons ne cassent rien. Côté identité : la plaque est imprimée et normalisée (« ab123cd » → « AB-123-CD »), une plaque illisible est refusée en 400 plutôt que stockée telle quelle, un véhicule sans plaque omet la ligne, et le surnom `vehicle.name` n'apparaît jamais. La colonne « Par » imprime « Pro » / « Soi-même » et le CSV « Professionnel » (§6.8). Le texte est extrait du flux PDF, sans lecteur PDF en dépendance. |
 | `test_vehicle_status.py` | État d'entretien joint à `GET /vehicles` — présence des compteurs, accord avec `/upcoming`, et surtout : un véhicule **partagé par le groupe famille** porte le sien aussi (voir §23.9). |
 | `test_auth_integration.py` | Routes `/auth/*` et `/admin/users/*` via `TestClient` sur une DB SQLite temporaire — register/login, changement de mot de passe, reset admin, mot de passe temporaire (`must_change_password`), demande de reset anti-énumération, et non-énumération des identifiants à l'inscription (voir §4). |
 
