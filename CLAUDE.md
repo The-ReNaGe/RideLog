@@ -2578,6 +2578,27 @@ processeur.
 > Une dépendance ajoutée sans wheel `aarch64` ferait échouer le build ARM. C'est
 > le bon comportement : l'échec est visible en CI, pas chez les utilisateurs.
 
+### 21.4 bis Les paquets système sont mis à jour à la construction
+
+Les deux Dockerfiles appliquent les mises à jour de sécurité de leur base
+(`apt-get upgrade` côté Debian, `apk upgrade` côté Alpine) **avant tout le
+reste**. Le scan Trivy nocturne (`.github/workflows/trivy.yml`) avait trouvé
+trois CVE critiques dans `perl-base` de `ridelog-backend:stable` — paquet
+essentiel de Debian, impossible à retirer — alors que le correctif
+(`5.40.1-6+deb13u1`) était publié depuis longtemps : `python:3.11-slim`
+n'avait simplement pas été reconstruit entre-temps, et le Dockerfile prenait
+ses paquets tels quels.
+
+Deux conséquences à garder en tête :
+
+- **Le tag `stable` ne se répare pas tout seul.** La promotion ne reconstruit
+  jamais (§21.2) : un correctif de ce genre n'atteint `stable` qu'à la
+  prochaine version promue. Entre-temps, le scan nocturne reste rouge — c'est
+  l'information, pas un bug du scan.
+- **Reproduire le scan en local** : `podman save` l'image, puis
+  `trivy image --input image.tar --scanners vuln --severity CRITICAL
+  --ignore-unfixed --exit-code 1`, mêmes options que le workflow.
+
 ### 21.5 Retour arrière — image **et** base
 
 Revenir à une image ancienne ne fait pas revenir la base. Le système de

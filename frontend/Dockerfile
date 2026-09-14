@@ -19,6 +19,11 @@ RUN npm run build
 # ---- Stage 2: Serve with nginx ----
 FROM nginx:alpine
 
+# Même règle que pour le backend : les mises à jour de sécurité de la base
+# s'appliquent à la construction, sans attendre la prochaine reconstruction
+# du tag amont.
+RUN apk upgrade --no-cache
+
 # Copy custom nginx config
 COPY nginx.conf /etc/nginx/conf.d/default.conf
 
