@@ -636,6 +636,18 @@ def _m016_maintenance_performed_by(conn: Connection) -> None:
     add_column_if_missing(conn, "maintenances", "performed_by", "VARCHAR(10)")
 
 
+def _m017_webhook_auth_token(conn: Connection) -> None:
+    """Le jeton d'accès d'un canal de notification.
+
+    Discord n'en a pas besoin, son URL de webhook porte déjà son secret. ntfy,
+    lui, protège ses sujets par un jeton « tk_… » dès qu'un serveur auto-hébergé
+    n'est pas ouvert à tous — ce qui est la configuration recommandée. Sans
+    colonne, il aurait fallu le glisser dans l'URL, où la liste des webhooks
+    l'aurait affiché en clair. NULL pour tout l'existant.
+    """
+    add_column_if_missing(conn, "webhooks", "auth_token", "VARCHAR(255)")
+
+
 MIGRATIONS: list[Migration] = [
     Migration(
         1, "maintenance_category",
@@ -737,6 +749,11 @@ MIGRATIONS: list[Migration] = [
         16, "maintenance_performed_by",
         _m016_maintenance_performed_by,
         lambda c: has_all_columns(c, "maintenances", "performed_by"),
+    ),
+    Migration(
+        17, "webhook_auth_token",
+        _m017_webhook_auth_token,
+        lambda c: has_all_columns(c, "webhooks", "auth_token"),
     ),
 ]
 

@@ -269,7 +269,7 @@ export const api = {
   getVehicleEstimate: (vehicleId) => client.get(`/vehicles/${vehicleId}/estimate`),
   getHaDashboardCard: (vehicleId) => client.get(`/vehicles/${vehicleId}/ha-dashboard-card`),
 
-  // Webhooks / Discord
+  // Canaux de notification (Discord, ntfy)
   getWebhooks: () => client.get('/settings/webhooks'),
   createWebhook: (data) => client.post('/settings/webhooks', data),
   deleteWebhook: (id) => client.delete(`/settings/webhooks/${id}`),

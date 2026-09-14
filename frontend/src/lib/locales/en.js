@@ -55,7 +55,7 @@ export const EN = {
 
   // ── Onglets des paramètres ──────────────────────────────────────────────
   'Préférences': 'Preferences',
-  'Discord': 'Discord',
+  'Notifications': 'Notifications',
   'Home Assistant': 'Home Assistant',
   'Rappels': 'Reminders',
   'Famille': 'Household',
