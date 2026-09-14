@@ -468,4 +468,4 @@ This project is licensed under [AGPL-3.0](LICENSE).
 
 ---
 
-<p align="right">RideLog v2.5.0</p> <!-- x-release-please-version -->
+<p align="right">RideLog v2.6.0</p> <!-- x-release-please-version -->

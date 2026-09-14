@@ -1,5 +1,20 @@
 # Changelog
 
+## [2.6.0](https://github.com/The-ReNaGe/RideLog/compare/v2.5.0...v2.6.0) (2026-09-14)
+
+
+### Features
+
+* **carnet:** dit qui a réalisé chaque intervention, dans le PDF et le CSV ([a47cba4](https://github.com/The-ReNaGe/RideLog/commit/a47cba4d64a58891bc4f82576d57d5bd9bae6379))
+* **entretien:** enregistre qui a réalisé l'intervention, professionnel ou soi-même ([5ec3ddf](https://github.com/The-ReNaGe/RideLog/commit/5ec3ddfdbae7ea88f9690dc84242a1a06044d970))
+* **entretien:** qui a réalisé chaque intervention, du formulaire au carnet de vente ([20f7d21](https://github.com/The-ReNaGe/RideLog/commit/20f7d2197bffee7d988ee33121da63650eb5c350))
+* **historique:** choisit et affiche qui a fait le travail ([d4c785c](https://github.com/The-ReNaGe/RideLog/commit/d4c785c98f96cebb1327c23d428386a1a4c71c6d))
+
+
+### Bug Fixes
+
+* **historique:** deux interventions d'un même jour, la dernière saisie en tête ([c5ac477](https://github.com/The-ReNaGe/RideLog/commit/c5ac477d5271aed6ab6a0fc654f92ee6c7e7e8a0))
+
 ## [2.5.0](https://github.com/The-ReNaGe/RideLog/compare/v2.4.3...v2.5.0) (2026-09-11)
 
 
