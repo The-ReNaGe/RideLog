@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { api } from '../lib/api';
-import DiscordIntegration from '../components/integrations/DiscordIntegration';
+import NotificationChannels from '../components/integrations/NotificationChannels';
 import HomeAssistantIntegration from '../components/integrations/HomeAssistantIntegration';
 import APIDocumentation from '../components/APIDocumentation';
 import FamilySettings from '../components/FamilySettings';
@@ -14,13 +14,13 @@ import { UNIT_SYSTEMS } from '../lib/units';
 import Flag from '../components/Flag';
 
 // Libellés d'onglets passés à t() dynamiquement (`t(tab.label)`).
-// i18n: 'Préférences', 'Discord', 'Home Assistant', 'Rappels', 'Famille', 'Compte', 'Inscription', 'API'
+// i18n: 'Préférences', 'Notifications', 'Home Assistant', 'Rappels', 'Famille', 'Compte', 'Inscription', 'API'
 const TABS = [
   // Les préférences d'abord : c'est le premier réglage qu'on cherche, et
   // c'était jusqu'ici le plus difficile à trouver — le pays dans un onglet
   // admin séparé, la langue enfouie dans « Compte ».
   { key: 'preferences',   icon: 'sliders',  label: 'Préférences' },
-  { key: 'discord',       icon: 'message',  label: 'Discord' },
+  { key: 'notifications', icon: 'send',     label: 'Notifications' },
   { key: 'homeassistant', icon: 'home',     label: 'Home Assistant' },
   { key: 'reminders',     icon: 'bell',     label: 'Rappels' },
   { key: 'famille',       icon: 'users',    label: 'Famille' },
@@ -56,8 +56,8 @@ export default function Settings({ currentUser }) {
         ))}
       </div>
 
-      {/* DISCORD TAB */}
-      {activeTab === 'discord' && <DiscordIntegration />}
+      {/* NOTIFICATIONS TAB — Discord, ntfy */}
+      {activeTab === 'notifications' && <NotificationChannels />}
 
       {/* HOME ASSISTANT TAB */}
       {activeTab === 'homeassistant' && <HomeAssistantIntegration />}
@@ -387,7 +387,7 @@ function ReminderSettings() {
     <div>
       <Notice tone="info" icon="bell" title="Gestion des rappels d'entretien" className="mb-5">
         <p className="mb-2">
-          Les rappels partent automatiquement vers vos webhooks, en trois niveaux :
+          Les rappels partent automatiquement vers vos canaux de notification, en trois niveaux :
         </p>
         <ul className="space-y-1">
           {[
@@ -411,12 +411,12 @@ function ReminderSettings() {
             <Icon name="webhook" size={20} />
           </div>
           <p style={{ color: 'var(--text-2)' }}>
-            Aucun webhook configuré — commencez par l'onglet Discord.
+            Aucun canal configuré — commencez par l'onglet Notifications.
           </p>
         </div>
       ) : (
         <div className="card p-6 mb-6">
-          <h3 className="section-title mb-3">Webhooks actifs</h3>
+          <h3 className="section-title mb-3">Canaux configurés</h3>
           <div className="space-y-2 mb-5">
             {webhooks.map((w) => (
               <div key={w.id} className="inset flex items-center gap-2" style={{ padding: '10px 12px' }}>
@@ -428,7 +428,7 @@ function ReminderSettings() {
                   }}
                 />
                 <span className="text-sm" style={{ color: 'var(--text-2)' }}>
-                  {w.webhook_type.toUpperCase()} — {w.is_active ? 'actif' : 'inactif'}
+                  {w.webhook_type === 'ntfy' ? 'ntfy' : 'Discord'} — {w.is_active ? 'actif' : 'inactif'}
                 </span>
               </div>
             ))}
