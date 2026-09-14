@@ -59,6 +59,15 @@ NTFY_PRIORITY = {
     "ok": 2,
 }
 
+# Gotify : échelle 0–10, ≥ 8 = notification sonore, bannière sur Android.
+GOTIFY_PRIORITY = {
+    "overdue": 8,
+    "urgent": 6,
+    "warning": 4,
+    "reminder": 4,
+    "ok": 2,
+}
+
 # Tags ntfy : un nom d'émoji connu s'affiche en icône devant le titre.
 NTFY_TAGS = {
     "overdue": ["rotating_light"],
@@ -121,18 +130,29 @@ async def create_webhook(
     # Générer un token_secret unique (64 caractères, très sécurisé)
     token_secret = f"sk_live_{secrets.token_urlsafe(48)}"
     
+    auth_token = (data.auth_token or "").strip() or None
     if data.webhook_type == "ntfy":
         # Refuser tout de suite une URL sans sujet : l'erreur arriverait sinon
         # au premier rappel, des semaines plus tard, dans un log que personne
         # ne lit.
         _split_ntfy_url(data.url)
+    elif data.webhook_type == "gotify":
+        _gotify_base_url(data.url)
+        if not auth_token:
+            # Gotify n'a pas de mode ouvert : sans jeton d'application, chaque
+            # envoi rendrait 401. Autant le dire à la saisie.
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Gotify exige le jeton de l'application (Apps → Create application)",
+            )
+    else:
+        auth_token = None  # Discord : l'URL porte déjà son secret
 
     webhook = Webhook(
         user_id=current_user.id,
         url=data.url,
         webhook_type=data.webhook_type,
-        # Le jeton ne concerne que ntfy ; pour Discord il serait stocké pour rien.
-        auth_token=(data.auth_token or "").strip() or None if data.webhook_type == "ntfy" else None,
+        auth_token=auth_token,
         token_secret=token_secret,
         is_active=True,
     )
@@ -455,6 +475,32 @@ def _ntfy_request(webhook: Webhook, title: str, msg: str, status: str) -> tuple[
     }, headers
 
 
+def _gotify_base_url(url: str) -> str:
+    """« https://gotify.example/ » → « https://gotify.example ». L'utilisateur
+    colle l'adresse du serveur, pas celle de l'API : `/message` est ajouté ici."""
+    parsed = urlparse(url.strip())
+    if parsed.scheme not in ("http", "https") or not parsed.netloc:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="URL Gotify attendue sous la forme https://serveur",
+        )
+    path = parsed.path.rstrip("/")
+    if path.endswith("/message"):
+        path = path[: -len("/message")]
+    return f"{parsed.scheme}://{parsed.netloc}{path}"
+
+
+def _gotify_request(webhook: Webhook, title: str, msg: str, status: str) -> tuple[str, dict, dict]:
+    """(url, json, headers) de la publication Gotify. Le jeton d'application
+    passe en en-tête `X-Gotify-Key`, jamais en `?token=` : une query string
+    finit dans les journaux d'accès (même raison que `X-HA-Init-Key`, §4)."""
+    return f"{_gotify_base_url(webhook.url)}/message", {
+        "title": title,
+        "message": msg,
+        "priority": GOTIFY_PRIORITY.get(status, 4),
+    }, {"X-Gotify-Key": webhook.auth_token or ""}
+
+
 def _discord_request(webhook: Webhook, title: str, msg: str, status: str) -> tuple[str, dict, dict]:
     color = STATUS_COLORS_DISCORD.get(status, 0x888888)
     return webhook.url, {
@@ -477,6 +523,8 @@ async def _send_webhook_request(
     """Envoie une requête HTTP au webhook basé sur son type."""
     if webhook.webhook_type == "ntfy":
         url, payload, headers = _ntfy_request(webhook, title, msg, status)
+    elif webhook.webhook_type == "gotify":
+        url, payload, headers = _gotify_request(webhook, title, msg, status)
     else:
         url, payload, headers = _discord_request(webhook, title, msg, status)
 

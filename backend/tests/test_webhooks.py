@@ -113,9 +113,18 @@ def test_the_access_token_is_stored_but_never_returned(client, headers):
 
 def test_an_unknown_channel_type_is_refused(client, headers):
     res = client.post("/api/settings/webhooks", headers=headers, json={
-        "webhook_type": "gotify", "url": "https://gotify.example/message",
+        "webhook_type": "pushover", "url": "https://api.pushover.net/1/messages.json",
     })
     assert res.status_code == 422
+
+
+def test_gotify_requires_the_application_token(client, headers):
+    """Gotify n'a pas de mode ouvert : sans jeton, chaque envoi rendrait 401."""
+    res = client.post("/api/settings/webhooks", headers=headers, json={
+        "webhook_type": "gotify", "url": "https://gotify.example",
+    })
+    assert res.status_code == 400
+    assert "jeton" in res.json()["detail"]
 
 
 # ── Envoi ────────────────────────────────────────────────────────────────
@@ -161,6 +170,34 @@ def test_discord_still_receives_an_embed(client, headers, outbox):
     assert req["url"] == "https://discord.com/api/webhooks/1/abc"
     assert "embeds" in req["json"]
     assert req["headers"] == {}
+
+
+@pytest.mark.parametrize("url", [
+    "https://gotify.example", "https://gotify.example/", "https://gotify.example/message",
+])
+def test_gotify_posts_to_message_with_the_key_in_a_header(client, headers, outbox, url):
+    """Le jeton passe en `X-Gotify-Key`, jamais en `?token=` : une query
+    string finit dans les journaux d'accès. Et l'utilisateur peut coller
+    l'adresse du serveur avec ou sans `/message`, le résultat est le même."""
+    wid = _create(client, headers, webhook_type="gotify", url=url, auth_token="AbCd1234")
+    res = client.post(f"/api/settings/webhooks/{wid}/test", headers=headers)
+    assert res.status_code == 200, res.text
+
+    [req] = outbox.sent
+    assert req["url"] == "https://gotify.example/message"
+    assert req["headers"] == {"X-Gotify-Key": "AbCd1234"}
+    assert req["json"]["title"].startswith("[RideLog]")
+    assert req["json"]["priority"] == 4
+    assert "token" not in req["url"]
+
+
+def test_gotify_priority_rings_only_when_overdue(db_session):
+    from models import Webhook
+    from routes.webhooks import _gotify_request
+
+    webhook = Webhook(user_id=1, url="https://g", webhook_type="gotify", token_secret="x", auth_token="k")
+    assert _gotify_request(webhook, "t", "m", "overdue")[1]["priority"] == 8
+    assert _gotify_request(webhook, "t", "m", "reminder")[1]["priority"] == 4
 
 
 def test_a_rejected_delivery_is_reported_as_a_failure(client, headers, outbox):

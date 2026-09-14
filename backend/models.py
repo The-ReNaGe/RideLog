@@ -389,10 +389,10 @@ class Webhook(Base):
     id = Column(Integer, primary_key=True, index=True)
     user_id = Column(Integer, ForeignKey("users.id"), nullable=False, index=True)
     url = Column(String(500), nullable=False)
-    webhook_type = Column(String(50), default="discord")  # discord | ntfy
+    webhook_type = Column(String(50), default="discord")  # discord | ntfy | gotify
     token_secret = Column(String(64), nullable=False, unique=True, index=True)
-    # Jeton d'accès du SERVICE (ntfy : « tk_… » d'un sujet protégé). NULL pour
-    # Discord, dont l'URL porte déjà son secret. Jamais renvoyé par l'API :
+    # Jeton d'accès du SERVICE (ntfy : « tk_… » d'un sujet protégé ; Gotify :
+    # jeton de l'application). NULL pour Discord, dont l'URL porte déjà son secret. Jamais renvoyé par l'API :
     # `to_dict()` ne dit que s'il existe.
     auth_token = Column(String(255), nullable=True)
     is_active = Column(Boolean, default=True)
