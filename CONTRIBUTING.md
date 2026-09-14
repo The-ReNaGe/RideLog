@@ -125,7 +125,7 @@ RideLog/
 │   ├── security.py                 # JWT, bcrypt, rate limiting
 │   ├── schemas.py                  # Validation Pydantic
 │   ├── routes/                     # Endpoints API (auth, vehicles, maintenances...)
-│   ├── integrations/               # Discord, Home Assistant
+│   ├── integrations/               # Notifications (Discord, ntfy, Gotify), Home Assistant
 │   └── data/
 │       ├── maintenance_intervals.json  # ★ Intervalles et prix d'entretien ★
 │       ├── brands.json                 # Catégorisation marques

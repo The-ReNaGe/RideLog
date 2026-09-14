@@ -967,6 +967,7 @@ Ainsi "pont-péan", "pont pean" et "pont péan" trouvent tous "Pont-Péan" dans 
 |------|--------|-------------|
 | `discord` | Embed riche (couleur, champs, timestamp) | Message Discord — l'URL du webhook porte son secret |
 | `ntfy` | Publication JSON à la racine du serveur | Notification push (ntfy.sh ou serveur auto-hébergé) — voir ci-dessous |
+| `gotify` | `POST {serveur}/message`, jeton en `X-Gotify-Key` | Notification push, serveur auto-hébergé uniquement — voir ci-dessous |
 
 #### ntfy
 
@@ -990,18 +991,33 @@ rappel à trois mois n'a pas à faire vibrer un téléphone.
 `tk_…` d'un serveur en `auth-default-access: deny-all` — la configuration
 recommandée d'un ntfy exposé. Envoyé en `Authorization: Bearer`. **Jamais
 renvoyé par l'API** : `to_dict()` ne dit que `has_auth_token`. Le changer =
-supprimer le canal et le recréer. NULL pour Discord.
+supprimer le canal et le recréer. La même colonne porte le jeton
+d'application Gotify ; NULL pour Discord.
+
+#### Gotify
+
+L'utilisateur colle **l'adresse du serveur** (`https://gotify.example`) ;
+`_gotify_base_url()` tolère un `/message` collé par erreur et une barre
+finale. **Le jeton d'application est obligatoire** — Gotify n'a pas de mode
+ouvert, sans lui chaque envoi rendrait 401 — donc refusé en 400 à la création,
+en nommant où le trouver (Apps → Create application). Le jeton passe en
+en-tête `X-Gotify-Key`, **jamais en `?token=`** : une query string finit dans
+les journaux d'accès, même raison que `X-HA-Init-Key` (§4). Priorité
+`GOTIFY_PRIORITY` : en retard = 8 (sonore sur Android), premier rappel = 4.
+Vérifié contre un vrai serveur Gotify : jeton absent, faux, puis valide.
 
 > ⚠️ **`_send_webhook_request` appelle `raise_for_status()`.** Ce n'était pas
 > le cas : un webhook Discord supprimé (404) ou un sujet protégé sans jeton
 > (403) comptaient comme « envoyé » — le bouton Tester disait « succès » et
 > les rappels partaient dans le vide, sans une trace. Le bouton Tester
-> affiche désormais « le service a répondu 403 Forbidden ».
+> affiche désormais « le service a répondu 403 Forbidden » (ou 401 pour un
+> jeton Gotify faux).
 
 **Ajouter un service** = une entrée dans le `pattern` de `WebhookCreate`, une fonction `_xxx_request()` qui rend
 `(url, json, headers)`, et une entrée dans la table `SERVICES` de
-`NotificationChannels.jsx`. Pas d'onglet : les services sont la même chose
-pour l'utilisateur (une adresse, un bouton Tester, un interrupteur).
+`NotificationChannels.jsx` (`token: null | 'optional' | 'required'`). Pas
+d'onglet : les services sont la même chose pour l'utilisateur (une adresse,
+un bouton Tester, un interrupteur).
 
 ### Flux de notification
 
@@ -1011,7 +1027,7 @@ pour l'utilisateur (une adresse, un bouton Tester, un interrupteur).
    → Calcule les maintenances à venir
    → Détermine le tier (3=retard, 2=bientôt, 1=à prévoir)
    → Vérifie NotificationLog (déjà envoyé ?)
-   → Si nouveau : send_webhook_notification() pour chaque canal actif de l'utilisateur (Discord, ntfy)
+   → Si nouveau : send_webhook_notification() pour chaque canal actif de l'utilisateur (Discord, ntfy, Gotify)
    → Enregistre dans NotificationLog
 3. Quand l'utilisateur enregistre une maintenance :
    → clear_notification_logs_for(vehicle_id, intervention_type)
@@ -1147,7 +1163,7 @@ L'endpoint `/api/vehicles/{vid}/ha-dashboard-card` génère du YAML prêt à cop
 
 ### Fichiers concernés
 - `backend/routes/webhooks.py` → `send_webhook_notification()` — Envoi
-- `frontend/src/components/integrations/NotificationChannels.jsx` — UI : Discord **et** ntfy, un seul écran (onglet « Notifications »)
+- `frontend/src/components/integrations/NotificationChannels.jsx` — UI : Discord, ntfy et Gotify, un seul écran (onglet « Notifications »)
 
 ### Fonctionnement
 
@@ -1201,7 +1217,7 @@ frontend/src/
     ├── APIDocumentation.jsx         # Documentation API intégrée (Swagger-like)
     ├── RepairHotspotModel.jsx       # Visualisation des points chauds réparations
     └── integrations/
-        ├── NotificationChannels.jsx     # Canaux de notification : Discord, ntfy (voir §9)
+        ├── NotificationChannels.jsx     # Canaux de notification : Discord, ntfy, Gotify (voir §9)
         └── HomeAssistantIntegration.jsx # Gestion intégration HA (enable/disable/setup)
 ```
 
@@ -1290,7 +1306,7 @@ api.getMaintenanceRecap(vehicleId),  // ← chargé d'emblée pour les KPI cards
 | `maintenances` | id, vehicle_id (FK), intervention_key | Historique d'entretien. `intervention_key` fait foi pour les calculs ; `intervention_type` n'est qu'un libellé d'affichage (voir §20). `currency` = devise de saisie, NULL = suit l'instance (§20.7). `performed_by` = `pro` / `self` / NULL (§6.8) |
 | `maintenance_invoices` | id, maintenance_id (FK) | Factures jointes |
 | `fuel_logs` | id, vehicle_id (FK) | Pleins de carburant. `currency` comme ci-dessus |
-| `webhooks` | id, user_id (FK) | Canaux de notification (`webhook_type` = `discord` / `ntfy`). `auth_token` = jeton d'accès ntfy, NULL sinon, jamais renvoyé (§9) |
+| `webhooks` | id, user_id (FK) | Canaux de notification (`webhook_type` = `discord` / `ntfy` / `gotify`). `auth_token` = jeton ntfy ou Gotify, NULL pour Discord, jamais renvoyé (§9) |
 | `notification_logs` | id, vehicle_id (FK) | Log des notifications envoyées (anti-doublon) |
 | `invitations` | id, token (unique), family_id (FK, nullable) | Tokens d'invitation. `family_id` renseigné = invitation à rejoindre un groupe (voir §22) |
 | `families` | id, created_by (FK) | Groupes famille — partage en lecture (voir §22) |
@@ -1939,7 +1955,7 @@ python -m pytest tests/ -v
 | `test_regions_settings.py` | Choix du pays (`settings_store.py`, `routes/regions.py`) — France par défaut, refus d'un pays inconnu, écriture réservée à un admin, persistance **en base** et non en mémoire, et repli sur `FR` quand la base garde un pays que le code ne connaît plus (retour arrière, §21.5). |
 | `test_maintenance_routes.py` | Enregistrement d'un entretien via `TestClient` — la clé technique est stockée, deux libellés d'une même intervention partagent une clé, un libellé inconnu n'échoue pas, et l'entretien enregistré ressort bien rattaché à son échéance. Plus `performed_by` (§6.8) : stocké, facultatif, refusé hors `pro`/`self`, modifiable et effaçable, transmis en multipart. |
 | `test_maintenance_booklet.py` | Carnet d'entretien PDF (`pdf_report.py`, route `recap/booklet.pdf`) — c'est bien un PDF, l'ordre est chronologique croissant, un historique à deux devises n'est jamais additionné sous un symbole unique, le contrôle d'accès passe par `access.py` (véhicule d'autrui indiscernable d'un véhicule absent), le carnet est présent dans l'archive ZIP, le CSV nomme sa devise, un historique vide et une note contenant des chevrons ne cassent rien. Côté identité : la plaque est imprimée et normalisée (« ab123cd » → « AB-123-CD »), une plaque illisible est refusée en 400 plutôt que stockée telle quelle, un véhicule sans plaque omet la ligne, et le surnom `vehicle.name` n'apparaît jamais. La colonne « Par » imprime « Pro » / « Soi-même » et le CSV « Professionnel » (§6.8). Le texte est extrait du flux PDF, sans lecteur PDF en dépendance. |
-| `test_webhooks.py` | Canaux de notification (§9) — découpage de l'URL ntfy (sous-chemin compris), refus d'une adresse sans sujet à la création, jeton stocké mais jamais renvoyé, type inconnu refusé, publication JSON à la racine avec `Bearer`, embed Discord inchangé, priorité selon le palier, et un 403/404 du service **remonté en échec** au lieu d'un faux succès. `httpx.AsyncClient` est remplacé : aucun test ne sort sur le réseau. |
+| `test_webhooks.py` | Canaux de notification (§9) — découpage de l'URL ntfy (sous-chemin compris), refus d'une adresse sans sujet à la création, jeton stocké mais jamais renvoyé, type inconnu refusé, publication JSON à la racine avec `Bearer`, Gotify : jeton obligatoire, `POST /message` avec `X-Gotify-Key` quelle que soit la forme de l'URL collée, embed Discord inchangé, priorité selon le palier, et un 403/404 du service **remonté en échec** au lieu d'un faux succès. `httpx.AsyncClient` est remplacé : aucun test ne sort sur le réseau. |
 | `test_vehicle_status.py` | État d'entretien joint à `GET /vehicles` — présence des compteurs, accord avec `/upcoming`, et surtout : un véhicule **partagé par le groupe famille** porte le sien aussi (voir §23.9). |
 | `test_auth_integration.py` | Routes `/auth/*` et `/admin/users/*` via `TestClient` sur une DB SQLite temporaire — register/login, changement de mot de passe, reset admin, mot de passe temporaire (`must_change_password`), demande de reset anti-énumération, et non-énumération des identifiants à l'inscription (voir §4). |
 

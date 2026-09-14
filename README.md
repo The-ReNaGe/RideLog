@@ -31,7 +31,7 @@ Built for enthusiasts and small fleets alike, RideLog handles both cars and moto
 - **Fuel tracking** — refuelling history, L/100 km consumption, cost per km, yearly projections
 - **Filling station search** — real-time prices across 39,202 French communes (data from gouv.fr)
 - **Automatic reminders** — 3 notification tiers (to plan, coming up, overdue)
-- **Notifications** — Discord, or push to your phone with [ntfy](https://ntfy.sh) (ntfy.sh or self-hosted, access tokens supported)
+- **Notifications** — Discord, or push to your phone with [ntfy](https://ntfy.sh) (ntfy.sh or self-hosted) or [Gotify](https://gotify.net)
 - **Home Assistant integration** — custom component with per-vehicle sensors and Lovelace cards
 - **Planning** — monthly calendar of upcoming servicing
 - **Dashboard** — aggregated fleet statistics
@@ -190,7 +190,7 @@ configured webhooks:
 | Tier 2 | ≤ 30 days **or** ≤ 500 km | Coming up |
 | Tier 3 | Past due | Overdue |
 
-Supported channels: **Discord** (rich embed) and **ntfy** (push notification, priority follows the tier — an overdue item rings, a first reminder doesn't; protected topics via access token).
+Supported channels: **Discord** (rich embed), **ntfy** and **Gotify** (push notifications — priority follows the tier, so an overdue item rings and a first reminder doesn't; ntfy protected topics and Gotify app tokens supported).
 
 ---
 
