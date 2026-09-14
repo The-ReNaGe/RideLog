@@ -961,11 +961,47 @@ Ainsi "pont-péan", "pont pean" et "pont péan" trouvent tous "Pont-Péan" dans 
 - `backend/reminder_scheduler.py` — Déclenchement automatique
 - `backend/models.py` → `Webhook`, `NotificationLog`
 
-### Type de webhook supporté
+### Types de canal supportés
 
 | Type | Format | Description |
 |------|--------|-------------|
-| `discord` | Embed riche (couleur, champs, timestamp) | Message Discord |
+| `discord` | Embed riche (couleur, champs, timestamp) | Message Discord — l'URL du webhook porte son secret |
+| `ntfy` | Publication JSON à la racine du serveur | Notification push (ntfy.sh ou serveur auto-hébergé) — voir ci-dessous |
+
+#### ntfy
+
+L'utilisateur colle **l'adresse du sujet** (`https://ntfy.sh/mon-sujet`, ou son
+propre serveur, y compris sous un sous-chemin). `_split_ntfy_url()` la sépare
+en serveur + sujet, et refuse en **400 à la création** une adresse sans sujet :
+l'erreur tomberait sinon au premier rappel, des semaines plus tard, dans un log
+que personne ne lit.
+
+> ⚠️ **On publie par l'API JSON à la racine (`POST https://serveur` avec
+> `{topic, title, message, priority, tags}`), pas en `POST` sur l'URL du
+> sujet.** Dans la seconde forme le titre voyage dans un en-tête HTTP, où
+> « Révision fourche » n'est pas transportable sans encodage RFC 2047. En
+> JSON, l'UTF-8 passe. Vérifié contre un vrai serveur ntfy.
+
+La **priorité** suit les paliers du scheduler (`NTFY_PRIORITY`) : en retard =
+5 (alarme, passe outre le silencieux), urgent = 4, à prévoir = 3. Un premier
+rappel à trois mois n'a pas à faire vibrer un téléphone.
+
+**Sujet protégé** : `webhooks.auth_token` (migration 017) porte le jeton
+`tk_…` d'un serveur en `auth-default-access: deny-all` — la configuration
+recommandée d'un ntfy exposé. Envoyé en `Authorization: Bearer`. **Jamais
+renvoyé par l'API** : `to_dict()` ne dit que `has_auth_token`. Le changer =
+supprimer le canal et le recréer. NULL pour Discord.
+
+> ⚠️ **`_send_webhook_request` appelle `raise_for_status()`.** Ce n'était pas
+> le cas : un webhook Discord supprimé (404) ou un sujet protégé sans jeton
+> (403) comptaient comme « envoyé » — le bouton Tester disait « succès » et
+> les rappels partaient dans le vide, sans une trace. Le bouton Tester
+> affiche désormais « le service a répondu 403 Forbidden ».
+
+**Ajouter un service** = une entrée dans le `pattern` de `WebhookCreate`, une fonction `_xxx_request()` qui rend
+`(url, json, headers)`, et une entrée dans la table `SERVICES` de
+`NotificationChannels.jsx`. Pas d'onglet : les services sont la même chose
+pour l'utilisateur (une adresse, un bouton Tester, un interrupteur).
 
 ### Flux de notification
 
@@ -975,7 +1011,7 @@ Ainsi "pont-péan", "pont pean" et "pont péan" trouvent tous "Pont-Péan" dans 
    → Calcule les maintenances à venir
    → Détermine le tier (3=retard, 2=bientôt, 1=à prévoir)
    → Vérifie NotificationLog (déjà envoyé ?)
-   → Si nouveau : send_webhook_notification() pour chaque webhook Discord actif de l'utilisateur
+   → Si nouveau : send_webhook_notification() pour chaque canal actif de l'utilisateur (Discord, ntfy)
    → Enregistre dans NotificationLog
 3. Quand l'utilisateur enregistre une maintenance :
    → clear_notification_logs_for(vehicle_id, intervention_type)
@@ -986,8 +1022,8 @@ Ainsi "pont-péan", "pont pean" et "pont péan" trouvent tous "Pont-Péan" dans 
 
 | Méthode | Route | Description |
 |---------|-------|-------------|
-| GET | `/api/settings/webhooks` | Lister les webhooks |
-| POST | `/api/settings/webhooks` | Créer un webhook |
+| GET | `/api/settings/webhooks` | Lister les canaux (`has_auth_token`, jamais le jeton) |
+| POST | `/api/settings/webhooks` | Créer un canal — `{url, webhook_type, auth_token?}` |
 | DELETE | `/api/settings/webhooks/{id}` | Supprimer |
 | PUT | `/api/settings/webhooks/{id}` | Activer/désactiver |
 | POST | `/api/settings/webhooks/{id}/test` | Tester l'envoi |
@@ -1111,13 +1147,12 @@ L'endpoint `/api/vehicles/{vid}/ha-dashboard-card` génère du YAML prêt à cop
 
 ### Fichiers concernés
 - `backend/routes/webhooks.py` → `send_webhook_notification()` — Envoi
-- `frontend/src/components/integrations/DiscordIntegration.jsx` — UI configuration
-- `frontend/src/components/integrations/IntegrationsSettings.jsx` — Page container
+- `frontend/src/components/integrations/NotificationChannels.jsx` — UI : Discord **et** ntfy, un seul écran (onglet « Notifications »)
 
 ### Fonctionnement
 
 1. L'utilisateur crée un webhook Discord dans les paramètres de son serveur Discord
-2. Il colle l'URL dans RideLog (Paramètres → Intégrations → Discord)
+2. Il colle l'URL dans RideLog (Paramètres → Notifications, service « Discord »)
 3. Le scheduler envoie des embeds Discord colorés selon le tier de rappel
 4. L'utilisateur peut tester l'envoi depuis l'interface
 
@@ -1144,7 +1179,7 @@ frontend/src/
 │   ├── VehicleDetail.jsx       # Détail véhicule (onglets + KPI cards)
 │   ├── Dashboard.jsx           # Dashboard global (graphiques mensuel + annuel)
 │   ├── Planning.jsx            # Planning calendrier global
-│   ├── Settings.jsx            # Paramètres (Discord, HA, Rappels, Mode inscription)
+│   ├── Settings.jsx            # Paramètres (Notifications, HA, Rappels, Mode inscription)
 │   └── Admin.jsx               # Administration (users, invitations)
 └── components/
     ├── Icon.jsx                     # ★ Jeu d'icônes SVG maison — aucun émoji dans l'interface, voir §23 ★
@@ -1166,9 +1201,8 @@ frontend/src/
     ├── APIDocumentation.jsx         # Documentation API intégrée (Swagger-like)
     ├── RepairHotspotModel.jsx       # Visualisation des points chauds réparations
     └── integrations/
-        ├── DiscordIntegration.jsx       # Config webhook Discord
-        ├── HomeAssistantIntegration.jsx # Gestion intégration HA (enable/disable/setup)
-        └── IntegrationsSettings.jsx     # Page intégrations (tabs container)
+        ├── NotificationChannels.jsx     # Canaux de notification : Discord, ntfy (voir §9)
+        └── HomeAssistantIntegration.jsx # Gestion intégration HA (enable/disable/setup)
 ```
 
 ### Navigation
@@ -1256,7 +1290,7 @@ api.getMaintenanceRecap(vehicleId),  // ← chargé d'emblée pour les KPI cards
 | `maintenances` | id, vehicle_id (FK), intervention_key | Historique d'entretien. `intervention_key` fait foi pour les calculs ; `intervention_type` n'est qu'un libellé d'affichage (voir §20). `currency` = devise de saisie, NULL = suit l'instance (§20.7). `performed_by` = `pro` / `self` / NULL (§6.8) |
 | `maintenance_invoices` | id, maintenance_id (FK) | Factures jointes |
 | `fuel_logs` | id, vehicle_id (FK) | Pleins de carburant. `currency` comme ci-dessus |
-| `webhooks` | id, user_id (FK) | Webhooks Discord configurés |
+| `webhooks` | id, user_id (FK) | Canaux de notification (`webhook_type` = `discord` / `ntfy`). `auth_token` = jeton d'accès ntfy, NULL sinon, jamais renvoyé (§9) |
 | `notification_logs` | id, vehicle_id (FK) | Log des notifications envoyées (anti-doublon) |
 | `invitations` | id, token (unique), family_id (FK, nullable) | Tokens d'invitation. `family_id` renseigné = invitation à rejoindre un groupe (voir §22) |
 | `families` | id, created_by (FK) | Groupes famille — partage en lecture (voir §22) |
@@ -1344,11 +1378,11 @@ Le test de parité les a révélées immédiatement — elles préexistaient tou
 5. `VehicleForm.jsx` : Ajouter l'option dans le sélecteur de type
 6. `MaintenanceForm.jsx` : Ajouter une liste `STATIC_MAINTENANCE_TYPES.truck`
 
-### Ajouter un nouveau webhook type
+### Ajouter un nouveau type de canal de notification
 
-1. `routes/webhooks.py` : Ajouter la logique de formatage dans `send_webhook_notification()`
-2. `frontend/src/components/integrations/` : Créer le composant d'intégration
-3. `Settings.jsx` : Ajouter l'onglet
+Voir §9, « Ajouter un service » : une fonction `_xxx_request()` dans
+`routes/webhooks.py`, le `pattern` de `WebhookCreate`, une entrée dans
+`SERVICES` de `NotificationChannels.jsx`. **Pas d'onglet.**
 
 ### Modifier le calcul des échéances
 
@@ -1905,6 +1939,7 @@ python -m pytest tests/ -v
 | `test_regions_settings.py` | Choix du pays (`settings_store.py`, `routes/regions.py`) — France par défaut, refus d'un pays inconnu, écriture réservée à un admin, persistance **en base** et non en mémoire, et repli sur `FR` quand la base garde un pays que le code ne connaît plus (retour arrière, §21.5). |
 | `test_maintenance_routes.py` | Enregistrement d'un entretien via `TestClient` — la clé technique est stockée, deux libellés d'une même intervention partagent une clé, un libellé inconnu n'échoue pas, et l'entretien enregistré ressort bien rattaché à son échéance. Plus `performed_by` (§6.8) : stocké, facultatif, refusé hors `pro`/`self`, modifiable et effaçable, transmis en multipart. |
 | `test_maintenance_booklet.py` | Carnet d'entretien PDF (`pdf_report.py`, route `recap/booklet.pdf`) — c'est bien un PDF, l'ordre est chronologique croissant, un historique à deux devises n'est jamais additionné sous un symbole unique, le contrôle d'accès passe par `access.py` (véhicule d'autrui indiscernable d'un véhicule absent), le carnet est présent dans l'archive ZIP, le CSV nomme sa devise, un historique vide et une note contenant des chevrons ne cassent rien. Côté identité : la plaque est imprimée et normalisée (« ab123cd » → « AB-123-CD »), une plaque illisible est refusée en 400 plutôt que stockée telle quelle, un véhicule sans plaque omet la ligne, et le surnom `vehicle.name` n'apparaît jamais. La colonne « Par » imprime « Pro » / « Soi-même » et le CSV « Professionnel » (§6.8). Le texte est extrait du flux PDF, sans lecteur PDF en dépendance. |
+| `test_webhooks.py` | Canaux de notification (§9) — découpage de l'URL ntfy (sous-chemin compris), refus d'une adresse sans sujet à la création, jeton stocké mais jamais renvoyé, type inconnu refusé, publication JSON à la racine avec `Bearer`, embed Discord inchangé, priorité selon le palier, et un 403/404 du service **remonté en échec** au lieu d'un faux succès. `httpx.AsyncClient` est remplacé : aucun test ne sort sur le réseau. |
 | `test_vehicle_status.py` | État d'entretien joint à `GET /vehicles` — présence des compteurs, accord avec `/upcoming`, et surtout : un véhicule **partagé par le groupe famille** porte le sien aussi (voir §23.9). |
 | `test_auth_integration.py` | Routes `/auth/*` et `/admin/users/*` via `TestClient` sur une DB SQLite temporaire — register/login, changement de mot de passe, reset admin, mot de passe temporaire (`must_change_password`), demande de reset anti-énumération, et non-énumération des identifiants à l'inscription (voir §4). |
 
