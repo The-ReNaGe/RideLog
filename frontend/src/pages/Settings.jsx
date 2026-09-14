@@ -56,7 +56,7 @@ export default function Settings({ currentUser }) {
         ))}
       </div>
 
-      {/* NOTIFICATIONS TAB — Discord, ntfy */}
+      {/* NOTIFICATIONS TAB — Discord, ntfy, Gotify */}
       {activeTab === 'notifications' && <NotificationChannels />}
 
       {/* HOME ASSISTANT TAB */}
@@ -428,7 +428,7 @@ function ReminderSettings() {
                   }}
                 />
                 <span className="text-sm" style={{ color: 'var(--text-2)' }}>
-                  {w.webhook_type === 'ntfy' ? 'ntfy' : 'Discord'} — {w.is_active ? 'actif' : 'inactif'}
+                  {({ ntfy: 'ntfy', gotify: 'Gotify' })[w.webhook_type] || 'Discord'} — {w.is_active ? 'actif' : 'inactif'}
                 </span>
               </div>
             ))}
