@@ -1,5 +1,12 @@
 # Changelog
 
+## [2.7.1](https://github.com/The-ReNaGe/RideLog/compare/v2.7.0...v2.7.1) (2026-09-14)
+
+
+### Bug Fixes
+
+* **docker:** images reconstruites sans les CVE critiques de perl-base ([4003413](https://github.com/The-ReNaGe/RideLog/commit/400341343ee0da902871f0157d9d1b786f101f43))
+
 ## [2.7.0](https://github.com/The-ReNaGe/RideLog/compare/v2.6.0...v2.7.0) (2026-09-14)
 
 
