@@ -1,5 +1,13 @@
 # Changelog
 
+## [2.7.2](https://github.com/The-ReNaGe/RideLog/compare/v2.7.1...v2.7.2) (2026-10-06)
+
+
+### Bug Fixes
+
+* **deps:** corrige sept CVE en montant PyJWT, anyio et la chaîne FastAPI ([95becea](https://github.com/The-ReNaGe/RideLog/commit/95beceacb04fba4d10ff50f8717582d36f77a065))
+* **deps:** remet le scan de sécurité Trivy au vert ([dd8a144](https://github.com/The-ReNaGe/RideLog/commit/dd8a144d1fb029fd5d64a0ded8c388a4e30bb918))
+
 ## [2.7.1](https://github.com/The-ReNaGe/RideLog/compare/v2.7.0...v2.7.1) (2026-09-14)
 
 
