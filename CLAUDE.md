@@ -2650,6 +2650,29 @@ Deux conséquences à garder en tête :
   `trivy image --input image.tar --scanners vuln --severity CRITICAL
   --ignore-unfixed --exit-code 1`, mêmes options que le workflow.
 
+### 21.4 ter Une dépendance transitive peut porter la CVE
+
+`anyio` figure dans `requirements.txt` sans qu'aucune ligne de RideLog ne
+l'importe : c'est starlette qui l'utilise. Une CVE d'usurpation de certificat
+TLS (`CVE-2026-63374`, corrigée en 4.14.2) n'apparaissait donc **que dans le
+scan de l'image** — `trivy fs` ne lit que les versions écrites dans
+`requirements.txt`, où anyio n'était pas, tandis que `trivy image` inspecte les
+paquets réellement installés.
+
+Deux conséquences :
+
+- **Un scan `fs` vert ne dit rien du transitif.** C'est l'étape image qui fait
+  foi, et elle ne tourne pas sur une pull request (`github.event_name !=
+  'pull_request'` dans le workflow, pour ne pas scanner `:stable` qui ignore la
+  branche). Un relevé local sur l'image construite est le seul contrôle avant
+  fusion.
+- **La remonter a entraîné tout le reste.** `anyio>=4` exige
+  `starlette>=0.28`, donc un FastAPI postérieur à 0.104 : le correctif d'une
+  dépendance que personne n'importe s'est soldé par la montée de FastAPI,
+  starlette, httpx, SQLAlchemy et pydantic d'un seul lot. Épingler anyio
+  explicitement rend ce couplage visible dans le fichier plutôt qu'au prochain
+  scan.
+
 ### 21.5 Retour arrière — image **et** base
 
 Revenir à une image ancienne ne fait pas revenir la base. Le système de

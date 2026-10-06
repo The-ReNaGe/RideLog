@@ -18,7 +18,10 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 _test_db_fd, _test_db_path = tempfile.mkstemp(suffix=".db", prefix="ridelog_test_")
 os.close(_test_db_fd)
 os.environ["DATABASE_URL"] = f"sqlite:///{_test_db_path}"
-os.environ.setdefault("JWT_SECRET", "test-secret-not-for-production")
+# Au moins 32 octets : en deçà, PyJWT émet une InsecureKeyLengthWarning sur
+# chaque encodage comme sur chaque décodage, et la suite rendait 300 lignes
+# d'avertissements qui noyaient les vraies.
+os.environ.setdefault("JWT_SECRET", "test-secret-not-for-production-32b")
 os.environ.setdefault("HA_INIT_KEY", "test-ha-init-key")
 os.environ.setdefault("REMINDER_ENABLED", "false")
 
