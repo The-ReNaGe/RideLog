@@ -20,6 +20,20 @@ const motorLabels = {
 const categoryLabels = {
   accessible: 'Accessible', generalist: 'Généraliste', premium: 'Premium',
 };
+// Même seuil que `sm:` et que les règles `-phone` d'index.css.
+const PHONE_QUERY = '(max-width: 639px)';
+
+function useIsPhone() {
+  const [isPhone, setIsPhone] = useState(() => window.matchMedia(PHONE_QUERY).matches);
+  useEffect(() => {
+    const mq = window.matchMedia(PHONE_QUERY);
+    const onChange = (e) => setIsPhone(e.matches);
+    mq.addEventListener('change', onChange);
+    return () => mq.removeEventListener('change', onChange);
+  }, []);
+  return isPhone;
+}
+
 const tabs = [
   { key: 'upcoming', icon: 'clipboard', label: 'À venir' },
   { key: 'history',  icon: 'note',      label: 'Historique' },
@@ -52,6 +66,10 @@ export default function VehicleDetail({ vehicleId, onBack, currentUser }) {
   const [editSaving, setEditSaving] = useState(false);
   const [deleting, setDeleting] = useState(false);
   const photoInputRef = useRef(null);
+  // Sur téléphone, l'en-tête empile état, métriques et conseils : un bouton
+  // posé là se retrouvait à un écran entier des interventions qu'il alimente.
+  // Il descend donc juste au-dessus de la liste, et le formulaire s'ouvre là.
+  const isPhone = useIsPhone();
 
   useEffect(() => { fetchData(); }, [vehicleId]);
 
@@ -243,6 +261,34 @@ export default function VehicleDetail({ vehicleId, onBack, currentUser }) {
   }
 
   const vehicleAge = new Date().getFullYear() - vehicle.year;
+
+  // Un seul bouton et un seul formulaire, placés selon l'écran : rendre le
+  // formulaire aux deux endroits monterait deux instances qui chargent chacune
+  // le catalogue d'interventions.
+  const maintenanceButton = (
+    <button
+      onClick={() => setShowMaintenanceForm(!showMaintenanceForm)}
+      className={`btn full-phone ${showMaintenanceForm ? 'btn-secondary' : 'btn-primary'}`}
+    >
+      <Icon name={showMaintenanceForm ? 'close' : 'plus'} size={16} strokeWidth={2} />
+      {showMaintenanceForm ? 'Annuler' : 'Enregistrer une intervention'}
+    </button>
+  );
+
+  const maintenanceForm = showMaintenanceForm && (
+    <div className="card p-4 sm:p-6 mb-6">
+      <MaintenanceForm
+        vehicleId={vehicleId}
+        vehicleType={vehicle.vehicle_type}
+        displacement={vehicle.displacement}
+        rangeCategory={vehicle.range_category}
+        motorization={vehicle.motorization}
+        upcomingMaintenances={upcoming?.upcoming || []}
+        onSubmit={handleMaintenanceCreated}
+        onCancel={() => setShowMaintenanceForm(false)}
+      />
+    </div>
+  );
 
   // Un véhicule consulté via le groupe famille est en lecture seule : le
   // backend refuse toute écriture (404). On masque donc les commandes plutôt
@@ -556,15 +602,7 @@ export default function VehicleDetail({ vehicleId, onBack, currentUser }) {
                 </span>
               </div>
 
-              {canEdit && (
-                <button
-                  onClick={() => setShowMaintenanceForm(!showMaintenanceForm)}
-                  className={`btn full-phone ${showMaintenanceForm ? 'btn-secondary' : 'btn-primary'}`}
-                >
-                  <Icon name={showMaintenanceForm ? 'close' : 'plus'} size={16} strokeWidth={2} />
-                  {showMaintenanceForm ? 'Annuler' : 'Enregistrer une intervention'}
-                </button>
-              )}
+              {canEdit && !isPhone && maintenanceButton}
             </div>
 
             <div className="metrics mt-4">
@@ -598,20 +636,7 @@ export default function VehicleDetail({ vehicleId, onBack, currentUser }) {
       })()}
       </section>
 
-      {showMaintenanceForm && (
-        <div className="card p-4 sm:p-6 mb-6">
-          <MaintenanceForm
-            vehicleId={vehicleId}
-            vehicleType={vehicle.vehicle_type}
-            displacement={vehicle.displacement}
-            rangeCategory={vehicle.range_category}
-            motorization={vehicle.motorization}
-            upcomingMaintenances={upcoming?.upcoming || []}
-            onSubmit={handleMaintenanceCreated}
-            onCancel={() => setShowMaintenanceForm(false)}
-          />
-        </div>
-      )}
+      {!isPhone && maintenanceForm}
 
       {/* Conseils — et seulement des conseils.
           La recommandation « N entretiens en retard » est écartée : c'est
@@ -646,6 +671,15 @@ export default function VehicleDetail({ vehicleId, onBack, currentUser }) {
           </button>
         ))}
       </div>
+
+      {/* Téléphone : l'action au plus près des interventions. Pas sur
+          l'onglet Carburant, qui a son propre bouton d'ajout. */}
+      {isPhone && canEdit && (showMaintenanceForm || ['upcoming', 'history'].includes(activeTab)) && (
+        <>
+          <div className="mb-4">{maintenanceButton}</div>
+          {maintenanceForm}
+        </>
+      )}
 
       {/* Tab Content */}
       {activeTab === 'upcoming' && upcoming && (
