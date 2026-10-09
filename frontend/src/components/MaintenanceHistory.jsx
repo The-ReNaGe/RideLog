@@ -15,6 +15,10 @@ import {
   buildCheckedFromSubInterventions,
 } from '../lib/revisionChecklist';
 
+// Seul un contrôle technique peut exiger une contre-visite ; la clé technique
+// fait foi, pas le libellé (§20.2).
+const isInspection = (m) => !!m?.intervention_key?.startsWith('inspection_technical');
+
 export default function MaintenanceHistory({ vehicleId, vehicleType, motorization, onDataChanged, canEdit = true }) {
   const fmt = useFormat();
   const t = useT();
@@ -60,6 +64,7 @@ export default function MaintenanceHistory({ vehicleId, vehicleType, motorizatio
       cost_paid: maintenance.cost_paid || '',
       notes: maintenance.notes || '',
       performed_by: maintenance.performed_by || '',
+      counter_visit_required: !!maintenance.counter_visit_required,
     });
     setNewInvoiceFiles([]);
     setEditSubInterventions(maintenance.sub_interventions || []);
@@ -80,6 +85,9 @@ export default function MaintenanceHistory({ vehicleId, vehicleType, motorizatio
         fd.append('notes', editForm.notes);
         // Toujours envoyé, même vide : vide = revenir à « non renseigné ».
         fd.append('performed_by', editForm.performed_by || '');
+        if (isInspection(maintenance)) {
+          fd.append('counter_visit_required', editForm.counter_visit_required ? 'true' : 'false');
+        }
         newInvoiceFiles.forEach(f => fd.append('invoice_files', f));
         if (hasSubInterventions) {
           fd.append('sub_interventions', JSON.stringify(editSubInterventions));
@@ -93,6 +101,9 @@ export default function MaintenanceHistory({ vehicleId, vehicleType, motorizatio
           notes: editForm.notes,
           performed_by: editForm.performed_by || '',
         };
+        if (isInspection(maintenance)) {
+          payload.counter_visit_required = !!editForm.counter_visit_required;
+        }
         if (hasSubInterventions) {
           payload.sub_interventions = editSubInterventions;
         }
@@ -200,6 +211,17 @@ export default function MaintenanceHistory({ vehicleId, vehicleType, motorizatio
                   </div>
                 </div>
 
+                {isInspection(editingMaintenance) && (
+                  <label className="inline-flex items-center gap-2 cursor-pointer text-sm">
+                    <input
+                      type="checkbox"
+                      checked={!!editForm.counter_visit_required}
+                      onChange={e => setEditForm({ ...editForm, counter_visit_required: e.target.checked })}
+                    />
+                    {t('Contre-visite exigée')}
+                  </label>
+                )}
+
                 {/* Détail révision / freins / pneus via popup */}
                 {editingNeedsRevisionModal && (
                   <div className="inset" style={{ padding: 12 }}>
@@ -288,6 +310,9 @@ export default function MaintenanceHistory({ vehicleId, vehicleType, motorizatio
                       </h4>
                       <CategoryTag category={maintenance.maintenance_category} />
                       <PerformerTag performedBy={maintenance.performed_by} />
+                      {maintenance.counter_visit_required && (
+                        <span className="badge badge-warning">{t('Contre-visite exigée')}</span>
+                      )}
                     </div>
                     <div className="flex flex-wrap gap-x-2 gap-y-0.5 text-xs" style={{ color: 'var(--text-3)' }}>
                       <span>
