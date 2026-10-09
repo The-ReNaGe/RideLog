@@ -675,6 +675,34 @@ Calcul réglementaire du contrôle technique :
 - **Moto 2022+** : 1er CT au 5ème anniversaire, puis tous les 3 ans
 - **Voiture** : 1er CT au 4ème anniversaire + 6 mois, puis tous les 2 ans
 
+##### Contre-visite (migration 018)
+
+Un CT défavorable (défaillance majeure ou critique) exige une contre-visite
+dans un délai fixé par le pays — `counter_visit_months = 2` dans
+`regions/fr.py`. Case « Contre-visite exigée » du formulaire →
+`maintenances.counter_visit_required` (ignorée hors contrôle technique, NULL =
+non pour tout l'historique). La contre-visite s'enregistre comme une
+intervention ordinaire : « Contre-visite (contrôle technique) », clé
+`inspection_counter_visit`, présente dans les deux catalogues.
+
+Tant que le dernier CT porte la case et qu'aucune contre-visite datée du même
+jour ou après n'existe, l'échéance du CT devient **CT + 2 mois**, libellée
+« Contre-visite », avec `counter_visit_pending: true`. Elle prime sur une
+périodicité personnalisée : le délai est réglementaire.
+
+> ⚠️ **Une contre-visite favorable ne déplace pas le calendrier.** Le prochain
+> CT se compte depuis la visite **initiale**, pas depuis la contre-visite.
+
+Deux choix à ne pas défaire :
+
+- L'état « en attente » est calculé dans `build_last_maintenances_dict()`,
+  sous une entrée synthétique `COUNTER_VISIT_PENDING_KEY`. Les cinq appelants
+  du calculateur (§16) construisent déjà ce dict : aucun n'a eu à bouger.
+- `clear_notification_logs_for()` efface aussi les journaux du CT quand une
+  contre-visite est enregistrée. Les rappels de la contre-visite sont
+  journalisés sous la clé du CT ; sans ce nettoyage, ceux du CT suivant, deux
+  ans plus tard, passeraient pour des doublons et ne partiraient jamais.
+
 ### 6.3 Endpoints maintenances
 
 | Méthode | Route | Description |
@@ -1303,7 +1331,7 @@ api.getMaintenanceRecap(vehicleId),  // ← chargé d'emblée pour les KPI cards
 |-------|------|-------------|
 | `users` | id, username (unique) | Comptes utilisateurs (is_admin, is_integration_account) |
 | `vehicles` | id, user_id (FK) | Véhicules du parc. `country` = pays d'immatriculation, NULL = suit l'instance (voir §20.7). `license_plate` = plaque normalisée par la région, NULL = non renseignée |
-| `maintenances` | id, vehicle_id (FK), intervention_key | Historique d'entretien. `intervention_key` fait foi pour les calculs ; `intervention_type` n'est qu'un libellé d'affichage (voir §20). `currency` = devise de saisie, NULL = suit l'instance (§20.7). `performed_by` = `pro` / `self` / NULL (§6.8) |
+| `maintenances` | id, vehicle_id (FK), intervention_key | Historique d'entretien. `intervention_key` fait foi pour les calculs ; `intervention_type` n'est qu'un libellé d'affichage (voir §20). `currency` = devise de saisie, NULL = suit l'instance (§20.7). `performed_by` = `pro` / `self` / NULL (§6.8). `counter_visit_required` = CT défavorable, contre-visite exigée (§6.2) |
 | `maintenance_invoices` | id, maintenance_id (FK) | Factures jointes |
 | `fuel_logs` | id, vehicle_id (FK) | Pleins de carburant. `currency` comme ci-dessus |
 | `webhooks` | id, user_id (FK) | Canaux de notification (`webhook_type` = `discord` / `ntfy` / `gotify`). `auth_token` = jeton ntfy ou Gotify, NULL pour Discord, jamais renvoyé (§9) |
@@ -1956,6 +1984,7 @@ python -m pytest tests/ -v
 | `test_maintenance_routes.py` | Enregistrement d'un entretien via `TestClient` — la clé technique est stockée, deux libellés d'une même intervention partagent une clé, un libellé inconnu n'échoue pas, et l'entretien enregistré ressort bien rattaché à son échéance. Plus `performed_by` (§6.8) : stocké, facultatif, refusé hors `pro`/`self`, modifiable et effaçable, transmis en multipart. |
 | `test_maintenance_booklet.py` | Carnet d'entretien PDF (`pdf_report.py`, route `recap/booklet.pdf`) — c'est bien un PDF, l'ordre est chronologique croissant, un historique à deux devises n'est jamais additionné sous un symbole unique, le contrôle d'accès passe par `access.py` (véhicule d'autrui indiscernable d'un véhicule absent), le carnet est présent dans l'archive ZIP, le CSV nomme sa devise, un historique vide et une note contenant des chevrons ne cassent rien. Côté identité : la plaque est imprimée et normalisée (« ab123cd » → « AB-123-CD »), une plaque illisible est refusée en 400 plutôt que stockée telle quelle, un véhicule sans plaque omet la ligne, et le surnom `vehicle.name` n'apparaît jamais. La colonne « Par » imprime « Pro » / « Soi-même » et le CSV « Professionnel » (§6.8). Le texte est extrait du flux PDF, sans lecteur PDF en dépendance. |
 | `test_webhooks.py` | Canaux de notification (§9) — découpage de l'URL ntfy (sous-chemin compris), refus d'une adresse sans sujet à la création, jeton stocké mais jamais renvoyé, type inconnu refusé, publication JSON à la racine avec `Bearer`, Gotify : jeton obligatoire, `POST /message` avec `X-Gotify-Key` quelle que soit la forme de l'URL collée, embed Discord inchangé, priorité selon le palier, et un 403/404 du service **remonté en échec** au lieu d'un faux succès. `httpx.AsyncClient` est remplacé : aucun test ne sort sur le réseau. |
+| `test_counter_visit.py` | Contre-visite du CT (§6.2) — échéance à CT + 2 mois, calendrier normal sans la case, prochain CT compté depuis la visite initiale après contre-visite, retard au-delà de 2 mois, une contre-visite antérieure ne solde pas un CT plus récent, case ignorée hors CT, effaçable en `PUT`, transmise en multipart, enregistrable sur voiture et moto, et sans effet dans un pays sans contre-visite. |
 | `test_vehicle_status.py` | État d'entretien joint à `GET /vehicles` — présence des compteurs, accord avec `/upcoming`, et surtout : un véhicule **partagé par le groupe famille** porte le sien aussi (voir §23.9). |
 | `test_auth_integration.py` | Routes `/auth/*` et `/admin/users/*` via `TestClient` sur une DB SQLite temporaire — register/login, changement de mot de passe, reset admin, mot de passe temporaire (`must_change_password`), demande de reset anti-énumération, et non-énumération des identifiants à l'inscription (voir §4). |
 
@@ -2548,9 +2577,10 @@ Tests : `tests/test_currency.py`.
 
 #### Ce que ça change pour ajouter un pays
 
-`regions/xx.py` porte désormais **cinq** attributs et **trois** fonctions :
+`regions/xx.py` porte désormais **six** attributs et **trois** fonctions :
 `code`, `name`, `plate_example`, `default_language`, `default_units`,
-`default_currency`, plus `normalize_plate()`, `parse_plate_response()` et
+`default_currency`, `counter_visit_months` (`None` si le pays n'a pas de
+contre-visite), plus `normalize_plate()`, `parse_plate_response()` et
 `next_inspection_date()`. Toujours un seul fichier, et rien d'autre à toucher.
 
 ---
