@@ -222,6 +222,8 @@ export const EN = {
   'Non renseigné': 'Not specified',
   'Un professionnel': 'A professional',
   'Moi-même': 'Myself',
+  'Contre-visite exigée': 'Re-inspection required',
+  'Défaillance majeure ou critique : la contre-visite est à passer dans les 2 mois. Le prochain contrôle reste compté depuis cette visite.': 'Major or critical defect: the re-inspection must be done within 2 months. The next inspection is still counted from this visit.',
   'Professionnel': 'Professional',
   'Soi-même': 'Self',
   'Remarques': 'Notes',

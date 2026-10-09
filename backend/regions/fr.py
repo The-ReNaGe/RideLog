@@ -214,6 +214,13 @@ class _France:
     default_units = "metric"
     default_currency = "EUR"
 
+    # Un contrôle technique qui relève une défaillance majeure ou critique
+    # exige une contre-visite dans les DEUX MOIS. Tant qu'elle n'a pas eu lieu,
+    # l'échéance du véhicule n'est pas « dans deux ans » mais à cette date-là.
+    # Une contre-visite favorable ne déplace pas le calendrier : le prochain
+    # contrôle se compte toujours depuis la visite initiale.
+    counter_visit_months = 2
+
     normalize_plate = staticmethod(normalize_plate)
     next_inspection_date = staticmethod(next_inspection_date)
     parse_plate_response = staticmethod(parse_plate_response)

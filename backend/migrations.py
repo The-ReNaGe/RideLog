@@ -648,6 +648,16 @@ def _m017_webhook_auth_token(conn: Connection) -> None:
     add_column_if_missing(conn, "webhooks", "auth_token", "VARCHAR(255)")
 
 
+def _m018_maintenance_counter_visit(conn: Connection) -> None:
+    """Un contrôle technique peut exiger une contre-visite.
+
+    Sans cette information, un CT défavorable enregistré repoussait l'échéance
+    de deux ans, alors que le véhicule n'avait que deux mois pour repasser.
+    Purement additive : NULL = non, valeur de tout l'historique existant.
+    """
+    add_column_if_missing(conn, "maintenances", "counter_visit_required", "BOOLEAN")
+
+
 MIGRATIONS: list[Migration] = [
     Migration(
         1, "maintenance_category",
@@ -754,6 +764,11 @@ MIGRATIONS: list[Migration] = [
         17, "webhook_auth_token",
         _m017_webhook_auth_token,
         lambda c: has_all_columns(c, "webhooks", "auth_token"),
+    ),
+    Migration(
+        18, "maintenance_counter_visit",
+        _m018_maintenance_counter_visit,
+        lambda c: has_all_columns(c, "maintenances", "counter_visit_required"),
     ),
 ]
 

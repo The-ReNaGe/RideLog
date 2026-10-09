@@ -299,6 +299,11 @@ class Maintenance(Base):
     # une réponse honnête sur une facture de 2019. C'est la question qu'un
     # acheteur pose en premier devant un carnet (§6.7).
     performed_by = Column(String(10), nullable=True)
+    # Contrôle technique défavorable : une contre-visite est exigée. Tant
+    # qu'elle n'est pas enregistrée, l'échéance du CT devient celle de la
+    # contre-visite (délai fixé par le pays, deux mois en France). NULL et
+    # False valent « non » — tout l'historique antérieur à la migration 018.
+    counter_visit_required = Column(Boolean, nullable=True)
     created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
 
     vehicle = relationship("Vehicle", back_populates="maintenances")
@@ -319,6 +324,7 @@ class Maintenance(Base):
             "other_description": self.other_description,
             "sub_interventions": self.sub_interventions,
             "performed_by": self.performed_by,
+            "counter_visit_required": bool(self.counter_visit_required),
             "invoices": [inv.to_dict() for inv in self.invoices],
             "created_at": self.created_at.isoformat(),
         }

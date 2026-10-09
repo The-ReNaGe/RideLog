@@ -53,6 +53,9 @@ const STATIC_MAINTENANCE_TYPES = {
   ],
 };
 
+// Libellé du catalogue, à la fois affiché et envoyé à l'API (§20.5).
+const INSPECTION_LABEL = 'Contrôle technique';
+
 export default function MaintenanceForm({
   vehicleId,
   vehicleType,
@@ -73,6 +76,7 @@ export default function MaintenanceForm({
     notes: '',
     maintenance_category: 'scheduled',
     performed_by: '',
+    counter_visit_required: false,
     other_title: '',
   });
   const [invoiceFiles, setInvoiceFiles] = useState([]);
@@ -164,6 +168,9 @@ export default function MaintenanceForm({
       }
       payload.append('maintenance_category', formData.maintenance_category);
       if (formData.performed_by) payload.append('performed_by', formData.performed_by);
+      if (formData.counter_visit_required && formData.intervention_type === INSPECTION_LABEL) {
+        payload.append('counter_visit_required', 'true');
+      }
       if (formData.other_title && formData.intervention_type === 'Autre') {
         payload.append('other_description', formData.other_title);
       }
@@ -336,6 +343,24 @@ export default function MaintenanceForm({
             </select>
           </div>
         </div>
+
+        {/* Un CT défavorable ouvre un délai de contre-visite (deux mois en
+            France) : sans cette case, l'échéance partirait à deux ans. */}
+        {formData.intervention_type === INSPECTION_LABEL && (
+          <div>
+            <label className="inline-flex items-center gap-2 cursor-pointer text-sm font-medium">
+              <input
+                type="checkbox"
+                checked={formData.counter_visit_required}
+                onChange={(e) => setFormData({ ...formData, counter_visit_required: e.target.checked })}
+              />
+              {t('Contre-visite exigée')}
+            </label>
+            <p className="field-hint">
+              {t('Défaillance majeure ou critique : la contre-visite est à passer dans les 2 mois. Le prochain contrôle reste compté depuis cette visite.')}
+            </p>
+          </div>
+        )}
 
         <div>
           <label className="block text-sm font-medium mb-1">{t('Remarques')}</label>
