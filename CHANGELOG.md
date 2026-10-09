@@ -1,5 +1,21 @@
 # Changelog
 
+## [2.8.0](https://github.com/The-ReNaGe/RideLog/compare/v2.7.2...v2.8.0) (2026-10-09)
+
+
+### Features
+
+* **contrôle-technique:** ajoute la contre-visite aux interventions enregistrables ([b90fa16](https://github.com/The-ReNaGe/RideLog/commit/b90fa166c64988468f8997e23dade826031eb2e5))
+* **contrôle-technique:** fixe l'échéance à 2 mois après un contrôle qui exige une contre-visite ([a4557e2](https://github.com/The-ReNaGe/RideLog/commit/a4557e2b3d66789e47190436629bc6c7a4227013))
+* **contrôle-technique:** prend en charge la contre-visite après un contrôle défavorable ([cfe6b82](https://github.com/The-ReNaGe/RideLog/commit/cfe6b824d0a36d98c7397d32161db56bb4465e3a))
+* **historique:** signale d'un badge le contrôle technique qui a exigé une contre-visite ([069f971](https://github.com/The-ReNaGe/RideLog/commit/069f971575206ab4dbfb2dfc46423052f4119500))
+
+
+### Bug Fixes
+
+* **fiche-véhicule:** place le bouton d'intervention juste au-dessus de la liste sur téléphone ([2735590](https://github.com/The-ReNaGe/RideLog/commit/2735590f630473771bae648fe037130de82f605d))
+* **rappels:** relance les rappels du contrôle technique suivant une fois la contre-visite enregistrée ([103dbd1](https://github.com/The-ReNaGe/RideLog/commit/103dbd1295ddda90de103f81daba07718199ee63))
+
 ## [2.7.2](https://github.com/The-ReNaGe/RideLog/compare/v2.7.1...v2.7.2) (2026-10-06)
 
 
