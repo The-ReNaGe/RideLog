@@ -11,7 +11,13 @@ from fastapi import APIRouter, Depends, HTTPException, Request
 from fastapi.responses import FileResponse
 from sqlalchemy.orm import Session
 
-from maintenance_calculator import MaintenanceCalculator, get_intervention_key, build_last_maintenances_dict
+from maintenance_calculator import (
+    INSPECTION_KEYS,
+    MaintenanceCalculator,
+    build_last_maintenances_dict,
+    get_intervention_key,
+    resolve_intervention_key,
+)
 from models import User, Vehicle, Maintenance, MaintenanceInvoice, VehicleMaintenanceOverride, get_db
 from settings_store import get_active_currency, get_active_region_code
 from schemas import IntervalOverrideUpdate, CustomMaintenanceCreate
@@ -56,6 +62,20 @@ def _parse_performed_by(raw) -> Optional[str]:
             detail="performed_by doit valoir 'pro', 'self', ou rester vide",
         )
     return value
+
+
+def _parse_counter_visit(raw, intervention_key: Optional[str]) -> bool:
+    """« Contre-visite exigée », lu en JSON (booléen) comme en multipart (texte).
+
+    N'a de sens que sur un contrôle technique : ailleurs, la case est ignorée
+    plutôt que stockée, pour qu'aucune autre ligne ne puisse ouvrir une
+    échéance de contre-visite.
+    """
+    if intervention_key not in INSPECTION_KEYS:
+        return False
+    if isinstance(raw, str):
+        return raw.strip().lower() in {"1", "true", "on", "yes"}
+    return bool(raw)
 
 
 def _load_overrides(vehicle_id: int, db: Session) -> dict:
@@ -311,6 +331,7 @@ async def create_maintenance(
             "other_description": form.get("other_description"),
             "sub_interventions": sub_interventions,
             "performed_by": form.get("performed_by"),
+            "counter_visit_required": form.get("counter_visit_required"),
         }
         invoice_files = form.getlist("invoice_files") if "invoice_files" in form else []
     else:
@@ -339,10 +360,11 @@ async def create_maintenance(
     # elle qui fera foi pour les calculs d'échéance ; `intervention_type` ne
     # reste qu'un libellé d'affichage, qu'on pourra donc renommer ou traduire
     # sans détacher la ligne de son historique.
+    intervention_key = _resolve_key_for_vehicle(vehicle, data.get("intervention_type"), db)
     maintenance = Maintenance(
         vehicle_id=vehicle_id,
         intervention_type=data.get("intervention_type"),
-        intervention_key=_resolve_key_for_vehicle(vehicle, data.get("intervention_type"), db),
+        intervention_key=intervention_key,
         execution_date=execution_date,
         mileage_at_intervention=mileage,
         cost_paid=data.get("cost_paid"),
@@ -355,6 +377,9 @@ async def create_maintenance(
         other_description=data.get("other_description"),
         sub_interventions=data.get("sub_interventions"),
         performed_by=_parse_performed_by(data.get("performed_by")),
+        counter_visit_required=_parse_counter_visit(
+            data.get("counter_visit_required"), intervention_key
+        ),
     )
     db.add(maintenance)
     db.flush()
@@ -421,6 +446,8 @@ async def update_maintenance(
         # Absent du formulaire = ne pas toucher (même convention que le JSON).
         if "performed_by" in form:
             data["performed_by"] = form.get("performed_by")
+        if "counter_visit_required" in form:
+            data["counter_visit_required"] = form.get("counter_visit_required")
         raw_sub_interventions = form.get("sub_interventions")
         if raw_sub_interventions:
             try:
@@ -465,6 +492,11 @@ async def update_maintenance(
     # Champ absent = ne pas toucher, vide = effacer (revenir à « non renseigné »).
     if "performed_by" in data:
         maintenance.performed_by = _parse_performed_by(data.get("performed_by"))
+
+    if "counter_visit_required" in data:
+        maintenance.counter_visit_required = _parse_counter_visit(
+            data.get("counter_visit_required"), resolve_intervention_key(maintenance)
+        )
 
     if invoice_files:
         for file in invoice_files:

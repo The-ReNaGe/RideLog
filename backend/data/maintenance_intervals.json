@@ -182,6 +182,18 @@
           "premium": { "min": 60, "max": 80 }
         }
       },
+      "inspection_counter_visit": {
+        "name": "Contre-visite (contrôle technique)",
+        "km_interval": null,
+        "months_interval": null,
+        "forecasted": false,
+        "note": "À passer dans les 2 mois suivant un contrôle technique défavorable.",
+        "prices": {
+          "accessible": { "min": 0, "max": 30 },
+          "generalist": { "min": 0, "max": 30 },
+          "premium": { "min": 0, "max": 30 }
+        }
+      },
       "annual_service": {
         "name": "Entretien annuel",
         "km_interval": null,
@@ -499,6 +511,15 @@
             "accessible": { "min": 70, "max": 95 },
             "generalist": { "min": 85, "max": 110 },
             "premium": { "min": 95, "max": 130 }
+          }
+        },
+        "inspection_counter_visit": {
+          "name": "Contre-visite (contrôle technique)",
+          "note": "À passer dans les 2 mois suivant un contrôle technique défavorable.",
+          "prices": {
+            "accessible": { "min": 0, "max": 30 },
+            "generalist": { "min": 0, "max": 30 },
+            "premium": { "min": 0, "max": 30 }
           }
         },
         "electronic_diagnosis": {

@@ -49,6 +49,9 @@ class Region(Protocol):
     default_language: str
     default_units: str
     default_currency: str
+    # Délai de contre-visite après un CT défavorable, en mois. None = le pays
+    # ne connaît pas cette procédure, et un CT est simplement fait ou à faire.
+    counter_visit_months: int | None
 
     def normalize_plate(self, plate: str) -> str:
         """Forme canonique de la plaque, ou chaîne vide si le format est invalide."""

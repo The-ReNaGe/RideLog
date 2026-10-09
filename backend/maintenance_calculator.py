@@ -119,6 +119,7 @@ INTERVENTION_TRANSLATIONS = {
     "Révision périodique (entretien)": "periodic_service",
     "Entretien annuel": "annual_service",
     "Contrôle technique": "inspection_technical_car",
+    "Contre-visite (contrôle technique)": "inspection_counter_visit",
     
     # Fluids (moto-specific names)
     "Purge liquide de frein et embrayage": "brake_fluid",   # ancien nom — conserver pour BDD existante
@@ -132,6 +133,18 @@ INTERVENTION_TRANSLATIONS = {
     "Remplacement filtre à gasoil": "fuel_filter_diesel",
     "Remplacement filtre à essence": "fuel_filter_gasoline",
 }
+
+# Contrôle technique et contre-visite. La contre-visite est une intervention à
+# part entière — on l'enregistre comme les autres — mais elle n'a pas
+# d'échéance propre : c'est le CT défavorable qui la fait naître.
+INSPECTION_KEYS = ("inspection_technical_car", "inspection_technical_moto")
+COUNTER_VISIT_KEY = "inspection_counter_visit"
+COUNTER_VISIT_NAME = "Contre-visite (contrôle technique)"
+# Entrée synthétique de `build_last_maintenances_dict` : date du CT dont la
+# contre-visite reste à passer. Le préfixe la tient à l'écart de toute clé du
+# catalogue. Passer par ce dict, que les cinq appelants construisent déjà,
+# évite d'avoir à brancher une information de plus chez chacun d'eux (§3).
+COUNTER_VISIT_PENDING_KEY = "_counter_visit_pending"
 
 # ✋ Consommables: Excluded from "À venir" forecast because too variable
 CONSUMABLES = {
@@ -323,6 +336,12 @@ class MaintenanceCalculator:
         return get_region(region_code).next_inspection_date(
             vehicle_type, registration_date, last_inspection_date
         )
+
+    def _counter_visit_months(self, region_code: Optional[str]) -> Optional[int]:
+        """Délai de contre-visite du pays, en mois ; None s'il n'en a pas."""
+        from regions import get_region
+
+        return getattr(get_region(region_code), "counter_visit_months", None)
 
     def calculate_maintenance_status(
         self,
@@ -677,6 +696,42 @@ class MaintenanceCalculator:
                 else:
                     last_date = last_date_moto or last_date_car
 
+                # Contre-visite en attente : le dernier CT a été défavorable et
+                # aucune contre-visite n'a été enregistrée depuis. L'échéance
+                # n'est alors plus le prochain CT mais la contre-visite, dans le
+                # délai fixé par le pays. Elle prime sur une périodicité
+                # personnalisée : ce délai est réglementaire, pas un calendrier.
+                pending_since = last_maintenances.get(COUNTER_VISIT_PENDING_KEY, (None, None))[0]
+                counter_visit_months = self._counter_visit_months(region_code)
+                if pending_since and last_date and pending_since >= last_date and counter_visit_months:
+                    next_due_date = pending_since + relativedelta(months=counter_visit_months)
+                    days_remaining = (next_due_date - datetime.utcnow()).days
+                    if days_remaining < 0:
+                        status = "overdue"
+                    elif days_remaining <= 7:
+                        status = "urgent"
+                    else:
+                        status = "warning"
+                    counter_visit_info = intervals.get(COUNTER_VISIT_KEY) or {}
+                    upcoming.append({
+                        "intervention_type": counter_visit_info.get("name", COUNTER_VISIT_NAME),
+                        "intervention_key": intervention_key,
+                        "status": status,
+                        "km_remaining": 999999,
+                        "days_remaining": days_remaining,
+                        "next_due_mileage": None,
+                        "next_due_date": next_due_date.isoformat(),
+                        "km_interval": None,
+                        "months_interval": None,
+                        "condition_based": False,
+                        "never_recorded": False,
+                        "has_override": interval_info.get("has_override", False),
+                        "is_custom": False,
+                        "counter_visit_pending": True,
+                        "counter_visit_months": counter_visit_months,
+                    })
+                    continue
+
                 # Périodicité fixée à la main : elle remplace le calendrier
                 # réglementaire. Le CT n'a pas de critère kilométrique — d'où le
                 # seul `months_interval` — et sans surcharge, rien ne change :
@@ -825,8 +880,19 @@ def build_last_maintenances_dict(all_maintenances: List) -> Dict[str, Tuple[Opti
                 maintenance.execution_date, maintenance.mileage_at_intervention
             )
 
+    last_inspection = None
+    last_counter_visit_date = None
+
     for maintenance in all_maintenances:
-        remember(resolve_intervention_key(maintenance), maintenance)
+        key = resolve_intervention_key(maintenance)
+        remember(key, maintenance)
+
+        if key in INSPECTION_KEYS:
+            if last_inspection is None or maintenance.execution_date > last_inspection.execution_date:
+                last_inspection = maintenance
+        elif key == COUNTER_VISIT_KEY:
+            if last_counter_visit_date is None or maintenance.execution_date > last_counter_visit_date:
+                last_counter_visit_date = maintenance.execution_date
 
         # Sous-interventions (checklist révision) : elles stockent déjà
         # {key, name}, la clé est donc lue directement. La redériver depuis le
@@ -835,5 +901,18 @@ def build_last_maintenances_dict(all_maintenances: List) -> Dict[str, Tuple[Opti
         for sub in maintenance.sub_interventions or []:
             if isinstance(sub, dict):
                 remember(resolve_sub_intervention_key(sub), maintenance)
+
+    # Le dernier CT a exigé une contre-visite, et elle n'est pas encore
+    # enregistrée : le calculateur en fera l'échéance du CT. Une contre-visite
+    # le jour même compte, d'où le >=.
+    if (
+        last_inspection is not None
+        and getattr(last_inspection, "counter_visit_required", None)
+        and not (
+            last_counter_visit_date is not None
+            and last_counter_visit_date >= last_inspection.execution_date
+        )
+    ):
+        last_maintenances[COUNTER_VISIT_PENDING_KEY] = (last_inspection.execution_date, None)
 
     return last_maintenances

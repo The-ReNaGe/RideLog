@@ -558,7 +558,11 @@ function UpcomingRow({ item, fmt, canEdit, onEdit }) {
     hasMonths ? `${item.months_interval} mois` : null,
   ].filter(Boolean).join(' ou ');
 
-  const periodicity = hasKm || hasMonths
+  // Contre-visite en attente : l'échéance n'est pas le prochain CT mais le
+  // délai réglementaire ouvert par le contrôle défavorable.
+  const periodicity = item.counter_visit_pending
+    ? `Dans les ${item.counter_visit_months} mois suivant un contrôle défavorable`
+    : hasKm || hasMonths
     ? `Tous les ${intervalLabel}`
     : item.condition_based ? 'Selon l’usage'
     : isInspection(item.intervention_key) ? 'Calendrier réglementaire'

@@ -14,6 +14,8 @@ from datetime import datetime, timezone
 
 from models import SessionLocal, Vehicle, Maintenance, NotificationLog, VehicleMaintenanceOverride
 from maintenance_calculator import (
+    COUNTER_VISIT_KEY,
+    INSPECTION_KEYS,
     MaintenanceCalculator,
     build_last_maintenances_dict,
     resolve_intervention_key,
@@ -161,6 +163,12 @@ def clear_notification_logs_for(vehicle_id: int, maintenance, db):
     for sub in maintenance.sub_interventions or []:
         if isinstance(sub, dict):
             keys.add(resolve_sub_intervention_key(sub))
+    # La contre-visite solde l'échéance que le CT défavorable avait ouverte,
+    # et cette échéance est journalisée sous la clé du CT. Sans cela, les
+    # rappels du CT suivant, deux ans plus tard, seraient pris pour des
+    # doublons et ne partiraient jamais.
+    if COUNTER_VISIT_KEY in keys:
+        keys.update(INSPECTION_KEYS)
 
     db.query(NotificationLog).filter(
         NotificationLog.vehicle_id == vehicle_id,
