@@ -13,3 +13,8 @@ reportlab==4.5.1
 # Dépendance transitive de starlette, épinglée pour la CVE-2026-63374
 # (usurpation de certificat TLS, corrigée en 4.14.2).
 anyio==4.15.1
+# Dépendances transitives (httpx et reportlab), épinglées pour les CVE relevées
+# par le scan de l'image : certifi embarquait les racines emSign compromises
+# (GHSA-6q48-6c7w-9gw2), pillow 12.3.0 porte quatre CVE critiques corrigées en 13.0.0.
+certifi==2026.10.19
+pillow==13.0.0
