@@ -1,5 +1,14 @@
 # Changelog
 
+## [2.8.1](https://github.com/The-ReNaGe/RideLog/compare/v2.8.0...v2.8.1) (2026-10-23)
+
+
+### Bug Fixes
+
+* **deps:** corrige cinq CVE critiques de l'image backend en épinglant pillow et certifi ([89dbfd1](https://github.com/The-ReNaGe/RideLog/commit/89dbfd1450dec000686f0d5a5f5ff8e2ad41b7a6))
+* **deps:** corrige deux fuites d'en-têtes de follow-redirects lors des redirections ([581acc1](https://github.com/The-ReNaGe/RideLog/commit/581acc1b0426a14a5a3d4143bfc0fd0892bcb898))
+* **deps:** solde les CVE relevées par le scan Trivy nocturne ([14d0278](https://github.com/The-ReNaGe/RideLog/commit/14d0278ef0e39275f52ec94a850052ae5353c4c6))
+
 ## [2.8.0](https://github.com/The-ReNaGe/RideLog/compare/v2.7.2...v2.8.0) (2026-10-09)
 
 
