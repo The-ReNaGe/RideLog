@@ -1,5 +1,12 @@
 # Changelog
 
+## [2.8.2](https://github.com/The-ReNaGe/RideLog/compare/v2.8.1...v2.8.2) (2026-11-02)
+
+
+### Bug Fixes
+
+* **deps:** corrige une fuite d'informations de follow-redirects lors des redirections vers une autre origine ([cc96025](https://github.com/The-ReNaGe/RideLog/commit/cc96025753092d434813db5a7118f2c3fd503036))
+
 ## [2.8.1](https://github.com/The-ReNaGe/RideLog/compare/v2.8.0...v2.8.1) (2026-10-23)
 
 
